@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MapInfo xmlns="http://schemas.openxmlformats.org/officeDocument/2006/xmlmap">
+  <SchemaID>MapName</SchemaID>
+  <NamespaceURI>http://example.com/namespace</NamespaceURI>
+  <SchemaRef>D:\wamp\www\digitalvat\public/xmlShema.xsd</SchemaRef>
+  <RootElement>Root</RootElement>
+</MapInfo>

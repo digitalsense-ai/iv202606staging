@@ -1,0 +1,162 @@
+{
+  "menu": [
+    {
+      "name": "Dashboards",
+      "icon": "menu-icon tf-icons bx bx-home-circle",
+      "slug": "index",
+      "roles": ["super-admin","company-admin","team-user","client-user"],
+      "url": "/"       
+    },    
+    {
+      "menuHeader": "Clients"
+    },
+    {
+      "name": "Tasks",
+      "icon": "menu-icon tf-icons bx bx-customize",
+      "slug": ["tasks", "uploads", "uploads.cas", "uploads.pivs", "uploads.dda", "bulk.upload.index"],
+      "roles": ["super-admin","team-user","company-admin"],      
+      "submenu": [               
+        {
+          "name": "Uploads",
+          "slug": ["uploads", "uploads.cas", "uploads.pivs", "uploads.dda"],
+          "roles": ["super-admin","team-user","company-admin"],               
+          "submenu": [  
+            {
+              "name": "All",
+              "slug": "uploads",
+              "roles": ["super-admin","team-user","company-admin"],
+              "url": "uploads"
+            }, 
+            {
+              "name": "Cash account (GB)",
+              "slug": "uploads.cas",
+              "roles": ["super-admin","team-user","company-admin"],
+              "url": "uploads/cas"          
+            },
+            {
+              "name": "Postponed import vat statements (GB)",
+              "slug": "uploads.pivs",
+              "roles": ["super-admin","team-user","company-admin"],
+              "url": "uploads/pivs"          
+            },
+            {
+              "name": "Duty derferment (NO)",
+              "slug": "uploads.dda",
+              "roles": ["super-admin","team-user","company-admin"],
+              "url": "uploads/dda"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Upload",
+          "slug": "bulk.upload.index",
+          "roles": ["super-admin","team-user","company-admin"],     
+          "url": "bulk-upload"          
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "icon": "menu-icon tf-icons bx bx-customize",
+      "slug": "clientuser.tasks",
+      "roles": ["client-user"],
+      "notification": true,
+      "url": "/clientuser-tasks"      
+    }, 
+    {
+      "name": "Companies",
+      "icon": "menu-icon tf-icons bx bx-user-check",
+      "slug": "companies",
+      "roles": ["super-admin","team-user","company-admin","client-user"],
+      "url": "companies"
+    },    
+    {
+      "name": "Users",
+      "icon": "menu-icon tf-icons bx bx-group",
+      "slug": "users",
+      "roles": ["super-admin","company-admin"],
+      "url": "users"
+    },    
+    {
+      "menuHeader": "Other"
+    },
+    {
+      "name": "Settings",
+      "icon": "menu-icon tf-icons bx bx-cog",
+      "slug": ["settings", "stats.index", "payment.info.index", "email.templates", "taskdates.list", "mail.box.files.index", "global.search.index", "anyexcel-template.index"
+      ],
+      "roles": ["super-admin","company-admin"],
+      "submenu": [   
+        {
+          "name": "Stats",
+          "slug": "stats.index",
+          "roles": ["super-admin"],
+          "url": "stats"          
+        },     
+        {
+          "name": "Payments",
+          "slug": "payment.info.index",
+          "roles": ["super-admin","company-admin"],
+          "url": "payment-info"          
+        },
+        {
+          "name": "Email Templates",
+          "slug": "email.templates",
+          "roles": ["super-admin","company-admin"],
+          "url": "email-templates"          
+        },
+        {
+          "name": "Task Date",          
+          "slug": "taskdates.list",
+          "roles": ["super-admin","company-admin"],          
+          "url": "taskdates"      
+        },        
+        {
+          "name": "Any Excel Templates",
+          "slug": "anyexcel-template.index",
+          "roles": ["super-admin","team-user"],
+          "url": "anyexcel-template"          
+        },
+        {
+          "name": "Global Search & FTP",
+          "slug": "global.search.index",
+          "roles": ["super-admin","team-user"],
+          "url": "global-search"          
+        },
+        {
+          "name": "Mail Box Files",
+          "slug": "mail.box.files.index",
+          "roles": ["super-admin","team-user"],
+          "url": "mail-box-files"          
+        }       
+      ]
+    },
+    {
+      "name": "Compliance",
+      "icon": "menu-icon tf-icons bx bx-list-ol",
+      "slug": "compliance.user",
+      "roles": ["super-admin","company-admin"],
+      "url": "compliance-user"
+    },
+    {
+      "name": "Reminders",
+      "icon": "menu-icon tf-icons bx bx-bell",
+      "slug": ["reminder.list", "reminder.history"],
+      "roles": ["super-admin","company-admin"],
+      "submenu": [   
+        {
+          "name": "Active Reminders",
+          "slug": "reminder.list",
+          "roles": ["super-admin","company-admin"],
+          "url": "reminders"          
+        },     
+        {
+          "name": "History",
+          "slug": "reminder.history",
+          "roles": ["super-admin","company-admin"],
+          "url": "reminder-history"          
+        }
+      ]
+    }
+  ]
+}

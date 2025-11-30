@@ -1,0 +1,101 @@
+<div class="tab-pane fade {{ isset($activeSheet) ? (($activeSheet) ? 'show active' : '') : 'show active' }}" id="navs-worksheet-tab-{{ $sheet_index }}" role="tabpanel">
+    <table class="table table-bordered" id="{{ 'sheet_' . $sheet_index }}">
+    	<thead>
+    		<tr class="border-primary">
+    			<td class="text-start" colspan="{{ (count($preview[0]) + 1) }}"><h3 class="m-0">{{ $sheet_title }}</h3></td>
+    		</tr>
+    		<tr class="border-primary">
+    			<th class="text-center align-top">				    
+                    <input type="text" id="data_index_{{ $sheet_index }}" name="template[{{ $sheet_index }}][data_index]" class="form-control w-50 m-auto text-center data-index" placeholder="1" pattern="^[0-9]+$" title="Only numbers are allowed" data-sheet_index="{{ $sheet_index }}" required />
+                    <label class="form-label m-0" for="data_index">Data Starts</label>
+    			</th>
+    			@foreach($col_header as $column_index => $header)			
+    			<th class="text-center align-top">                
+                    <div class="mb-2 d-flex">
+                        <div class="d-inline-block">
+        	                <select id="mapped_column_{{ $sheet_index }}_{{ $column_index }}" name="template[{{ $sheet_index }}][columns][{{ $column_index }}][mapped_column]" class="form-select system-column" data-sheet_index="{{ $sheet_index }}" data-column_index="{{ $column_index }}">
+        						<option value="">-- Mapping --</option>
+        						@foreach($system_columns as $key => $system_column)
+        							<option value="{{ $key }}" {{ isset($columnmapping) ? (($columnmapping == $key) ? 'selected' : '') : '' }}>{{ $system_column }}</option>
+        						@endforeach         
+        					</select>
+                        </div>				                    
+
+                        <div class="d-inline-block ms-2 my-2">
+                            <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></a>
+                            <ul class="dropdown-menu dropdown-menu-end m-0 text-capitalize">
+                                <li>
+                                    <a href="javascript:;" class="dropdown-item btn-formula" id="btn_formula_{{ $sheet_index }}_{{ $column_index }}"  data-sheet_index="{{ $sheet_index }}" data-column_index="{{ $column_index }}" data-column_header="{{ $header }}" data-last_column="{{ end($col_header) }}" title="Add Formula">
+                                        <i class="bx bx-plus me-1"></i>
+                                        <span class="align-middle">Formula</span>
+                                    </a>
+                                </li>
+                                <div class="dropdown-divider"></div>
+                                <li>
+                                    <div class="dropdown-item">
+                                        <input class="form-check-input me-1 reverse-check" type="checkbox" id="reverse_check_{{ $sheet_index }}_{{ $column_index }}" name="template[{{ $sheet_index }}][{{ $column_index }}][reverse_check]">
+                                        <label class="form-check-label" for="reverse_check_{{ $sheet_index }}_{{ $column_index }}">
+                                            Reverse
+                                        </label>
+                                    </div>                               
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </th>
+                @endforeach
+            </tr>
+
+            @foreach($preview as $key => $row)
+                @if($key == 0) 
+                <tr class="border-primary">
+                    <td><label class="form-label fs-5 m-0">Formula</label></td>
+                    @foreach($row as $cell_key => $cell)                 
+                    <td id="formula_{{ $sheet_index }}_{{ $cell_key }}">
+                        <input type="hidden" name="template[{{ $sheet_index }}][columns][{{ $cell_key }}][formula]">
+                        <span></span>
+                    </td>
+                    @endforeach     
+                </tr>
+                @endif
+            @endforeach  
+
+            <tr class="border-primary">
+                <th class="text-center align-top">                
+                    <select id="sheet_name_{{ $sheet_index }}" name="template[{{ $sheet_index }}][sheet_name]" class="form-select sheet-name" required>
+                        <option value="">-- Sheet Mapping --</option>               
+                        <option value="Sales">Sales</option>
+                        <option value="Purchases">Purchases</option>
+                    </select>
+                </th>
+                @foreach($col_header as $column_index => $header)           
+                <th class="text-center align-top">
+                    <input type="hidden" name="template[{{ $sheet_index }}][columns][{{ $column_index }}][column]" value="{{ $header }}">
+                    <h4 class="m-0">{{ $header }}</h4>               
+                </th>
+                @endforeach
+            </tr>   
+        </thead>
+
+        <tbody>
+        	@foreach($preview as $key => $row)
+        		<tr>
+        			<td class="disabled">{{ ($key+1) }}</td>
+    	    		@foreach($row as $cell) 
+    			    <td class="disabled">{{ $cell }}</td>
+    			    @endforeach		
+    		    </tr>
+        	@endforeach
+
+        	<tr>
+        		<td class="text-muted text-center" colspan="{{ (count($preview[0]) + 1) }}">.....</td>
+        	</tr>
+        </tbody>
+       
+    </table>
+</div>
+<!-- <div class="divider divider-dashed divider-dark">
+  <div class="divider-text">
+    <i class="bx bx-star"></i> <i class="bx bx-star"></i> <i class="bx bx-star"></i>
+  </div>
+</div> -->

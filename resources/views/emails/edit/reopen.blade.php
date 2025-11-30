@@ -1,0 +1,1 @@
+<p>Dear {{ $data['client']['client_firstname'] }} {{ $data['client']['client_lastname'] }}</p><p>A comment {{ $data['subject'] }} has been submitted.</p><p>{!! $data['message'] !!}</p><p>Best regards</p><p>{{ $data['client']['team_user_firstname'] }}</p><p>{{ $data['client']['team_user_designation'] }}</p><p>{{ $data['app_name'] }}</p>

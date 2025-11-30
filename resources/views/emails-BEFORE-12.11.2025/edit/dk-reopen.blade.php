@@ -1,0 +1,1 @@
+<p>Kære {{ $data['client']['client_firstname'] }} {{ $data['client']['client_lastname'] }}</p><p>Kommentaren "{{ $data['subject'] }}" er blevet indsendt og genåbnet.</p><p>{!! $data['message'] !!}</p><p>Med venlig hilsen</p><p>{{ $data['client']['team_user_firstname'] }}</p><p>{{ $data['client']['team_user_designation'] }}</p><p>{{ $data['app_name'] }}</p>

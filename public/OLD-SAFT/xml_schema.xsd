@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:element name="Example-file-ny">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="innsending">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="regnskapssystemsreferanse" type="xs:string" />
+							<xs:element name="regnskapssystem">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="systemnavn" type="xs:string" />
+										<xs:element name="systemversjon" type="xs:decimal" />
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="skattegrunnlagOgBeregnetSkatt">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="skattleggingsperiode">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="periode">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="skattleggingsperiodeToMaaneder" type="xs:string" />
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="aar" type="xs:unsignedShort" />
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+							<xs:element name="fastsattMerverdiavgift" type="xs:decimal" />
+							<xs:element maxOccurs="unbounded" name="mvaSpesifikasjonslinje">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="GL-account-no." type="xs:unsignedShort" />
+										<xs:element name="GL-account-name" type="xs:string" />
+										<xs:element name="Internal-customer-no." type="xs:unsignedShort" />
+										<xs:element name="External-customer-no." type="xs:string" />
+										<xs:element name="Invoice-credit-note-no." type="xs:unsignedInt" />
+										<xs:element name="Invoice-credit-note-date" type="xs:unsignedShort" />
+										<xs:element name="Posted-text" type="xs:string" />
+										<xs:element name="mvaKode" type="xs:unsignedByte" />
+										<xs:element name="sats" type="xs:decimal" />
+										<xs:element minOccurs="0" name="grunnlagC" type="xs:decimal" />
+										<xs:element minOccurs="0" name="merverdiavgiftC" type="xs:decimal" />
+										<xs:element minOccurs="0" name="grunnlagD" type="xs:decimal" />
+										<xs:element minOccurs="0" name="merverdiavgiftD" type="xs:decimal" />
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="betalingsinformasjon" />
+				<xs:element name="skattepliktig">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="organisasjonsnummer" type="xs:unsignedInt" />
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="meldingskategori" type="xs:string" />
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

@@ -1,0 +1,57 @@
+/**
+ * Select VAT Account No.'s
+ */
+
+'use strict';
+$(function () {
+  
+  var selectVATAccountNos = document.getElementById('selectVATAccountNos');
+  selectVATAccountNos.addEventListener('show.bs.modal', function (event) {
+    
+    $("#selectVATAccountNosForm .sk-bounce").show();
+
+    $('#selectVATAccountNosForm').find('h4').hide();
+    $('#selectVATAccountNosForm').find('ul').hide();
+
+    var client_id = event.relatedTarget.dataset.id;
+   
+    console.log(client_id);
+
+    $.ajax({      
+      url: `${baseUrl}vat-accountnos/${client_id}`,
+      type: 'GET',
+      success: function (result) { 
+        console.log(result);
+        $('#selectVATAccountNosForm').find('h4').text(result.length + " VAT Account No.'s");
+
+        var li = '';        
+        $.each(result, function(key,value) {
+         
+          li += '<li class="d-inline-flex mb-3">' +   
+                    '<div class="d-flex align-items-center">' +
+                      '<div class="form-check form-check-inline">' +
+                        '<input name="chk_vataccoutno[]" class="form-check-input chk-vataccoutno" type="checkbox" value="'+ value['vat_account_no'] +'" />' +
+                      '</div>' +
+                    '</div>' +                 
+                    '<div class="d-flex justify-content-between flex-grow-1">' +
+                      '<div class="me-2">' +
+                        '<p class="mb-0">'+ value['vat_account_no'] +'</p>' +
+                        '<p class="mb-0 text-muted">'+ value['vat_account_name'] +'</p>' +
+                      '</div>' +
+                    '</div>' +                    
+                  '</li>';
+        });
+
+        $('#selectVATAccountNosForm').find('ul').append(li);
+
+        $('#selectVATAccountNosForm').find('h4').show();
+        $('#selectVATAccountNosForm').find('ul').show();
+        $("#selectVATAccountNosForm .sk-bounce").hide();
+      },
+      error: function (err) {
+        console.log(err);
+      }
+    });
+  }); 
+  
+});

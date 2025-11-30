@@ -1,0 +1,167 @@
+<div class="tab-pane fade {{ isset($active_sheet) ? (($active_sheet) ? 'show active' : '') : 'show active' }}" id="navs-anyexcel-template-preview-tab-{{ $sheet_index }}" role="tabpanel">
+    <table class="table table-bordered {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? '' : 'disabled') : '' }}" id="{{ 'sheet_' . $sheet_index }}">
+    	<thead>
+    		<tr class="border-primary border-top-0">
+    			<td class="text-start" colspan="{{ (count($preview[0]) + 1) }}">
+                    {{--<h3 class="d-inline-block m-0">{{ $sheet_title }}</h3>--}}
+                    <input type="hidden" id="sheet_title_{{ $sheet_index }}" name="template[{{ $sheet_index }}][sheet_title]" value="{{ $sheet_title }}">
+                    <div class="row">
+                        <div class="col-1 w-px-100">
+                            <label class="form-label m-0" for="template[{{ $sheet_index }}][data_index]">Data Starts</label>
+                            <input type="text" id="data_index_{{ $sheet_index }}" name="template[{{ $sheet_index }}][data_index]" class="form-control w-60 m-auto text-center data-index" placeholder="1" pattern="^[0-9]+$" title="Only numbers are allowed" data-sheet_index="{{ $sheet_index }}" value="{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? $anyexceltemplate[$sheet_index]->data_index : '') : '' }}" {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? '' : 'disabled') : '' }} required />                            
+                        </div>
+                        <div class="col-2 w-px-250 text-start">
+                            <label class="form-label m-0" for="template[{{ $sheet_index }}][sheet_name]">Sheet Mapping</label>
+                            <select id="sheet_name_{{ $sheet_index }}" name="template[{{ $sheet_index }}][sheet_name]" class="form-select sheet-name w-px-150" {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->sheet_name) ? '' : 'disabled') : '' }} required>
+                                <option value="">-- Sheet Mapping --</option>               
+                                <option value="Sales" {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->sheet_name) ? (($anyexceltemplate[$sheet_index]->sheet_name == 'Sales') ? 'selected="selected"' : '') : '') : '' }}>Sales</option>
+                                <option value="Purchases" {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->sheet_name) ? (($anyexceltemplate[$sheet_index]->sheet_name == 'Purchases') ? 'selected="selected"' : '') : '') : '' }}>Purchases</option>
+                            </select>
+                        </div>                        
+                        <div class="col-2 mt-3 py-1 w-px-250 text-start">
+                            @if($total_sheets > 1)
+                            <button type="button" class="btn {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? 'btn-outline-danger disable-sheet' : 'btn-outline-success enable-sheet') : 'btn-outline-danger disable-sheet' }}" data-sheet_index="{{ $sheet_index }}">
+                                <i class="bx bx-x me-1"></i> {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? 'Disable Sheet' : 'Enable Sheet') : 'Disable Sheet' }}
+                            </button>
+                            @endif
+                        </div>
+                    </div>                    
+                </td>
+    		</tr>
+    		<tr class="border-primary">
+    			<th class="text-center align-top">	
+                    {{--			    
+                    <input type="text" id="data_index_{{ $sheet_index }}" name="template[{{ $sheet_index }}][data_index]" class="form-control w-50 m-auto text-center data-index" placeholder="1" pattern="^[0-9]+$" title="Only numbers are allowed" data-sheet_index="{{ $sheet_index }}" required />
+                    <label class="form-label m-0" for="data_index">Data Starts</label>
+                    --}}
+                    <label class="form-label fs-5 m-0">Mapping</label>
+    			</th>
+    			@foreach($col_header as $column_index => $header)			
+    			<th class="text-center align-top">                
+                    <div class="mb-2 d-flex">
+                        <div class="d-inline-block">
+        	                <select id="mapped_column_{{ $sheet_index }}_{{ $column_index }}" name="template[{{ $sheet_index }}][columns][{{ $column_index }}][mapped_column]" class="form-select system-column w-px-150" data-sheet_index="{{ $sheet_index }}" data-column_index="{{ $column_index }}">
+        						<option value="">-- Mapping --</option>
+        						@foreach($system_columns as $key => $system_column)
+        							<option value="{{ $key }}" {{ isset($columnmapping) ? (($columnmapping == $key) ? 'selected' : '') : '' }} {{ isset($anyexceltemplate) ? (($anyexceltemplate[$sheet_index]->columns[$column_index]->mapped_column == $key) ? 'selected="selected"' : '' ) : '' }}>{{ $system_column }}</option>
+        						@endforeach         
+        					</select>
+                        </div>				                    
+
+                        <div class="d-inline-block ms-2 my-2">
+                            <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></a>
+                            <ul class="dropdown-menu dropdown-menu-end m-0 text-capitalize">
+                                <li>
+                                    <a href="javascript:;" class="dropdown-item btn-formula" id="btn_formula_{{ $sheet_index }}_{{ $column_index }}"  data-sheet_index="{{ $sheet_index }}" data-column_index="{{ $column_index }}" data-column_header="{{ $header }}" data-last_column="{{ end($col_header) }}" title="Add Formula">
+                                        <i class="bx bx-plus me-1"></i>
+                                        <span class="align-middle">Formula</span>
+                                    </a>
+                                </li>
+                                <div class="dropdown-divider"></div>
+                                <li>                                   
+                                    <div class="dropdown-item">
+                                        <input class="form-check-input me-1 chk-reverse" type="checkbox" id="chk_reverse_{{ $sheet_index }}_{{ $column_index }}" name="template[{{ $sheet_index }}][columns][{{ $column_index }}][reverse]" {{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->columns[$column_index]->reverse) ? 'checked="checked"' : '' ) : '' }}>
+                                        <label class="form-check-label" for="chk_reverse_{{ $sheet_index }}_{{ $column_index }}">
+                                            Reverse
+                                        </label>
+                                    </div>                               
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </th>
+                @endforeach
+            </tr>
+
+            @foreach($preview as $key => $row)
+                @if($key == 0)
+                    @php
+                        $_formula_tr = 'display: none;';
+
+                        foreach($row as $cell_key => $cell)
+                        {
+                            if(isset($anyexceltemplate))
+                            {
+                                if(isset($anyexceltemplate[$sheet_index]->columns[$cell_key]->formula))
+                                    $_formula_tr = '';                                
+                            }
+                        }
+                    @endphp
+                <tr class="formula-row border-primary" style="{{ $_formula_tr }}">
+                    <td><label class="form-label fs-5 m-0">Formula</label></td>
+                    @foreach($row as $cell_key => $cell)                 
+                    <td id="formula_{{ $sheet_index }}_{{ $cell_key }}">
+                        <input type="hidden" name="template[{{ $sheet_index }}][columns][{{ $cell_key }}][formula]" value="{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->columns[$cell_key]->formula) ? $anyexceltemplate[$sheet_index]->columns[$cell_key]->formula : '' ) : '' }}">
+                        <span>{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->columns[$cell_key]->formula) ? $anyexceltemplate[$sheet_index]->columns[$cell_key]->formula : '' ) : '' }}</span>
+                    </td>
+                    @endforeach     
+                </tr>
+                @endif
+            @endforeach  
+
+            <tr class="border-primary">
+                <th class="text-center align-top">
+                    {{--                
+                    <select id="sheet_name_{{ $sheet_index }}" name="template[{{ $sheet_index }}][sheet_name]" class="form-select sheet-name" required>
+                        <option value="">-- Sheet Mapping --</option>               
+                        <option value="Sales">Sales</option>
+                        <option value="Purchases">Purchases</option>
+                    </select>
+                    --}}
+                </th>
+                @foreach($col_header as $column_index => $header)           
+                <th class="text-center align-top">
+                    <input type="hidden" name="template[{{ $sheet_index }}][columns][{{ $column_index }}][column]" value="{{ $header }}">
+                    <h4 class="m-0">{{ $header }}</h4>               
+                </th>
+                @endforeach
+            </tr>   
+        </thead>
+
+        <tbody>
+        	@foreach($preview as $key => $row)
+        		<tr class="{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? ((($anyexceltemplate[$sheet_index]->data_index == ($key+1)) ? 'header-row' : '')) : '') : '' }}">
+        			<td class="{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? ((($anyexceltemplate[$sheet_index]->data_index == ($key+1)) ? 'bg-primary text-white' : 'disabled')) : '') : 'disabled' }}">{{ ($key+1) }}</td>
+    	    		@foreach($row as $cell_key => $cell) 
+                        @php
+                            $_cell_class_name = '';
+                            if(isset($anyexceltemplate))
+                            { 
+                                if(isset($anyexceltemplate[$sheet_index]->data_index))
+                                {                                 
+                                    if(
+                                        (($key + 1) >= $anyexceltemplate[$sheet_index]->data_index) && ($anyexceltemplate[$sheet_index]->columns[$cell_key]->mapped_column)
+                                    )
+                                    {
+                                        if($cell == '')
+                                            $_cell_class_name = 'bg-warning text-white';
+                                        else
+                                            $_cell_class_name = 'bg-primary text-white';
+                                    }
+                                    else
+                                        $_cell_class_name = 'disabled';
+                                }                                
+                            }
+                            else
+                                 $_cell_class_name = 'disabled';
+                        @endphp
+
+                        <td class="{{ $_cell_class_name }}">{{ $cell }}</td>
+
+    			    {{--<td class="{{ isset($anyexceltemplate) ? (isset($anyexceltemplate[$sheet_index]->data_index) ? ((((($key + 1) >= $anyexceltemplate[$sheet_index]->data_index) && ($anyexceltemplate[$sheet_index]->columns[$cell_key]->mapped_column)) ? 'bg-primary text-white' : 'disabled')) : '') : 'disabled' }}">{{ $cell }}</td>--}}
+    			    @endforeach		
+    		    </tr>
+        	@endforeach
+
+        	<tr>
+        		<td class="text-muted text-center" colspan="{{ (count($preview[0]) + 1) }}">.....</td>
+        	</tr>
+        </tbody>
+       
+    </table>
+</div>
+<!-- <div class="divider divider-dashed divider-dark">
+  <div class="divider-text">
+    <i class="bx bx-star"></i> <i class="bx bx-star"></i> <i class="bx bx-star"></i>
+  </div>
+</div> -->

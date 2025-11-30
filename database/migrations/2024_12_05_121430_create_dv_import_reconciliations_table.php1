@@ -1,0 +1,40 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('dv_import_reconciliations', function (Blueprint $table) {
+            $table->id();
+            $table->bigInteger('vat_reg_id')->unsigned();
+            $table->string('month_year');
+            $table->string('invoice_type'); 
+            $table->decimal('vat_percentage'); 
+            $table->longText('vat_amount');
+            $table->longText('net_amount');   
+            $table->string('currency_code')->nullable();
+            $table->integer('invoice_count');      
+            $table->timestamps();
+
+            $table->foreign('vat_reg_id', 'dv_import_reconciliations_vat_reg_id_fk')
+                ->references('id')
+                ->on('dv_vat_registration')
+                ->onDelete('cascade');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('dv_import_reconciliations');
+    }
+};

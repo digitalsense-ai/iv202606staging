@@ -1,0 +1,11 @@
+<property name="Item1" isnull="true" iskey="true">
+<property name="GridRow">0</property>
+<property name="FieldName">Created</property>
+<property name="IsSmart">true</property>
+<property name="ShowCriteriaInAutoFilterRow">true</property>
+<property name="FilterPopupMode">Excel</property>
+<property name="Name">Created</property>
+<property name="VisibleIndex">0</property>
+<property name="Width">120</property>
+<property name="ActualWidth">120</property>
+</property>

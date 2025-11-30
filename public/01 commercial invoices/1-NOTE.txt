@@ -1,0 +1,22 @@
+Doubt
+---------
+
+1. ALMUEGAARDEN - 692 ===> Additional Comments
+2. BYIC - consolidated-invoice-9895-2024-03-22-14-01-11 ===> references
+3. OUR UNITS - 220324 ===> Document Nos.
+4. RIEKER - 980827682MVA_CI_24802686-24803079_END ===> each line -single invoice
+5. SECOND FEMALE - IC5118 ===> each line -faktura nr.
+6. SWGA (SAND COPENHAGEN) - xShipment Invoice 138097 ===> Del. note
+
+No sales invoices 
+---------------------
+1. CM DISTRIBUTION DENMARK - Invoice 100677
+2. DESIGNERS REMIX - CD00040
+3.OMHU Copenhagen KRAM OG KLENOIDER - Commercial Invoice
+
+
+No OCR format
+--------------------
+1. AUBO - ESCANI1680187f26c10c4-8d15-4da6-a59e-7a267e6d42a2.pdf
+2. STOF - Samlefaktura 638 Norge.pdf
+3. VERNON SPORT (COMMERCIAL INVOICE ON PAGE 3) - EX0414 -doc56197220240206144006.pdf

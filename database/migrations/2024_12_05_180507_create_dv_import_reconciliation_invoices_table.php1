@@ -1,0 +1,107 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+//use Illuminate\Support\Facades\Schema;
+
+use Brokenice\LaravelMysqlPartition\Models\Partition;
+use Brokenice\LaravelMysqlPartition\Schema\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::create('dv_import_reconciliation_invoices', function (Blueprint $table) {
+            //$table->id();
+            $table->bigInteger('id');
+            $table->bigInteger('vat_reg_id')->unsigned();
+            $table->enum('invoice_type', ['sale', 'purchase']);  
+            $table->longText('invoice_id')->nullable();
+            $table->enum('tax_code', [
+                //NO
+                'DPGS', 'DPGS_CN','IMPTS', 'IMPTS_CN','IMPTGD', 
+                'IMPTGD_CN','IMPTGND', 'IMPTGND_CN','DSGS', 
+                'DSGS_CN','EXG', 'EXG_CN','EXS', 'EXS_CN',
+                //UK
+                'DPGRC', 'DPGRC_CN', 'DPSRC', 'DPSRC_CN', 
+                'DSSRC', 'DSSRC_CN', 'DSGRC', 'DSGRC_CN'
+            ])->nullable();
+            $table->date('invoice_date');
+            $table->string('invoice_no');   
+            $table->string('currency_code');   
+            $table->longText('total_net');
+            $table->decimal('vat_rate');
+            $table->longText('total_vat');
+            $table->longText('total_gross');
+            $table->string('local_currency_code')->nullable(); 
+            $table->decimal('exchange_rate')->nullable(); 
+            $table->longText('local_total_net')->nullable(); 
+            $table->longText('local_total_vat')->nullable();
+            $table->longText('local_total_gross')->nullable();
+            $table->string('n')->nullable(); 
+            $table->string('o')->nullable(); 
+            $table->string('p')->nullable(); 
+            $table->string('q')->nullable(); 
+            $table->string('c_name'); 
+            $table->string('c_vat_no')->nullable(); 
+            $table->string('c_street')->nullable(); 
+            $table->string('c_house_no')->nullable(); 
+            $table->string('c_city')->nullable(); 
+            $table->string('c_postcode')->nullable(); 
+            $table->string('c_country')->nullable(); 
+            $table->integer('disregard_invoice')->default(0); 
+            $table->bigInteger('created_by')->nullable()->unsigned();
+            $table->bigInteger('updated_by')->nullable()->unsigned();
+            $table->timestamps();
+            $table->primary(['id','invoice_date']);
+        });
+
+        // Force autoincrement of one field in composite primary key
+        Schema::forceAutoIncrement('dv_import_reconciliation_invoices', 'id');    
+
+        // Make partition by RANGE
+        Schema::partitionByRange('dv_import_reconciliation_invoices', 'YEAR(invoice_date)', [
+            new Partition('invoice_2023', Partition::RANGE_TYPE, 2024),
+            new Partition('invoice_2024', Partition::RANGE_TYPE, 2025),
+            new Partition('invoice_2025', Partition::RANGE_TYPE, 2026),
+            new Partition('invoice_2026', Partition::RANGE_TYPE, 2027),
+            new Partition('invoice_2027', Partition::RANGE_TYPE, 2028),
+            new Partition('invoice_2028', Partition::RANGE_TYPE, 2029),
+            new Partition('invoice_2029', Partition::RANGE_TYPE, 2030),
+            new Partition('invoice_2030', Partition::RANGE_TYPE, 2031),
+            new Partition('invoice_2031', Partition::RANGE_TYPE, 2032),
+            new Partition('invoice_2032', Partition::RANGE_TYPE, 2033),
+            new Partition('invoice_2033', Partition::RANGE_TYPE, 2034),
+            new Partition('invoice_2034', Partition::RANGE_TYPE, 2035),
+            new Partition('invoice_2035', Partition::RANGE_TYPE, 2036),
+            new Partition('invoice_2036', Partition::RANGE_TYPE, 2037),
+            new Partition('invoice_2037', Partition::RANGE_TYPE, 2038),
+            new Partition('invoice_2038', Partition::RANGE_TYPE, 2039),
+            new Partition('invoice_2039', Partition::RANGE_TYPE, 2040),
+            new Partition('invoice_2040', Partition::RANGE_TYPE, 2041),
+            new Partition('invoice_2041', Partition::RANGE_TYPE, 2042),
+            new Partition('invoice_2042', Partition::RANGE_TYPE, 2043),
+            new Partition('invoice_2043', Partition::RANGE_TYPE, 2044),
+            new Partition('invoice_2044', Partition::RANGE_TYPE, 2045),
+            new Partition('invoice_2045', Partition::RANGE_TYPE, 2046),
+            new Partition('invoice_2046', Partition::RANGE_TYPE, 2047),
+            new Partition('invoice_2047', Partition::RANGE_TYPE, 2048),
+            new Partition('invoice_2048', Partition::RANGE_TYPE, 2049),
+            new Partition('invoice_2049', Partition::RANGE_TYPE, 2050),
+            new Partition('invoice_2050', Partition::RANGE_TYPE, 2051)
+        ], true);
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down()
+    {
+        Schema::dropIfExists('dv_import_reconciliation_invoices');
+    }
+};

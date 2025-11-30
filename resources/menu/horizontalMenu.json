@@ -1,0 +1,51 @@
+{
+  "menu": [
+    {
+      "name": "Dashboard",
+      "icon": "menu-icon tf-icons bx bx-home-circle",
+      "slug": ["dashboard", "index"],
+      "roles": ["client-user"],
+      "notification": false,
+      "url": "/"       
+    },  
+    {
+      "name": "My Tasks",
+      "icon": "menu-icon tf-icons bx bx-customize",
+      "slug": ["uploads"],
+      "roles": ["team-user"],
+      "notification": true,
+      "url": "/uploads"      
+    }, 
+    {
+      "name": "Companies",
+      "icon": "menu-icon tf-icons bx bx-user-check",
+      "slug": ["companies", "company.show"],
+      "roles": ["team-user"],
+      "notification": false,
+      "url": "/companies"      
+    },
+    {
+      "name": "Tasks",
+      "icon": "menu-icon tf-icons bx bx-customize",
+      "slug": ["clientuser.tasks"],
+      "roles": ["client-user"],
+      "notification": true,
+      "url": "/clientuser-tasks"      
+    },
+    {
+      "name": "VAT Registration",
+      "icon": "menu-icon tf-icons bx bx-customize",
+      "slug": ["companies", "company.show"],
+      "roles": ["client-user"],
+      "notification": true,
+      "url": "/companies"      
+    },
+    {
+      "name": "Users",
+      "icon": "menu-icon tf-icons bx bx-group",
+      "slug": ["users"],
+      "roles": ["team-user"],
+      "url": "users"
+    }    
+  ]
+}

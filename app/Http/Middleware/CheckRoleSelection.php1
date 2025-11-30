@@ -1,0 +1,58 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+use Illuminate\Support\Facades\Auth;
+
+class CheckRoleSelection
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+    	// 1. Check if the user is authenticated
+        if (Auth::check()) {
+            $user = Auth::user();
+
+            // 2. Check if the user has multiple roles and if a role is NOT selected in the session
+            //    OR if they haven't selected a role AND they have *any* roles (to ensure they pick one)
+            if (
+                !$user->hasSelectedRole() && // No role selected in session
+                $user->roles->isNotEmpty()    // But the user *does* have roles assigned
+            ) {
+                // If they have only one role, maybe auto-select it?
+                if ($user->roles->count() === 1) {
+                    session(['selected_role_id' => $user->roles->first()->id]);
+                    // Optionally, persist this to the database for next session
+                    // $user->update(['current_role_id' => $user->roles->first()->id]);
+                } else {
+                    // Redirect to the role selection page
+                    // Store the intended URL so they can be redirected back after selection
+                    session(['url.intended' => $request->fullUrl()]);
+                    return redirect()->route('select.role');
+                }
+            }
+
+            // Optional: If a role is selected in the session, ensure it's still one of the user's actual roles.
+            // This prevents issues if a user's roles change mid-session.
+            if ($user->hasSelectedRole()) {
+                $selectedRoleId = session('selected_role_id');
+                if (!$user->roles->contains('id', $selectedRoleId)) {
+                    // The selected role is no longer valid for this user, force re-selection
+                    session()->forget('selected_role_id');
+                    session(['url.intended' => $request->fullUrl()]);
+                    return redirect()->route('select.role');
+                }
+            }
+        }
+
+        return $next($request);
+    }
+}
