@@ -122,11 +122,11 @@ Route::middleware([
 
         Route::get('missingirfilesindb', [TestSampleController::class, 'missingIrFilesInDatabase'])->name('missing.ir.files.in.db');
         
-        Route::get('/convert-table-index', [TestSampleController::class, 'index'])->name('convert.table.index');
-        Route::post('/convert-table', [TestSampleController::class, 'convertHtmlTableToExcel'])->name('convert.table');
+        Route::get('convert-table-index', [TestSampleController::class, 'index'])->name('convert.table.index');
+        Route::post('convert-table', [TestSampleController::class, 'convertHtmlTableToExcel'])->name('convert.table');
 
-        Route::get('/analyze-pdf', [TestSampleController::class, 'analyzepdf'])->name('analyze.pdf.index');
-        Route::post('/analyze-pdf', [TestSampleController::class, 'analyze']);
+        Route::get('analyzepdf', [TestSampleController::class, 'analyzepdf'])->name('analyze.pdf.index');
+        Route::post('analyze-pdf', [TestSampleController::class, 'analyze'])->name('analyze.pdf.post');
 
         /* -- STATISTICS -- */
         Route::get('stats-excel', [StatsController::class, 'exportToExcelStats'])->name('stats.export.excel'); 

@@ -355,7 +355,7 @@ class ApiClass
                 else
                 {
                   //EX. STATISTICAL VALUE SHOULD HAVE EkspTypeNr. 1
-                  if($eksp_type == 1)  // || $eksp_type == 3
+                  if($eksp_type == 1 || $eksp_type == 3) //3 included for BOLDLIGHT 
                     $statvalue_ex += $value;       
                 }
 

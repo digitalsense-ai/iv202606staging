@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::table('dv_reminder', function (Blueprint $table) {
             $table->string('dk_title')->after('content');
             $table->text('dk_content')->after('dk_title');
-            $table->string('period')->after('dk_content');            
+            $table->string('year')->after('dk_content');
+            $table->string('period')->after('year');
         });
     }
 

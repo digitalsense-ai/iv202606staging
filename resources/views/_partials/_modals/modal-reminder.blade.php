@@ -186,42 +186,17 @@
               </div>
 
               <div class="row">
-                {{--
                 <div class="col-2">
                   <div class="mb-3">
-                    <label class="form-label" for="no_period">NO Period</label>          
-                    <select id="no_period" class="form-select" name="no_period" required disabled="disabled">
-                      <option value="" selected="selected">Select</option>
-                      <option value="1">Jan - Feb</option>
-                      <option value="2">Mar - Apr</option>
-                      <option value="3">May - Jun</option>
-                      <option value="4">Jul - Aug</option>
-                      <option value="5">Sep - Oct</option>
-                      <option value="6">Nov - Dec</option>
+                    <label class="form-label" for="year">Year</label>          
+                    <select id="year" class="form-select" name="year" required disabled="disabled">
+                      <option value="" selected="selected">Select</option>       
+                      @for ($year = 2023; $year <= date('Y'); $year++)
+                          <option value="{{ $year }}">{{ $year }}</option>
+                      @endfor
                     </select> 
                   </div>
                 </div>
-                <div class="col-2">
-                  <div class="mb-3">
-                    <label class="form-label" for="uk_period">UK Period</label>          
-                    <select id="uk_period" class="form-select" name="uk_period" required disabled="disabled">
-                      <option value="" selected="selected">Select</option>
-                      <option value="1">Jan - Mar</option>
-                      <option value="2">Feb - Apr</option>
-                      <option value="3">Mar - May</option>
-                      <option value="4">Apr - Jun</option>
-                      <option value="5">May - Jul</option>
-                      <option value="6">Jun - Aug</option>  
-                      <option value="7">Jul - Sep</option>
-                      <option value="8">Aug - Oct</option>
-                      <option value="9">Sep - Nov</option>
-                      <option value="10">Oct - Dec</option>
-                      <option value="11">Nov - Jan</option>
-                      <option value="12">Dec - Feb</option>                    
-                    </select> 
-                  </div>
-                </div>
-                --}}
 
                 <div class="col-3">
                   <div class="mb-3">
@@ -262,9 +237,9 @@
                     </select> 
                   </div>
                 </div>
-                <div class="col-6">
+                <div class="col-4">
                   <label class="form-label" for="shortcodes">Shortcodes</label>
-                    <br>[username] <b>&nbsp;</b> [period]
+                    <br>[client_name] <b>&nbsp;</b> [period]
                 </div>
               </div>
 
@@ -290,7 +265,7 @@
               </div>
 
               <div class="mb-3" id="dk_reminder_content" style="display: none;">
-                <label class="form-label" for="content">Content</label>                     
+                <label class="form-label" for="content">Content <em class="ms-4 text-danger text-none">NOTE: Enter the content in both languages by switching the language dropdown.</em></label>                     
                 <!-- HTML Editor-->
                 <textarea name="dk_reminder_content_quill" style="display: none;" id="dk-reminder-content-quill" readonly="true"></textarea>
                 <div class="email-compose-message">                  

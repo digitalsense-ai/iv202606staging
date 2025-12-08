@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\VATRegistration;
 use App\Models\EmailNotification;
 use \App\Classes\CommonClass;
+use \App\Classes\EmailBoxApiClass;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -19,11 +20,13 @@ use App\Events\VATReturnEvent;
 class ConfirmController extends Controller
 {        
     public $commonClass;
+    public $emailBoxApiClass;
 
     public function __construct()
     {        
         $this->middleware(function ($request, $next) {           
             $this->commonClass = new CommonClass();
+            $this->emailBoxApiClass =  new EmailBoxApiClass();
             
             return $next($request);
         });
@@ -60,9 +63,18 @@ class ConfirmController extends Controller
                 $email = EmailNotification::where('message_id', $message_id)->where('email', $emailAddress)->first();
                 if($email)
                 {
-                  $email->status = 'bounced';
+                  $email->status = ($this->isAutoReply($message)) ? 'auto_reply' : 'bounced';
                   $email->bounced_on = Carbon::parse($bounce['timestamp'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
                   $email->save();
+
+                  //Forward the Auto reply email to info@intravat.com
+                  if($email->status == 'auto_reply')
+                  {
+                    $this->emailBoxApiClass->forwardAutoReplyEmail();
+
+                    $this->commonClass->addLog(NULL, 'reminder-forwared-auto-reply'); 
+                  }
+                  //Forward the Auto reply email to info@intravat.com
                 }
               }              
               break;
@@ -128,6 +140,48 @@ class ConfirmController extends Controller
         return response('OK', 200);
       }
       return response('ERROR', 400);
+    }
+
+    private function isAutoReply(array $message): bool
+    {
+      /*
+        if (!isset($message['mail']['headers'])) {
+            return false;
+        }
+
+        foreach ($message['mail']['headers'] as $header) {
+            $name = strtolower($header['name']);
+            $value = strtolower($header['value']);
+
+            // Primary auto-reply indicators
+            if ($name === 'auto-submitted' && $value === 'auto-replied') return true;
+            if ($name === 'x-auto-response-suppress') return true;
+            if ($name === 'precedence' && $value === 'auto_reply') return true;
+
+            // Secondary indicators (less strict)
+            if (str_contains($value, 'out of office')) return true;
+            if (str_contains($value, 'autoreply')) return true;
+            if (str_contains($value, 'auto-reply')) return true;
+            if (str_contains($value, 'vacation')) return true;
+        }
+
+        return false;
+      */
+
+      if (
+        ($message['eventType'] ?? null) !== 'Bounce'
+      ) {
+        return false;
+      }
+
+      $type = strtolower($message['bounce']['bounceType'] ?? '');
+      $subtype = strtolower($message['bounce']['bounceSubType'] ?? '');
+      $diagnostic = $message['bounce']['bouncedRecipients'][0]['diagnosticCode'] ?? '';
+
+      // Auto-replies in SES are always undetermined/undetermined
+      return $type === 'undetermined'
+        && $subtype === 'undetermined'
+        && empty($diagnostic);      
     }
 
     public function handleCCTracking(Request $request)

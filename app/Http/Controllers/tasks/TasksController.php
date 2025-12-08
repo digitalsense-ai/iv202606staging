@@ -66,6 +66,8 @@ class TasksController extends Controller
             $anyexcel_templates = $this->commonClass->getAnyExcelTemplates();
             /* --/ GET ANYEXCEL TEMPLATES -- */   
 
+            if($upload_file_type)
+                $this->pageSize = 100;
             /* -- GET ALL VAT REG. -- */            
             $vatregs_result = $this->commonClass->getAllVatRegQuery($this->authUser, NULL, true, $this->pageSize); //10
 
@@ -291,6 +293,9 @@ class TasksController extends Controller
         /* -- end GET ALL TASK DATES. -- */
 
         $authUser = $this->authUser;
+
+        if($pagename == 'uploadspivs' || $pagename == 'uploadscas' || $pagename == 'uploadsdda')
+            $this->pageSize = 100;
 
         if($this->clientIds)
             $vatregs_result = $this->commonClass->getAllVatRegQuery($this->authUser, $this->clientIds, true, $this->pageSize, $morepage); //10

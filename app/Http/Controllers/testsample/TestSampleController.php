@@ -434,11 +434,23 @@ class TestSampleController extends Controller
         try 
         {                             
             /* -- GET COMPLIANCE USERS CVR NUMBER -- */         
-            $result = $this->cvrApiClass->getCVRCompany('41955619');
+            //$result = $this->cvrApiClass->getCVRCompany('41955619');
+
+            $clients = Client::where('status', 1)
+                        //->where('id', 125)
+                        ->get();
+            foreach($clients as $key=>$client)
+            {                         
+                $refresh = ['client_id' => $client->id];
+                $result = $this->cvrApiClass->getCVRCompany($client->vatno, null, $refresh);
+
+                if($result)
+                    echo "CVR details updated successfully for " . $client->client_name . "<br>";
+            }
             /* --end GET COMPLIANCE USERS CVR NUMBER-- */  
         }
         catch (\Exception $e) 
-        {
+        {dd($e, $client);
             return  $e->getMessage();
         }
     }
@@ -942,6 +954,8 @@ dd($firstFile, $readcargofiles);
                             ->whereHas('client', function ($subquery) {                                        
                                 $subquery->whereIn('id', [119]);
                             })
+                            ->where('country', 'NO')
+                            ->where('service_start', '2025-11-01')
                             //->where('id', 596)                                   
                             ->get();
             //Reload IVF xml files
@@ -1847,7 +1861,7 @@ dd($firstFile, $readcargofiles);
 
         // Step 5: Decode JSON response
         $result = json_decode($resultResponse->getBody(), true);
-
+dd($result);
         // Step 6: Return result
         return $result;
 

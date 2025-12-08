@@ -8,11 +8,30 @@ use Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Carbon;
 
+use GuzzleHttp\Client as GuzzleClient;
+
 use App\Classes\CommonClass;
 use App\Models\ImportReconciliationComInvoices;
 
 class CargoDeclarationClass
 { 
+  function pdfTextLooksCorrupted($text) {
+      // 1. Check control chars
+      if (preg_match('/[\x00-\x1F\x7F]/', $text)) return true;
+
+      // 2. Too many non-letters
+      $len = strlen($text);
+      if ($len > 0) {
+          $letters = preg_match_all('/[a-zA-Z0-9]/', $text);
+          if (($letters / $len) < 0.15) return true;
+      }
+
+      // 3. Unicode anomalies
+      if (preg_match('/[ÿ�]/', $text)) return true;
+
+      return false;
+  }
+
   public function readCargoDeclarationFile($filename = NULL, $subfolder = NULL, $view = false)
     {               
         try 
@@ -30,7 +49,7 @@ class CargoDeclarationClass
             {
                 $flepath = 'CARGO-DECLARATION-FILES/';
 
-                $filename = 'N00218144-N00218163_4410022500150156.pdf';//            
+                $filename = 'xxxx.pdf';//            
 
                 $file = public_path($flepath . $filename);   
             }
@@ -43,6 +62,98 @@ class CargoDeclarationClass
             else
                 $pdftext = PdfExtract::getText($file); 
             
+            // if ($this->pdfTextLooksCorrupted($pdftext))
+            // {      
+              /*        
+              //OPEN AI
+              $endpoint = config('services.azure_form.endpoint');
+              $apiKey = config('services.azure_form.key');
+
+              if (!$endpoint || !$apiKey) {
+                  dd('Endpoint or API key missing!');
+              }
+
+              $url = $endpoint . "/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31";
+
+              // Initialize Guzzle client
+              $guzzleclient = new GuzzleClient();
+
+              // Step 1: Send the PDF to Azure
+              $response = $guzzleclient->post($url, [
+                  'headers' => [
+                      'Ocp-Apim-Subscription-Key' => $apiKey,
+                      'Content-Type' => 'application/pdf',
+                  ],
+                  'body' => file_get_contents($file),
+              ]);
+
+              // Step 2: Get operation-location header
+              $operationLocation = $response->getHeaderLine('operation-location');
+
+              // Step 3: Wait a few seconds for processing
+              sleep(3); // optional: you can implement polling for longer documents
+
+              // Step 4: Poll the operation result
+              $resultResponse = $guzzleclient->get($operationLocation, [
+                  'headers' => [
+                      'Ocp-Apim-Subscription-Key' => $apiKey,
+                  ]
+              ]);
+
+              // Step 5: Decode JSON response
+              $openairesult = json_decode($resultResponse->getBody(), true);
+
+              $pdftext = $openairesult['analyzeResult']['content'];
+              //OPEN AI
+              */
+              //LOCALHOST
+              /*
+              $flepath = 'CARGO-DECLARATION-FILES/';
+              $filename = 'analyze-pdf.htm';
+              $file = public_path($flepath . $filename);  
+              $html = file_get_contents($file);
+
+
+              // Load HTML using DOMDocument
+              $dom = new \DOMDocument();
+              libxml_use_internal_errors(true); // suppress warnings
+              $dom->loadHTML($html);
+              libxml_clear_errors();
+
+              // Find all <span class="sf-dump-key">
+              $spans = $dom->getElementsByTagName('span');
+              $contentText = '';
+
+              foreach ($spans as $span) {
+                  if ($span->getAttribute('class') === 'sf-dump-key' && trim($span->textContent) === 'content') {
+                      // The next sibling node contains the value
+                      $next = $span->nextSibling;
+
+                      // Sometimes the next sibling is text, sometimes <span class="sf-dump-str">
+                      while ($next) {
+                          if ($next->nodeType === XML_ELEMENT_NODE && strpos($next->getAttribute('class'), 'sf-dump-str') !== false) {
+                              $contentText .= $next->textContent;
+                          } elseif ($next->nodeType === XML_TEXT_NODE) {
+                              $contentText .= $next->textContent;
+                          }
+                          $next = $next->nextSibling;
+                      }
+                      break;
+                  }
+              }
+
+              // Clean up escaped \n sequences
+              $contentText = str_replace('\n', "\n", $contentText);
+
+              // Optional: remove extra whitespace
+              $contentText = trim($contentText);
+              $pdftext = $contentText;
+              */              
+              
+            //   $pdftext = '';           
+            //   echo '<span style="background-color: purple; color: white;">Garbage - PDF has no real text layer.</span><br>';
+            // }
+
             if($pdftext)       
             {      
               //get VAT reg. main with country NO for organization no. 
@@ -186,14 +297,52 @@ class CargoDeclarationClass
                   $arr_line = explode(' ', trim($line));
                   
                   foreach($arr_line as $arr_line_key => $arr_line_text)
-                  {
+                  {                    
                     if (stripos(trim($arr_line_text), "-") !== false) 
-                    {
+                    {                                                                 
                       $arr_expo_lope_no = explode('-', trim($arr_line_text));
 
                       $lope_no = trim($arr_expo_lope_no[1]);
                       $expo_no = trim($arr_expo_lope_no[0]);
-                    } //has -
+                    } //has - 
+
+                    if (preg_match('/^\d{6}$/', $expo_no))
+                    {
+
+                    }
+                    else
+                    {
+                      if (preg_match('/^\d{6}$/', $arr_line_text))                      
+                        $expo_no = trim($arr_line_text);
+                    } //expo no.   
+
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $cargo_date))
+                    {
+
+                    }
+                    else
+                    {
+                      if (preg_match('/^\d{8}$/', $arr_line_text))
+                      {
+                        $file_date = trim($arr_line_text);
+                        $file_date_year = substr($file_date, 0, 4);
+                        $file_date_month = substr($file_date, 4, 2);
+                        $file_date_date = substr($file_date, 6, 2);
+
+                        $cargo_date = str_pad($file_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_date, 2, "0", STR_PAD_LEFT);
+                        $service_date = str_pad($file_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_month, 2, "0", STR_PAD_LEFT) . '-01';
+                      }  
+                    } //date
+                    
+                    if (preg_match('/^\d{8}$/', $lope_no))
+                    {
+
+                    }
+                    else
+                    {
+                      if (preg_match('/^\d{10}$/', $arr_line_text))
+                        $lope_no = trim($arr_line_text);
+                    } //lope no. 
                   }//for 
 
                   $_next_line = $arraytext[$start_pos + 1];
@@ -754,43 +903,63 @@ class CargoDeclarationClass
               {
                 if($_search_for_fatura_list)
                 {
-                  $arr_com_invoice_nos = explode(' ', trim($arraytext[$start_pos_com_invoice]));                
-                  foreach($arr_com_invoice_nos as $key => $arr_com_invoice_no)
+                  if (stripos(trim($arraytext[$start_pos_com_invoice]), "Finansielle opplysninger og bankdata") !== false) 
                   {
-                    if (stripos(trim($arr_com_invoice_no), "Fakturanummer") !== false) 
-                    {
+                    $com_invoice_no_line = trim($arraytext[$start_pos_com_invoice + 2]);
+                    $com_invoice_no = preg_replace('/^(-)+|(-)$/', '', $com_invoice_no_line);
 
-                    }
+                    $com_invoice_date_line = trim($arraytext[$start_pos_com_invoice + 3]);   
+                    $arr_com_invoice_date = explode('.', trim($com_invoice_date_line));
+
+                    $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                    $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                    $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                    
+                    if($com_invoice_date == '')
+                      $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
                     else
-                    {
-                      if($com_invoice_no == '')
-                        $com_invoice_no = trim($arr_com_invoice_no);
-                      else
-                        $com_invoice_no .= ',' . trim($arr_com_invoice_no);
-                    }
-                  }//for FAKTURA list
-
-                  $arr_com_invoice_dates = explode(' ', trim($arraytext[$start_pos_com_invoice + 2]));                  
-                  foreach($arr_com_invoice_dates as $key => $arr_com_invoice_date_row)
+                      $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                  }
+                  else
                   {
-                    if (stripos(trim($arr_com_invoice_date_row), "Dato") !== false) 
+                    $arr_com_invoice_nos = explode(' ', trim($arraytext[$start_pos_com_invoice]));                
+                    foreach($arr_com_invoice_nos as $key => $arr_com_invoice_no)
                     {
+                      if (stripos(trim($arr_com_invoice_no), "Fakturanummer") !== false) 
+                      {
 
-                    }
-                    else
-                    {
-                      $arr_com_invoice_date = explode('.', trim($arr_com_invoice_date_row));
-
-                      $com_invoice_date_year = trim($arr_com_invoice_date[2]);
-                      $com_invoice_date_month = trim($arr_com_invoice_date[1]);
-                      $com_invoice_date_date = trim($arr_com_invoice_date[0]);
-                      
-                      if($com_invoice_date == '')
-                        $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                      }
                       else
-                        $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
-                    }
-                  }//for FAKTURA list                  
+                      {
+                        if($com_invoice_no == '')
+                          $com_invoice_no = trim($arr_com_invoice_no);
+                        else
+                          $com_invoice_no .= ',' . trim($arr_com_invoice_no);
+                      }
+                    }//for FAKTURA list
+                  
+                    $arr_com_invoice_dates = explode(' ', trim($arraytext[$start_pos_com_invoice + 2]));                  
+                    foreach($arr_com_invoice_dates as $key => $arr_com_invoice_date_row)
+                    {
+                      if (stripos(trim($arr_com_invoice_date_row), "Dato") !== false) 
+                      {
+
+                      }
+                      else
+                      {
+                        $arr_com_invoice_date = explode('.', trim($arr_com_invoice_date_row));
+
+                        $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                        $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                        $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                        
+                        if($com_invoice_date == '')
+                          $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                        else
+                          $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                      }
+                    }//for FAKTURA list 
+                  }                 
                 } //FAKTURA list
                 else
                 {

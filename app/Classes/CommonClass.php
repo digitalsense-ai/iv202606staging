@@ -1058,7 +1058,7 @@ class CommonClass
                                 WHEN dv_email_notifications.status = "delivered" THEN "warning" 
                                 WHEN dv_email_notifications.status = "opened" THEN "success"
                                 WHEN dv_email_notifications.status = "clicked" THEN "success"
-                                WHEN dv_email_notifications.status = "bounced" THEN "danger"
+                                WHEN (dv_email_notifications.status = "bounced" OR dv_email_notifications.status = "auto_reply") THEN "danger"
                                 WHEN dv_email_notifications.status = "sent" THEN "primary"
                                 WHEN dv_email_notifications.status = "pending" THEN "warning"
                                 WHEN dv_email_notifications.status = "complaint" THEN "danger"                      
@@ -1069,7 +1069,7 @@ class CommonClass
                                 WHEN dv_email_notifications.status = "delivered" THEN delivered_on
                                 WHEN dv_email_notifications.status = "opened" THEN opened_on
                                 WHEN dv_email_notifications.status = "clicked" THEN clicked_on
-                                WHEN dv_email_notifications.status = "bounced" THEN bounced_on                                
+                                WHEN (dv_email_notifications.status = "bounced" OR dv_email_notifications.status = "auto_reply") THEN bounced_on                                
                                 WHEN (dv_email_notifications.status = "sent" OR dv_email_notifications.status = "pending") THEN 
                                 (CASE WHEN (sent_on IS NULL) THEN dv_email_notifications.created_at ELSE sent_on END)
                                 WHEN dv_email_notifications.status = "complaint" THEN complaint_on           
@@ -1084,6 +1084,8 @@ class CommonClass
                                 WHEN dv_email_notifications.send_type = "cc" THEN "CC Email clicked" ELSE "Email clicked" END)
                                 WHEN dv_email_notifications.status = "bounced" THEN (CASE                         
                                 WHEN dv_email_notifications.send_type = "cc" THEN "CC Email bounced" ELSE "Email bounced" END)
+                                WHEN dv_email_notifications.status = "auto_reply" THEN (CASE                         
+                                WHEN dv_email_notifications.send_type = "cc" THEN "CC Email bounced (Auto-reply)" ELSE "Email bounced (Auto-reply)" END)
                                 WHEN dv_email_notifications.status = "sent" THEN (CASE                         
                                 WHEN dv_email_notifications.send_type = "cc" THEN "CC Email sent" ELSE "Email sent" END)
                                 WHEN dv_email_notifications.status = "pending" THEN (CASE                         
@@ -1105,7 +1107,7 @@ class CommonClass
                                 WHEN dv_email_notifications.status = "clicked" THEN 
                                   CONCAT_WS("", dv_email_notifications.name, " - <a href=\"mailto:", dv_email_notifications.email, "\">", dv_email_notifications.email, "</a><br>Email clicked, ", DATE_FORMAT(dv_email_notifications.clicked_on, "%d-%m-%Y"), "<br><br>", dv_email_notifications.name, " - <a href=\"mailto:", dv_email_notifications.email, "\">", dv_email_notifications.email, "</a><br>Email opened, ", DATE_FORMAT(dv_email_notifications.opened_on, "%d-%m-%Y"), "<br><br>",dv_email_notifications.name, " - <a href=\"mailto:", dv_email_notifications.email, "\">", dv_email_notifications.email, "</a><br>Email delivered, ", DATE_FORMAT(dv_email_notifications.delivered_on, "%d-%m-%Y"))
 
-                                WHEN dv_email_notifications.status = "bounced" THEN 
+                                WHEN (dv_email_notifications.status = "bounced" OR dv_email_notifications.status = "auto_reply") THEN 
                                   CONCAT_WS("", dv_email_notifications.name, " - <a href=\"mailto:", dv_email_notifications.email, "\">", dv_email_notifications.email, "</a><br>Email bounced, ", DATE_FORMAT(dv_email_notifications.bounced_on, "%d-%m-%Y"))
 
                                 WHEN dv_email_notifications.status = "sent" THEN 
@@ -4404,7 +4406,10 @@ class CommonClass
             break;   
           case "reminder-history":
             Log::info($authUserName . " viewed reminder histories.");
-            break;                    
+            break; 
+          case "reminder-forwared-auto-reply":
+            Log::info("Forwarded reminder auto-reply email to info@intravat.com.");
+            break;                      
           /*end REMINDER TASKS*/
 
           /*FILE UPLOAD*/
@@ -8860,6 +8865,7 @@ class CommonClass
         $_content = $reminder->content;
         $_dk_content = $reminder->dk_content;
 
+        $_year = $reminder->year;
         $_period = $reminder->period;
         
         /* -- GET VAT REG. MAIN -- */
@@ -9125,43 +9131,116 @@ class CommonClass
                 'attachment' => [], 
                 'align' => 'left'
               ];
+                            
+              $reminderuser_client_users = UserClient::with(['client'])->where('user_id', $reminderuser->user_id)->get();
               
-              $mailsent = $this->SendEmail($data,$send_to,$_action_name);
+              foreach($reminderuser_client_users as $reminderuser_client_user)
+              {                
+                $clientname_final_title = str_replace(
+                  array(
+                    "[client_name]"
+                  ),
+                  array(
+                    $reminderuser_client_user->client->client_name
+                  ),           
+                "[client_name] - " . $final_title);
+                $data['subject'] = $clientname_final_title;
 
-              if($mailsent)            
-              {
-                $return_msg++;
+                $clientname_final_content = str_replace(
+                  array(
+                    "[client_name]"
+                  ),
+                  array(
+                    $reminderuser_client_user->client->client_name
+                  ),  
+                $final_content);
+                $data['message'] = (($_vatreg_folder == "general reminder") ? '' : ($_vatreg_folder . "<br>")) . $clientname_final_content;
 
-                $email_headers = $mailsent->getOriginalMessage()->getHeaders();
-                $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
-                if ($message_id)
+                $mailsent = $this->SendEmail($data,$send_to,$_action_name);
+
+                if($mailsent)            
                 {
-                  $email_sent_to = $email_headers->getHeaderBody('To');
-                  $email_sent_subject = $email_headers->getHeaderBody('Subject');
+                  $return_msg++;
 
-                  if($dvuser != "")             
-                    $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
-                  else             
-                    $uname = $authUser->firstname . ' ' . $authUser->lastname;
-                 
-                  if(empty($vat_reg_ids))
+                  $email_headers = $mailsent->getOriginalMessage()->getHeaders();
+                  $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
+                  if ($message_id)
                   {
-                    if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                    $email_sent_to = $email_headers->getHeaderBody('To');
+                    $email_sent_subject = $email_headers->getHeaderBody('Subject');
+
+                    if($dvuser != "")             
+                      $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
+                    else             
+                      $uname = $authUser->firstname . ' ' . $authUser->lastname;
+                   
+                    if(empty($vat_reg_ids))
                     {
-                      $emailNotification = new EmailNotification;
-                      $emailNotification->vat_reg_id = NULL; 
-                      $emailNotification->message_id = $message_id;   
-                      $emailNotification->subject = $email_sent_subject;                   
-                      $emailNotification->name = $uname;            
-                      $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
-                      $emailNotification->sent_by = $authUser->user_id;
-                      $emailNotification->reminder_action_id = $_action_id;
-                      
-                      $emailNotification->save();
+                      if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                      {
+                        $period_month = str_replace(
+                          array(
+                            "no_1",
+                            "no_2",
+                            "no_3",
+                            "no_4",
+                            "no_5",
+                            "no_6",
+                            "uk_1",
+                            "uk_2",
+                            "uk_3",
+                            "uk_4",
+                            "uk_5",
+                            "uk_6",
+                            "uk_7",
+                            "uk_8",
+                            "uk_9",
+                            "uk_10",
+                            "uk_11",
+                            "uk_12"
+                          ),
+                          array(
+                            '01',
+                            '03',
+                            '05',
+                            '07',
+                            '09',
+                            '11',
+                            '01',
+                            '02',
+                            '03',
+                            '04',
+                            '05',
+                            '06',
+                            '07',
+                            '08',
+                            '09',
+                            '10',
+                            '11',
+                            '12'
+                          ),           
+                        $_period);
+
+                        $vatreg = VATRegistration::with(['client'])
+                                    ->where('client_id', $reminderuser_client_user->client->id)
+                                    ->where('service_start', $_year . '-' . $period_month . '-01')
+                                    ->first();
+
+                        $emailNotification = new EmailNotification;
+                        $emailNotification->vat_reg_id = ($vatreg) ? $vatreg->id : NULL; 
+                        $emailNotification->message_id = $message_id;   
+                        $emailNotification->subject = $email_sent_subject;                   
+                        $emailNotification->name = $uname;            
+                        $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
+                        $emailNotification->sent_by = $authUser->user_id;
+                        $emailNotification->reminder_action_id = $_action_id;
+                        
+                        $emailNotification->save();
+                      }
                     }
-                  }
-                }              
-              }
+                  }              
+                }
+              } //for user clients
             } //for loop
           }
           

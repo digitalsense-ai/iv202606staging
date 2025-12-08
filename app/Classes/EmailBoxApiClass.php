@@ -191,7 +191,7 @@ class EmailBoxApiClass
 
       foreach($email_lists as $key => $email)
       {
-        if($email != 'info@intravat.cloud' && $email != 'import@intravat.cloud')
+        if($email != 'info@intravat.cloud' && $email != 'import@intravat.cloud' && $email != 'notifications@intravat.cloud')
         {
           echo "Email: " . htmlspecialchars($email) . "<br>"; 
 
@@ -532,4 +532,150 @@ class EmailBoxApiClass
     }
   }
   /* --end READ EMAIL FOR CARGO DECLARATION FILES -- */  
+
+  /* -- FORWARD EMAIL TO info@intravat.com -- */  
+  public function forwardAutoReplyEmail()
+  {
+    try 
+    {           
+      $email = 'notifications@intravat.cloud';     
+      
+      $config = [
+          'host'          => 'box.intravat.cloud',
+          'port'          => '993',
+          'encryption'    => 'ssl',
+          'validate_cert' => true,
+          'username'      => $email,
+          'password'      => 'pjXT7vTESHgh',
+          'protocol'      => 'imap',
+          'fetch'         => [
+              'fetch'  => 'Fast',
+              'search' => 'UNSEEN',
+          ],
+      ];
+
+      // Connect to the IMAP server                   
+      $mailboxclient = MailBoxClient::make($config);
+
+      //Connect to the IMAP Server
+      $mailboxclient->connect();
+
+      //Get all Mailboxes
+      /** @var \Webklex\PHPIMAP\Support\FolderCollection $folders */
+      $folders = $mailboxclient->getFolders();
+      
+      //Loop through every Mailbox
+      /** @var \Webklex\PHPIMAP\Folder $folder */
+      foreach($folders as $folder)
+      {
+        if(strtoupper($folder->name) == 'INBOX' || strtoupper($folder->name) == 'SPAM')//SPAM ARCHIVE      
+        {
+          //Get all Messages of the current Mailbox $folder
+          /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
+          try
+          {            
+            $query = $folder->query();
+
+            $retryCount = 0;
+            $maxRetries = 3;
+            $chunk_size = 10;
+            $start_chunk = 1;
+
+            do {
+              // echo "-------------------------------------" . $retryCount . "***". $start_chunk . "-------------------------------------<br>";
+                try {
+                  
+                  /** @var \Webklex\PHPIMAP\Query\WhereQuery $query */              
+                  $query->unflagged()->fetchOrderAsc()->chunked(function($messages, $chunk) {
+                      /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
+                      
+                      if ($messages->isEmpty()) {
+                          Log::info("Empty response received. Skipping chunk #$chunk");
+                          return;
+                      }
+                   
+                      $messages->each(function($message) {
+                        $move_message = 0;
+                        /** @var \Webklex\PHPIMAP\Message $message */
+                            
+                        $subject = $message->getSubject();
+                        $decoded_subject = $subject ? iconv_mime_decode($subject, ICONV_MIME_DECODE_STRICT, 'UTF-8') : null;
+
+                        //echo ' -- SUBJECT: ' . $decoded_subject . "<br>";  
+
+                        if (
+                            stripos($decoded_subject, "auto response") !== false ||
+                            stripos($decoded_subject, "auto-reply") !== false ||
+                            stripos($decoded_subject, "out of office") !== false ||
+                            stripos($decoded_subject, "autoreply") !== false
+                        ) {
+                            Log::info("FORWARDING AUTO-REPLY...");
+
+                            try {
+                                // Extract message body
+                                $htmlBody = $message->getHTMLBody() ?? '';
+                                $textBody = $message->getTextBody() ?? '';
+
+                                // Forward using Laravel Mail
+                                \Mail::send(new \App\Mail\ForwardAutoReply(
+                                    $decoded_subject,
+                                    $htmlBody,
+                                    $textBody
+                                ));
+
+                                Log::info("FORWARDED SUCCESSFULLY");
+
+                                // OPTIONAL: Move the email to another folder
+                                // $message->move('Processed');
+
+                                // Delete the message
+                                $message->delete();
+                                Log::info("DELETED from mailbox");
+
+                            } catch (\Exception $e) {
+                                Log::error("Auto-reply forward failed: " . $e->getMessage());
+                            }
+                        }// FORWARD ONLY AUTO RESPONSE EMAILS                        
+                      });//chunck message                      
+                  }, $chunk_size, $start_chunk);
+                  break;  // Exit loop if the query is successful
+                } catch (\Exception $e) {
+                  Log::info($e->getMessage() . "<br>");                  
+                    if (++$retryCount >= $maxRetries) {
+                        dd("Max retries reached. Giving up.");
+                        break;
+                    }
+                    // Wait before retrying
+                    sleep(2);
+                }
+            } while ($retryCount < $maxRetries);
+          }
+          catch (\Exception $e) 
+          {        
+            dd($e);
+            $errorMessage = $e->getMessage(); 
+
+            return $errorMessage;  
+          }
+        } //INBOX folder
+      } //Loop through every Mailbox  
+
+      // At the end of folder
+      //$folder->expunge();     
+    }
+    catch (\Exception $e) 
+    {
+      dd($e);
+      if($e->getResponse())   
+      {           
+        $response = $e->getResponse();
+        $response_data = $response->getBody()->getContents();
+
+        return  $response_data;
+      }
+      else
+        return $e->getMessage();
+    }
+  }
+  /* --end FORWARD EMAIL TO info@intravat.com -- */  
 }

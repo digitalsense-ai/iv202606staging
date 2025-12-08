@@ -148,9 +148,30 @@
       <!-- Reminder users-->          
       @if($reminder_users)
         <div class="col-sm-12" id="reminder_reminder_users">
-          <label class="form-label" for="send-to-reminder">Reminder users</label>
-          <span class="alert-primary text-end fs-tiny p-1 mx-2 reminder-user-count" style="display: none;"></span>
-        
+
+          <div class="row">
+            <div class="col-sm-3">
+              <label class="form-label" for="send-to-reminder">Reminder users</label>
+              <span class="alert-primary text-end fs-tiny p-1 mx-2 reminder-user-count" style="display: none;"></span>
+            </div>
+
+            <div class="col-sm-9">
+              <div class="form-check custom-option custom-option-basic border-0 float-end">
+                <div class="d-inline-block align-center px-3 mx-3 fw-normal">Select All</div>
+
+                <div class="d-inline-block">
+                  <label class="switch form-check-label custom-option-content text-end px-3 fs-big" for="send-to-reminder-all">
+                   <input class="form-check-input switch-input send-to-reminder-all" type="checkbox" id="send-to-reminder-all" />
+                    <span class="switch-toggle-slider right-3">
+                      <span class="switch-on"></span>
+                      <span class="switch-off"></span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           @php                                                         
             $unique_reminder_user_ids = [];                    
           @endphp
@@ -201,7 +222,7 @@
                               </div>
 
                               <div class="d-inline-block w-25 align-top">
-                                <span class="h6">{{ $client_name }}</span>
+                                <span class="h6">{{ ($client_id == '0') ? 'All' : $client_name }}</span>
                               </div>
                             </div>
 

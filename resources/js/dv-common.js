@@ -5,6 +5,26 @@
 'use strict';
 
 $(function () {      
+  const periodmap = {
+              "no_1": "january-february",
+              "no_2": "march-april",
+              "no_3": "may-june",
+              "no_4": "july-august",
+              "no_5": "september-october",
+              "no_6": "november-december",
+              "uk_1": "january-february-march",
+              "uk_2": "february-march-april",
+              "uk_3": "march-april-may",
+              "uk_4": "april-may-june",
+              "uk_5": "may-june-july",
+              "uk_6": "june-july-august",
+              "uk_7": "july-august-september",
+              "uk_8": "august-september-october",
+              "uk_9": "september-october-november",
+              "uk_10": "october-november-december",
+              "uk_11": "november-december-january",
+              "uk_12": "december-january-february"
+          };
 
   $(document).on("show.bs.modal", ".modal-file", function(event) { 
     // Init custom option check
@@ -931,10 +951,19 @@ $(function () {
               }); 
             });
           }
-                      
+                    
+          // Sort keys: longest first
+          const keys = Object.keys(periodmap).sort((a, b) => b.length - a.length);
+
+          const regex = new RegExp(keys.join("|"), "g");
+
+          let period_text = reminder['period'].replace(regex, m => periodmap[m])
+                              .replace(/\b[a-z]/g, c => c.toUpperCase());             
+          
           reminder_datas.push({                             
             'id' : reminder['id'],
             'fake_id' : reminder_start,
+            'country' : reminder['reminder_country'], 
             'title' : reminder['title'], 
             'users' : reminder_users,
             //'client' : client['client_name'],          
@@ -943,6 +972,8 @@ $(function () {
             'vatregmain' : vat_country + " " + vat_start_date + " " + vat_general_periods,
             'reminder_action' : reminderactionoption['action_name'],
             'schedule' : reminder['schedule'],
+            'period' : reminder['period'],
+            'period_text' : (period_text) ? period_text : '-',
             'start_at' : moment(reminder['start_at']).format('DD-MM-YYYY hh:mm A'),
             'status' : parseInt(reminder['status'])
           });
@@ -1031,10 +1062,19 @@ $(function () {
           }
                
           if(reminder['reminderhistory'].length > 0)  
-          {            
+          {     
+            // Sort keys: longest first
+            const keys = Object.keys(periodmap).sort((a, b) => b.length - a.length);
+
+            const regex = new RegExp(keys.join("|"), "g");
+
+            let period_text = reminder['period'].replace(regex, m => periodmap[m])
+                                .replace(/\b[a-z]/g, c => c.toUpperCase());
+
             reminder_history_datas.push({                             
               'id' : reminder['id'],
               'fake_id' : reminder_history_start,
+              'country' : reminder['reminder_country'], 
               'title' : reminder['title'], 
               'users' : reminder_users,
               //'client' : client['client_name'],          
@@ -1043,6 +1083,8 @@ $(function () {
               'vatregmain' : vat_country + " " + vat_start_date + " " + vat_general_periods,
               'reminder_action' : reminderactionoption['action_name'],
               'schedule' : reminder['schedule'],
+              'period' : reminder['period'],
+              'period_text' : (period_text) ? period_text : '-',
               'start_at' : moment(reminder['start_at']).format('DD-MM-YYYY hh:mm A'),
               'status' : parseInt(reminder['status']),
               'histories' : reminder_histories,

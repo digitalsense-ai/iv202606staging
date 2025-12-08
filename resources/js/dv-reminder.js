@@ -99,9 +99,11 @@ $(function () {
       columns: [
         // columns according to JSON
         { data: 'id' },
+        { data: 'country' },
         { data: 'title' },
         { data: 'reminder_action' },
         { data: 'schedule' },
+        { data: 'period_text' },
         { data: 'start_at' },
         { data: 'user' },        
         { data: 'vat_reg_main' },
@@ -136,8 +138,18 @@ $(function () {
         //   }
         // },
         {
-          // Title
+          // Country
           targets: 1,          
+          width: "5%",   
+          render: function (data, type, full, meta) {
+            var $country = full['country'];
+            
+            return '<span>' + $country + '</span>';
+          }
+        },
+        {
+          // Title
+          targets: 2,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $title = full['title'];
@@ -147,7 +159,7 @@ $(function () {
         },
         {
           // Reminder action
-          targets: 2,          
+          targets: 3,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $reminder_action = full['reminder_action'];
@@ -157,7 +169,7 @@ $(function () {
         },
         {
           // Schedule
-          targets: 3,          
+          targets: 4,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $schedule = full['schedule'];
@@ -166,8 +178,18 @@ $(function () {
           }
         },
         {
+          // Period
+          targets: 5,          
+          width: "10%",   
+          render: function (data, type, full, meta) {
+            var $period_text = full['period_text'];
+            
+            return '<span>' + $period_text + '</span>';
+          }
+        },
+        {
           // Start At
-          targets: 4,          
+          targets: 6,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $start_at = full['start_at'];
@@ -177,7 +199,7 @@ $(function () {
         },
         {
           // User name and email
-          targets: 5,
+          targets: 7,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -207,7 +229,7 @@ $(function () {
         },
         {
           // Vat Reg.
-          targets: 6,
+          targets: 8,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -280,7 +302,7 @@ $(function () {
               text: '<i class="bx bx-printer me-2" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [1, 2, 3, 4, 5, 6],
+                columns: [1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be print
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -317,7 +339,7 @@ $(function () {
               text: '<i class="bx bx-file me-2" ></i>Csv',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [1, 2, 3, 4, 5, 6],
+                columns: [1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -341,7 +363,7 @@ $(function () {
               text: '<i class="bx bxs-file-export me-2"></i>Excel',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [1, 2, 3, 4, 5, 6],
+                columns: [1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -365,7 +387,7 @@ $(function () {
               text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [1, 2, 3, 4, 5, 6],
+                columns: [1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -389,7 +411,7 @@ $(function () {
               text: '<i class="bx bx-copy me-2" ></i>Copy',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [1, 2, 3, 4, 5, 6],
+                columns: [1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -469,9 +491,11 @@ $(function () {
       columns: [
         // columns according to JSON
         { data: 'id' },
+        { data: 'country' },
         { data: 'title' },
         // { data: 'reminder_action' },
         // { data: 'schedule' },
+        { data: 'period_text' },
         { data: 'start_at' },
         { data: 'users' },        
         { data: 'vat_reg_main' },
@@ -506,8 +530,18 @@ $(function () {
         //   }
         // },
         {
-          // Title
+          // Country
           targets: 1,          
+          width: "5%",   
+          render: function (data, type, full, meta) {
+            var $country = full['country'];
+            
+            return '<span>' + $country + '</span>';
+          }
+        },
+        {
+          // Title
+          targets: 2,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $title = full['title'];
@@ -516,8 +550,18 @@ $(function () {
           }
         },
         {
+          // Period
+          targets: 3,          
+          width: "10%",   
+          render: function (data, type, full, meta) {
+            var $period_text = full['period_text'];
+            
+            return '<span>' + $period_text + '</span>';
+          }
+        },
+        {
           // Start At
-          targets: 2,          
+          targets: 4,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $start_at = full['start_at'];
@@ -527,7 +571,7 @@ $(function () {
         },
         {
           // User name and email
-          targets: 3,
+          targets: 5,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -557,7 +601,7 @@ $(function () {
         },
         {
           // Vat Reg.
-          targets: 4,
+          targets: 6,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -584,7 +628,7 @@ $(function () {
         },  
         {
           // Sent at
-          targets: 5,
+          targets: 7,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -666,7 +710,7 @@ $(function () {
               text: '<i class="bx bx-printer me-2" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7],
                 // prevent avatar to be print
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -703,7 +747,7 @@ $(function () {
               text: '<i class="bx bx-file me-2" ></i>Csv',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -727,7 +771,7 @@ $(function () {
               text: '<i class="bx bxs-file-export me-2"></i>Excel',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -751,7 +795,7 @@ $(function () {
               text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -775,7 +819,7 @@ $(function () {
               text: '<i class="bx bx-copy me-2" ></i>Copy',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -944,6 +988,9 @@ $(function () {
       $('#schedule').val(reminder.schedule);
       //$('#schedule').removeAttr("disabled");
       
+      $('#year').val(reminder.year);
+      $('#year').removeAttr("disabled");
+
       $('#period').val(reminder.period);
       $('#period').removeAttr("disabled");
 
@@ -992,12 +1039,17 @@ $(function () {
     $("#reminder_to_users").html("");
     $('#reminder_client_users .send-to-reminder').prop('checked', false);
     $('#reminder_team_users .send-to-reminder').prop('checked', false); 
-    $('#reminder_reminder_users .send-to-reminder').prop('checked', false);   
+    $('#reminder_reminder_users .send-to-reminder').prop('checked', false); 
+
+    $('#reminder_reminder_users .send-to-reminder-all').prop('checked', false);   
 
     //console.log('clear function');
     $('#reminder_action').val("");
     $('#reminder_action').attr("disabled","disabled");
     $("#email-template span").text("");
+
+    $('#year').val("");
+    $('#year').attr("disabled","disabled");
 
     $('#period').val("");
     $('#period').attr("disabled","disabled");
@@ -1040,7 +1092,7 @@ $(function () {
       $('#company').val() != "" && $('#reminder_action').val() != "" &&       
       //totalUserChecked > 0 && 
       $('#reminder_datetime').val() != "" && $('#schedule').val() != "" && 
-      $('#period').val() != "" && $('#language').val() != "" && 
+      $('#year').val() != "" && $('#period').val() != "" && $('#language').val() != "" && 
       $('#title').val() != "" && $('#dk_title').val() != "")
     {
       if(totalUserChecked == 0)
@@ -1185,6 +1237,7 @@ $(function () {
     if($("#reminder_action").find('option:selected').val() == "")
     {    
       $('#company').attr("disabled", "disabled");   
+      $('#year').attr("disabled", "disabled"); 
       $('#period').attr("disabled", "disabled");      
       $('#language').attr("disabled", "disabled");    
     }
@@ -1193,6 +1246,7 @@ $(function () {
       var selected_action = $("#reminder_action").find('option:selected').html(); 
       $("#email-template span").text("Reminder: " + selected_action);    
       $('#company').removeAttr("disabled");
+      $('#year').removeAttr("disabled");
       $('#period').removeAttr("disabled");      
       $('#language').removeAttr("disabled");          
 
@@ -1697,6 +1751,16 @@ $(document).on('change', '#schedule', function () {
       $(".btn-send-reminder").text('Send Reminder (' + reminderUserChecked + ')');   
     }
   }
+
+  // Select All Reminder User
+  $(document).on('click', '.send-to-reminder-all', function () {
+    if($(this).prop('checked'))
+      $('#reminder_reminder_users .send-to-reminder').prop('checked', true);
+    else
+      $('#reminder_reminder_users .send-to-reminder').prop('checked', false);
+    selectuserCount();
+    validateReminderForm();
+  });
 
   // User Count
   $(document).on('click', '.send-to-reminder', function () {

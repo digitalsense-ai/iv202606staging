@@ -666,6 +666,12 @@ class VATRegistrationController extends Controller
                 {
                   foreach($chk_cc as $cc)
                   {   
+                    //Get cc client names
+                    $client_user_cc = $this->commonClass->getUserNameBasedOnEmail($cc);
+                    $data['lang'] = $client_user_cc->lang;
+                    $data['client']['client_firstname'] = $client_user_cc->firstname;
+                    $data['client']['client_lastname'] = $client_user_cc->lastname;
+
                     //Email markdown        
                     $email_data_cc = new ReopenEmail($data);
 
@@ -687,7 +693,7 @@ class VATRegistrationController extends Controller
                         $emailNotificationCC->message_id = $message_id_cc;   
                         $emailNotificationCC->subject = $email_sent_subject; 
                         $emailNotificationCC->send_type = 'cc';     
-                        $emailNotificationCC->name = ($client_user) ? $client_user->firstname . ' ' . $client_user->lastname : '';                
+                        $emailNotificationCC->name = ($client_user_cc) ? $client_user_cc->firstname . ' ' . $client_user_cc->lastname : '';                
                         $emailNotificationCC->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
                         $emailNotificationCC->sent_by = $this->authUser->user_id;   
                         
@@ -1896,6 +1902,12 @@ class VATRegistrationController extends Controller
                 {
                   foreach($chk_cc as $cc)
                   {   
+                    //Get cc client names
+                    $client_user_cc = $this->commonClass->getUserNameBasedOnEmail($cc);
+                    $data['lang'] = $client_user_cc->lang;
+                    $data['client']['client_firstname'] = $client_user_cc->firstname;
+                    $data['client']['client_lastname'] = $client_user_cc->lastname;                   
+
                     //Email markdown        
                     if($file_type == 'pivs')                  
                       $email_data_cc = new PivsEmail($data);
@@ -1937,7 +1949,7 @@ class VATRegistrationController extends Controller
                         $emailNotificationCC->message_id = $message_id_cc;   
                         $emailNotificationCC->subject = $email_sent_subject; 
                         $emailNotificationCC->send_type = 'cc';     
-                        $emailNotificationCC->name = ($client_user) ? $client_user->firstname . ' ' . $client_user->lastname : '';                
+                        $emailNotificationCC->name = ($client_user_cc) ? $client_user_cc->firstname . ' ' . $client_user_cc->lastname : '';                
                         $emailNotificationCC->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
                         $emailNotificationCC->sent_by = $this->authUser->user_id;   
                         
@@ -2945,6 +2957,12 @@ class VATRegistrationController extends Controller
                   {
                     foreach($chk_cc as $cc)
                     {   
+                      //Get cc client names
+                      $client_user_cc = $this->commonClass->getUserNameBasedOnEmail($cc);
+                      $data['lang'] = $client_user_cc->lang;
+                      $data['client']['client_firstname'] = $client_user_cc->firstname;
+                      $data['client']['client_lastname'] = $client_user_cc->lastname;
+                    
                       //Email markdown  
                       if($file_type == 'ivf')
                         $email_data_cc = new ImportVatFileEmail($data);  
@@ -2966,7 +2984,7 @@ class VATRegistrationController extends Controller
                           $emailNotificationCC->message_id = $message_id_cc;   
                           $emailNotificationCC->subject = $email_sent_subject; 
                           $emailNotificationCC->send_type = 'cc';     
-                          $emailNotificationCC->name = ($client_user) ? $client_user->firstname . ' ' . $client_user->lastname : '';                
+                          $emailNotificationCC->name = ($client_user_cc) ? $client_user_cc->firstname . ' ' . $client_user_cc->lastname : '';                
                           $emailNotificationCC->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
                           $emailNotificationCC->sent_by = $this->authUser->user_id;   
                           

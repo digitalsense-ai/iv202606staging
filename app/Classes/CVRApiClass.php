@@ -7,13 +7,14 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 
 use App\Models\ClientCvr;
+use App\Models\ClientLegalRep;
 
 use GuzzleHttp\Client as GuzzleClient;
 
 class CVRApiClass
 {       
     /*CVR API - COMPANY */  
-    public function getCVRCompany($cvrNumber, $client_id = null)
+    public function getCVRCompany($cvrNumber, $client_id = null, $refresh = [])
     {
       try
       {       
@@ -66,14 +67,25 @@ class CVRApiClass
                  $person = isset($participant->deltager) ? $participant->deltager->navne[0] : '';
                  $person_address = isset($participant->deltager) ? $participant->deltager->beliggenhedsadresse : '';
                
+               // if (stripos(trim($person->navn), "Jonas Pichard Hedegaard") !== false)  
+               //    dd(count($person_address), $person_address);
               if(!empty($person_address))
               {
-                  $person_address_details = 'Road code:'. (empty($person_address[0]->vejkode ) ? '-' : $person_address[0]->vejkode)
-                                          .', Road Name:'. (empty($person_address[0]->vejnavn) ? '-' : $person_address[0]->vejnavn) 
-                                          . ', Municipality Code:' . (empty($person_address[0]->kommune->kommuneKode) ? '-' : $person_address[0]->kommune->kommuneKode)
-                                          . ', Municipality Name:' . (empty($person_address[0]->kommune->kommuneNavn) ? '-' : $person_address[0]->kommune->kommuneNavn) 
-                                          . ', Country code:' . (empty($person_address[0]->landekode) ? '-' : $person_address[0]->landekode)
-                                          . ', Postal code:' . (empty($person_address[0]->postnummer) ? '-' : $person_address[0]->postnummer);
+                $last_index = count($person_address) - 1;
+
+                  // $person_address_details = 'Road code:'. (empty($person_address[$last_index]->vejkode ) ? '-' : $person_address[$last_index]->vejkode)
+                  //                         .', Road Name:'. (empty($person_address[$last_index]->vejnavn) ? '-' : $person_address[$last_index]->vejnavn) 
+                  //                         . ', Municipality Code:' . (empty($person_address[$last_index]->kommune->kommuneKode) ? '-' : $person_address[$last_index]->kommune->kommuneKode)
+                  //                         . ', Municipality Name:' . (empty($person_address[$last_index]->kommune->kommuneNavn) ? '-' : $person_address[$last_index]->kommune->kommuneNavn) 
+                  //                         . ', Country code:' . (empty($person_address[$last_index]->landekode) ? '-' : $person_address[$last_index]->landekode)
+                  //                         . ', Postal code:' . (empty($person_address[$last_index]->postnummer) ? '-' : $person_address[$last_index]->postnummer);
+
+                $person_address_details = 'Road code:'. ($person_address[$last_index]->vejkode ?? '-')
+                                          .', Road Name:'. ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? '')
+                                          . ', Municipality Code:' . ($person_address[$last_index]->kommune->kommuneKode ?? '-')
+                                          . ', Municipality Name:' . ($person_address[$last_index]->kommune->kommuneNavn ?? '-') 
+                                          . ', Country code:' . ($person_address[$last_index]->landekode ?? '-')
+                                          . ', Postal code:' . ($person_address[$last_index]->postnummer ?? '-');
               }
                  
                  foreach($org_array as $organization_name)
@@ -103,7 +115,7 @@ class CVRApiClass
                     else
                     { 
                       $lrep_role = '';
-                      if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'DIREKTØR')
+                      if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'DIREKTØR' || $organization_name['organisationsNavn'][0]['navn'] == 'Direktion')
                         $lrep_role = 'director';
                       else if(strtolower($organization_name['organisationsNavn'][0]['navn']) == 'reel ejer')
                         $lrep_role = 'ultimate-beneficial-owner';
@@ -112,15 +124,28 @@ class CVRApiClass
                       
                       if($lrep_role)  
                       {
+                        $last_index = count($person_address) - 1;
+
+                        // $organizations_details[] = [                        
+                        //   'id' => '',
+                        //   'lrep_role' => $lrep_role,
+                        //   'lrep_fname' => ($person) ? $person->navn : '', 
+                        //   'lrep_sname' => '',
+                        //   'lrep_address' => (empty($person_address[$last_index]->vejnavn) ? '' : $person_address[$last_index]->vejnavn),
+                        //   'lrep_postcode' => (empty($person_address[$last_index]->postnummer) ? '' : $person_address[$last_index]->postnummer),
+                        //   'lrep_city' => (empty($person_address[$last_index]->bynavn) ? '' : $person_address[$last_index]->bynavn),
+                        //   'lrep_country' => (empty($person_address[$last_index]->landekode) ? '' : $person_address[$last_index]->landekode)
+                        // ];
+
                         $organizations_details[] = [                        
                           'id' => '',
                           'lrep_role' => $lrep_role,
                           'lrep_fname' => ($person) ? $person->navn : '', 
                           'lrep_sname' => '',
-                          'lrep_address' => (empty($person_address[0]->vejnavn) ? '' : $person_address[0]->vejnavn),
-                          'lrep_postcode' => (empty($person_address[0]->postnummer) ? '' : $person_address[0]->postnummer),
-                          'lrep_city' => (empty($person_address[0]->bynavn) ? '' : $person_address[0]->bynavn),
-                          'lrep_country' => (empty($person_address[0]->landekode) ? '' : $person_address[0]->landekode)
+                          'lrep_address' => ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? ''),
+                          'lrep_postcode' => $person_address[$last_index]->postnummer ?? '',
+                          'lrep_city' => $person_address[$last_index]->bynavn ?? ($person_address[$last_index]->postdistrikt ?? ''),
+                          'lrep_country' => $person_address[$last_index]->landekode ?? ''
                         ];
                       } //has role
                     }
@@ -130,7 +155,7 @@ class CVRApiClass
 
 
           }
-          
+         
           if($client_id)          
           {
             // Delete the cvr datas for the client id and insert with updated datas 
@@ -166,7 +191,28 @@ class CVRApiClass
           {
             $client_cvr_view = '';
             foreach($organizations_details as $clientlegalrepkey => $organizations_detail) 
-            {       
+            {    
+              if($refresh)
+              {
+                $client_legalrep = ClientLegalRep::updateOrCreate(
+                  [
+                    'client_id' => $refresh['client_id'],
+                    'lrep_fname' => $organizations_detail['lrep_fname'],
+                  ],              
+                  [                
+                    'client_id' => $refresh['client_id'], 
+                    'lrep_role' => $organizations_detail['lrep_role'],
+                    'lrep_fname' => $organizations_detail['lrep_fname'],       
+                    'lrep_sname' => $organizations_detail['lrep_sname'],
+                    'lrep_address' => $organizations_detail['lrep_address'],       
+                    'lrep_postcode' => $organizations_detail['lrep_postcode'],
+                    'lrep_city' => $organizations_detail['lrep_city'],                
+                    'lrep_country' => $organizations_detail['lrep_country'],
+                    'updated_by' => 1
+                  ]
+                );
+              } // if refresh
+
               $clientlegalrep = json_decode(json_encode($organizations_detail));
               
               /* -- RENDER VIEW -- */

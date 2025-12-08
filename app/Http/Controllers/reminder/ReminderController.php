@@ -321,6 +321,7 @@ class ReminderController extends Controller
           'team_users',
           'client_users',
           'reminder_users',
+          'client_id',
           'reminderusers'
           )
         )->render();
@@ -412,6 +413,7 @@ class ReminderController extends Controller
             'content' => $request->reminder_content_quill,
             'dk_title' => $request->dk_title,             
             'dk_content' => $request->dk_reminder_content_quill,
+            'year' => $request->year, 
             'period' => $request->period,             
             'status' => 1,
             'close_status' => 0,
@@ -436,6 +438,7 @@ class ReminderController extends Controller
             'content' => $request->reminder_content_quill,
             'dk_title' => $request->dk_title,             
             'dk_content' => $request->dk_reminder_content_quill,
+            'year' => $request->year, 
             'period' => $request->period,             
             'status' => 1,
             'created_by' => $this->authUser->user_id
