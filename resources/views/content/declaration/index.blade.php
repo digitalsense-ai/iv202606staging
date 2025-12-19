@@ -109,6 +109,7 @@ else
   <input type="hidden" name="vat_reg_id" id="vat_reg_id" value="{{ $vat_reg_id }}" />
   <input type="hidden" name="org_no" id="org_no" value="{{ $org_no }}" />
   <input type="hidden" name="client_name" id="client_name" value="{{ $client->client_name }}" />
+  <input type="hidden" name="month_year_period" id="month_year_period" value="{{ (\Carbon\Carbon::parse($declarations->service_start)->format('M y')) . '-' . (\Carbon\Carbon::parse($declarations->service_start)->addMonth($declarations->frequency)->format('M y')) }}" />
 
   <div class="card-header p-0">    
     <div class="d-flex justify-content-between align-items-center row gap-3 gap-md-0 m-0 border-bottom">         
@@ -214,6 +215,7 @@ else
 @include('_partials/_offcanvas/offcanvas-declaration-filter')
 
 @include('_partials/_modals/modal-declaration-invoice-disregard')
+@include('_partials/_modals/modal-declaration-move-invoice-file')
 
 @include('_partials/_modals/modal-declaration-cominvoice-rematch')
 @include('_partials/_modals/modal-declaration-salesinvoice-move')

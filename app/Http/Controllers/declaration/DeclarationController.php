@@ -16,6 +16,7 @@ use \App\Classes\CargoDeclarationClass;
 use \App\Classes\FtpClass;
 
 use App\Models\VATRegistration;
+use App\Models\VATRegistrationMain;
 use \App\Models\ImportVatFiles;
 use \App\Models\ImportReconciliationFiles;
 use \App\Models\ImportReconciliationComInvoices;
@@ -109,6 +110,22 @@ class DeclarationController extends Controller
         if($show)                          
         {
           $declarations = $this->reloadDeclarations($vat_reg_id, true);   
+          
+          /*Periods*/
+          $vatregs = VATRegistration::where('vat_reg_main_id', $vatreg->vat_reg_main_id)->orderBy('service_start')->get();
+          
+          $vatreg_periods = [];
+          foreach($vatregs as $key => $vatreg_period)
+          {
+            if($vatreg_period->id != $vat_reg_id)
+            {
+              $startDate = Carbon::parse($vatreg_period->service_start)->format('M y');
+              $endDate = Carbon::parse($this->apiClass->getEndDateLazy($vatreg_period))->format('M y'); 
+
+              $vatreg_periods[$vatreg_period->id] = $startDate . "-" . $endDate;          
+            }
+          }
+          /*Periods*/
 
           return view('content.declaration.index', 
             [
@@ -121,7 +138,9 @@ class DeclarationController extends Controller
               'from_currencies' => isset($declarations['from_currencies']) ? $declarations['from_currencies'] : NULL,  
               'todays_rate' => isset($declarations['todays_rate']) ? $declarations['todays_rate'] : NULL,
 
-              'last_exchange_rates' => isset($declarations['last_exchange_rates']) ? $declarations['last_exchange_rates'] : NULL             
+              'last_exchange_rates' => isset($declarations['last_exchange_rates']) ? $declarations['last_exchange_rates'] : NULL,
+
+              'vatreg_periods' => $vatreg_periods
             ]
           );
         }
@@ -1781,4 +1800,123 @@ class DeclarationController extends Controller
         }
     }
     /* --end POST declaration-invoice/$invoice_id/refresh (BOTH COM. INVOICE/SALES INVOICE)-- */
+
+    /* -- POST declaration-invoice/$invoice_id/move-file  -- */ 
+    public function invoiceFileMove(Request $request, $invoice_id)
+    {
+      try
+      {          
+        $invoice_name = $request->move_invoice_file_invoice_name;
+
+        $selected_invoice_ids = ($invoice_id == '0') ? $request->move_invoice_file_invoice_id : $invoice_id;
+        $selected_invoices = $request->move_invoice_file_invoice_no;
+        
+        $log_name_text_suffix = 'move';
+        //foreach (explode(',', $selected_invoice_ids) as $invoice_id)
+        $arr_selected_invoices = explode(',', $selected_invoices);
+        $moved = 0;
+        foreach ($arr_selected_invoices as $invoice_no)
+        {
+          if($invoice_name == 'sales')
+          {
+            $invoice_name_text = 'Sales Invoices File';
+            $log_name_text = 'sales-invoice-file';
+            
+            $sales_invoices = ImportReconciliationSalesInvoices::where('invoice_no', $invoice_no)->get();    
+            
+            if(count($sales_invoices) == 0)
+            {
+            }
+            else if(count($sales_invoices) == 1)
+            {
+              $ir_file = ImportReconciliationFiles::where('invoice_no', $sales_invoices[0]->invoice_no)->first();
+
+              $ir_file->vat_reg_id = $sales_invoices[0]->vat_reg_id;
+              $ir_file->save(); 
+
+              $moved++;
+            }  
+            else
+            {
+              $update_sale_invoice = '';  
+              $delete_sale_invoice = '';
+              foreach ($sales_invoices as $sales_invoice)
+              {  
+                $com_invoice_id = $sales_invoice->com_invoice_id;
+                $com_invoice = ImportReconciliationComInvoices::where('id', $com_invoice_id)->first();    
+
+                if($com_invoice->data_from == 'ftp' && $com_invoice->invoice_no == '-')
+                  $delete_sale_invoice = $sales_invoice;  
+                else
+                  $update_sale_invoice = $sales_invoice;  
+              }
+
+              if($update_sale_invoice && $delete_sale_invoice)
+              {
+                if(!$update_sale_invoice->net_amount)
+                    $update_sale_invoice->net_amount = $delete_sale_invoice->net_amount;
+
+                if(!$update_sale_invoice->vat_amount)
+                    $update_sale_invoice->vat_amount = $delete_sale_invoice->vat_amount;
+
+                if(!$update_sale_invoice->total_amount)
+                    $update_sale_invoice->total_amount = $delete_sale_invoice->total_amount;
+
+                if(!$update_sale_invoice->shipping)
+                    $update_sale_invoice->shipping = $delete_sale_invoice->shipping;
+
+                if(!$update_sale_invoice->variance)
+                    $update_sale_invoice->variance = $delete_sale_invoice->variance;
+
+                if($update_sale_invoice->credit_note != $delete_sale_invoice->credit_note)
+                    $update_sale_invoice->credit_note = $delete_sale_invoice->credit_note;
+
+                $update_sale_invoice->save();
+
+                $ir_file = ImportReconciliationFiles::where('invoice_no', $update_sale_invoice->invoice_no)->first();
+                $ir_file->vat_reg_id = $update_sale_invoice->vat_reg_id;
+                $ir_file->save();
+
+                $delete_sale_invoice->delete();
+
+                $moved++;
+              }
+            } //MULTIPLE ENTRIES         
+          }
+        }       
+
+//         if(count($arr_selected_invoices) == $moved)
+//         {
+// dd("MOVED.....");
+//         }
+//         else
+//           dd("some are not mvoed", $arr_selected_invoices, $moved);
+        $vat_reg_id = $request->move_invoice_file_vat_reg_id;      
+        $vatreg = $this->reloadDeclarations($vat_reg_id);  
+
+        $this->commonClass->addLog($this->authUser, 'importreconcilation-'. $log_name_text .'-' . $log_name_text_suffix, 
+          [
+            'Loggedin User' => (isset($this->authUser->firstname) && isset($this->authUser->lastname)) ? ($this->authUser->firstname . ' ' . $this->authUser->lastname) : $this->authUser->name,
+            'Client Name' => $vatreg->client->client_name,
+            'VAT Reg.' => Carbon::parse($vatreg->service_start)->format('M Y') . ' ' . $vatreg->country . ' ' . $vatreg->general_periods,           
+            'Selected Invoices' => $selected_invoices,
+            'Invoice Name' => $invoice_name_text
+          ]
+        );
+        
+        return response()->json(
+          [
+            'status' => 200,             
+            'message' => "success",
+            'declarations' => $vatreg,
+            'tab_name' => $request->move_invoice_file_tab_name,
+            'moved_message' => ($moved == 0) ? 'none' : ((count($arr_selected_invoices) == $moved) ? 'all' : 'partial')
+          ]
+        );  
+      }
+      catch (\Exception $e) {
+          return  $e->getMessage();
+        }
+    }
+    /* --end POST declaration-invoice/$invoice_id/move-file  -- */ 
 }

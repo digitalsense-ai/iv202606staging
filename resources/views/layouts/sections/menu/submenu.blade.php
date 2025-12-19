@@ -54,6 +54,24 @@
             elseif($submenu->name == 'Duty derferment (NO)' && $upload_file_type == 'dda')
               $activeClass = 'active';            
           }
+          else if($currentRouteName == 'reminders')
+          {  
+            if($submenu->name == 'All')
+            {
+              if($reminder_type)
+                $activeClass = null;
+              else
+                $activeClass = 'active';
+            }
+            elseif(($submenu->name == 'AT' && $reminder_type == 'at') || 
+              ($submenu->name == 'DK' && $reminder_type == 'dk') || 
+              ($submenu->name == 'FR' && $reminder_type == 'fr') || 
+              ($submenu->name == 'NO' && $reminder_type == 'no') || 
+              ($submenu->name == 'CH' && $reminder_type == 'ch') || 
+              ($submenu->name == 'GB' && $reminder_type == 'gb')
+            )
+              $activeClass = 'active';             
+          }
         @endphp
 
         <li class="menu-item {{$activeClass}}">

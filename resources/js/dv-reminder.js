@@ -99,7 +99,7 @@ $(function () {
       columns: [
         // columns according to JSON
         { data: 'id' },
-        { data: 'country' },
+        { data: 'country' },        
         { data: 'title' },
         { data: 'reminder_action' },
         { data: 'schedule' },
@@ -146,7 +146,7 @@ $(function () {
             
             return '<span>' + $country + '</span>';
           }
-        },
+        },        
         {
           // Title
           targets: 2,          
@@ -162,9 +162,10 @@ $(function () {
           targets: 3,          
           width: "10%",   
           render: function (data, type, full, meta) {
+            var $reminder_template = full['reminder_template'];
             var $reminder_action = full['reminder_action'];
             
-            return '<span>' + $reminder_action + '</span>';
+            return '<span>' + $reminder_action + '<br>' + $reminder_template + '</span>';
           }
         },
         {
@@ -182,9 +183,10 @@ $(function () {
           targets: 5,          
           width: "10%",   
           render: function (data, type, full, meta) {
+            var $year = full['year'];
             var $period_text = full['period_text'];
             
-            return '<span>' + $period_text + '</span>';
+            return '<span>' + $year + '<br>' + $period_text + '</span>';
           }
         },
         {
@@ -492,6 +494,7 @@ $(function () {
         // columns according to JSON
         { data: 'id' },
         { data: 'country' },
+        { data: 'reminder_template' },
         { data: 'title' },
         // { data: 'reminder_action' },
         // { data: 'schedule' },
@@ -540,8 +543,18 @@ $(function () {
           }
         },
         {
-          // Title
+          // Reminder Tempalte
           targets: 2,          
+          width: "5%",   
+          render: function (data, type, full, meta) {
+            var $reminder_template = full['reminder_template'];
+            
+            return '<span>' + $reminder_template.replace('reminder_', '') + '. Reminder' + '</span>';
+          }
+        },
+        {
+          // Title
+          targets: 3,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $title = full['title'];
@@ -551,17 +564,18 @@ $(function () {
         },
         {
           // Period
-          targets: 3,          
+          targets: 4,          
           width: "10%",   
           render: function (data, type, full, meta) {
+            var $year = full['year'];
             var $period_text = full['period_text'];
             
-            return '<span>' + $period_text + '</span>';
+            return '<span>' + $year + '<br>'  + $period_text + '</span>';
           }
         },
         {
           // Start At
-          targets: 4,          
+          targets: 5,          
           width: "10%",   
           render: function (data, type, full, meta) {
             var $start_at = full['start_at'];
@@ -571,7 +585,7 @@ $(function () {
         },
         {
           // User name and email
-          targets: 5,
+          targets: 6,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -601,7 +615,7 @@ $(function () {
         },
         {
           // Vat Reg.
-          targets: 6,
+          targets: 7,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -628,7 +642,7 @@ $(function () {
         },  
         {
           // Sent at
-          targets: 7,
+          targets: 8,
           //responsivePriority: 4,
           width: "20%",   
           render: function (data, type, full, meta) {
@@ -710,7 +724,7 @@ $(function () {
               text: '<i class="bx bx-printer me-2" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5, 6, 7],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be print
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -747,7 +761,7 @@ $(function () {
               text: '<i class="bx bx-file me-2" ></i>Csv',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5, 6, 7],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -771,7 +785,7 @@ $(function () {
               text: '<i class="bx bxs-file-export me-2"></i>Excel',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5, 6, 7],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -795,7 +809,7 @@ $(function () {
               text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5, 6, 7],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -819,7 +833,7 @@ $(function () {
               text: '<i class="bx bx-copy me-2" ></i>Copy',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [0, 1, 2, 3, 4, 5, 6, 7],
+                columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
                 // prevent avatar to be display
                 format: {
                   body: function (inner, coldex, rowdex) {
@@ -997,6 +1011,9 @@ $(function () {
       $('#language').val("en");
       $('#language').removeAttr("disabled");
 
+      $('#reminder_template').val(reminder.reminder_template);
+      $('#reminder_template').removeAttr("disabled");
+
       $('#title').val(reminder.title);
       $('#title').removeAttr("disabled");
 
@@ -1055,7 +1072,10 @@ $(function () {
     $('#period').attr("disabled","disabled");
    
     $('#language').val("en");
-    $('#language').attr("disabled","disabled");    
+    $('#language').attr("disabled","disabled");  
+
+    $('#reminder_template').val("");
+    $('#reminder_template').attr("disabled","disabled");  
     
     //$('#reminder_datetime').val("");
     $('#reminder_datetime').attr("disabled","disabled");
@@ -1093,6 +1113,7 @@ $(function () {
       //totalUserChecked > 0 && 
       $('#reminder_datetime').val() != "" && $('#schedule').val() != "" && 
       $('#year').val() != "" && $('#period').val() != "" && $('#language').val() != "" && 
+      $('#reminder_template').val() != "" && 
       $('#title').val() != "" && $('#dk_title').val() != "")
     {
       if(totalUserChecked == 0)
@@ -1239,7 +1260,8 @@ $(function () {
       $('#company').attr("disabled", "disabled");   
       $('#year').attr("disabled", "disabled"); 
       $('#period').attr("disabled", "disabled");      
-      $('#language').attr("disabled", "disabled");    
+      $('#language').attr("disabled", "disabled"); 
+      $('#reminder_template').attr("disabled", "disabled");    
     }
     else
     {   
@@ -1248,7 +1270,8 @@ $(function () {
       $('#company').removeAttr("disabled");
       $('#year').removeAttr("disabled");
       $('#period').removeAttr("disabled");      
-      $('#language').removeAttr("disabled");          
+      $('#language').removeAttr("disabled");
+      $('#reminder_template').removeAttr("disabled");          
 
       $('#schedule').attr("disabled", "disabled");
       $('#reminder_datetime').attr("disabled", "disabled");
@@ -1671,7 +1694,7 @@ $(document).on('change', '#schedule', function () {
   }
 
   function loadReminderUsers(vat_reg_main_id, client_id, reminderusers =  null, pageaction = null)
-  {
+  {console.log("client_id: " + client_id);
     var reminder_send_to = "";
     $.each(reminderusers, function(key,value) { 
       reminder_send_to +=  value['user']['email'] + ',';
@@ -1698,7 +1721,7 @@ $(document).on('change', '#schedule', function () {
         //url: `${reminderUrl}${vat_reg_main_id}/users`,
         url: `${reminderUrl}users`,
         data: {user_role: user_role_value,vat_reg_main_id: vat_reg_main_id, client_id: client_id, reminderusers: reminderusers, country: country_value}, 
-        type: 'GET',
+        type: 'POST',
         success: function (result) {//console.log(result); 
           $("#reminder_to_users").html(result.view); 
 
@@ -1755,46 +1778,45 @@ $(document).on('change', '#schedule', function () {
   // Select All Reminder User
   $(document).on('click', '.send-to-reminder-all', function () {
     if($(this).prop('checked'))
+    {
       $('#reminder_reminder_users .send-to-reminder').prop('checked', true);
+
+      $('#reminder_reminder_users .send-to-reminder').parent().find('.send-to-reminder-client').prop('checked', true);
+    }
     else
+    {
       $('#reminder_reminder_users .send-to-reminder').prop('checked', false);
+
+      $('#reminder_reminder_users .send-to-reminder').parent().find('.send-to-reminder-client').prop('checked', false);
+    }
     selectuserCount();
     validateReminderForm();
   });
 
   // User Count
-  $(document).on('click', '.send-to-reminder', function () {
-    // var clientUserChecked = $('#reminder_client_users .send-to-reminder:checked').length;
-    // $(".client-user-count").hide();
-    // if(clientUserChecked > 0)
-    // {
-    //   $(".client-user-count").show();
-    //   $(".client-user-count").text(clientUserChecked); 
-    //   $(".btn-send-reminder").text('Send Reminder (' + clientUserChecked + ')'); 
-    // }
-    // else
-    //   $(".btn-send-reminder").text('Send Reminder (0)'); 
+  //$(document).on('click', '.send-to-reminder', function (e) {
+  $(document).on('click', '#reminder_reminder_users label.reminder-user-main', function (e) {
+    console.log(e.target);
+    if (!$(e.target).is('span:not(.switch-label):not(.h6)') && !$(e.target).is(':checkbox')) {
+      //console.log('NOooo');
+      e.preventDefault();
+      return;
+    }
 
-    // var teamUserChecked = $('#reminder_team_users .send-to-reminder:checked').length;
-    // $(".team-user-count").hide();
-    // if(teamUserChecked > 0)
-    // {
-    //   $(".team-user-count").show();
-    //   $(".team-user-count").text(teamUserChecked);    
-    //   $(".btn-send-reminder").text('Send Reminder (' + teamUserChecked + ')'); 
-    // }
-
-    // var reminderUserChecked = $('#reminder_reminder_users .send-to-reminder:checked').length;
-    // $(".reminder-user-count").hide();
-    // if(reminderUserChecked > 0)
-    // {
-    //   $(".reminder-user-count").show();
-    //   $(".reminder-user-count").text(reminderUserChecked);   
-    //   $(".btn-send-reminder").text('Send Reminder (' + reminderUserChecked + ')');   
-    // }
+    //console.log('YESSSSS');         
+    if($(this).prop('checked') || 
+      $(this).parent().find('.send-to-reminder').prop('checked') || 
+      $(this).parent().parent().find('.send-to-reminder').prop('checked'))
+      $(this).closest('label.reminder-user-main').find('.send-to-reminder-client').prop('checked', true);
+    else
+      $(this).closest('label.reminder-user-main').find('.send-to-reminder-client').prop('checked', false);
 
     selectuserCount();
     validateReminderForm();
+  });
+
+  $(document).on('click', '#reminder_reminder_users label.reminder-user-sub', function (e) {
+    e.stopPropagation();
   });
 
   // Date    
@@ -2101,7 +2123,8 @@ $(document).on('change', '#schedule', function () {
     var schedule_value = $("#schedule").find('option:selected').val();
     var datetime_value = $("#reminder_datetime").val();
 
-    var edit_sent_to = $("input[name=reminder_send_to]").val();  
+    var edit_sent_to = $("input[name=reminder_send_to]").val();
+    var edit_sent_to_client = $("input[name=reminder_send_to_client]").val();  
     if(ql_editor.html().replace( /(<([^>]+)>)/ig, '') == "" || dk_ql_editor.html().replace( /(<([^>]+)>)/ig, '') == "")
     {
       Swal.fire({
@@ -2142,7 +2165,7 @@ $(document).on('change', '#schedule', function () {
             type: 'POST',
             data: $('#' + formId).serialize() + '&schedule=' + schedule_value + 
             '&reminder_datetime=' + datetime_value +  '&action_name=' + sel_action_name + 
-            '&edit_sent_to=' + edit_sent_to,       
+            '&edit_sent_to=' + edit_sent_to + '&edit_sent_to_client=' + edit_sent_to_client,       
             success: function (result) {             
               if(result)    
               {  

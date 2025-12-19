@@ -963,7 +963,8 @@ $(function () {
           reminder_datas.push({                             
             'id' : reminder['id'],
             'fake_id' : reminder_start,
-            'country' : reminder['reminder_country'], 
+            'country' : reminder['reminder_country'],
+            'reminder_template' : (reminder['reminder_template']) ? reminder['reminder_template'] : '',
             'title' : reminder['title'], 
             'users' : reminder_users,
             //'client' : client['client_name'],          
@@ -972,6 +973,7 @@ $(function () {
             'vatregmain' : vat_country + " " + vat_start_date + " " + vat_general_periods,
             'reminder_action' : reminderactionoption['action_name'],
             'schedule' : reminder['schedule'],
+            'year' : reminder['year'],
             'period' : reminder['period'],
             'period_text' : (period_text) ? period_text : '-',
             'start_at' : moment(reminder['start_at']).format('DD-MM-YYYY hh:mm A'),
@@ -1075,6 +1077,7 @@ $(function () {
               'id' : reminder['id'],
               'fake_id' : reminder_history_start,
               'country' : reminder['reminder_country'], 
+              'reminder_template' : (reminder['reminder_template']) ? reminder['reminder_template'] : '',
               'title' : reminder['title'], 
               'users' : reminder_users,
               //'client' : client['client_name'],          
@@ -1083,6 +1086,7 @@ $(function () {
               'vatregmain' : vat_country + " " + vat_start_date + " " + vat_general_periods,
               'reminder_action' : reminderactionoption['action_name'],
               'schedule' : reminder['schedule'],
+              'year' : reminder['year'],
               'period' : reminder['period'],
               'period_text' : (period_text) ? period_text : '-',
               'start_at' : moment(reminder['start_at']).format('DD-MM-YYYY hh:mm A'),
@@ -2028,7 +2032,7 @@ $(function () {
                 
               sub_invoices.push(
                 {
-                  "id": invoice['id'],
+                  "id": invoice['id'],//salesinvoicedata ID
                   "pdf": sales_xml_id,
                   "edit_from": edit_from,                          
                   "invoice_no": invoice['invoice_no'],

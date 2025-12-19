@@ -986,19 +986,26 @@ dd($firstFile, $readcargofiles);
 
                                 $import_vat_id = $importvatfile->id;
 
-                                //Reload IVF xml files
-                                $importvatfile->fee_number = $xmlvalue['fee'];                                
-                                $importvatfile->e_fee_number = $xmlvalue['fee_ex'];
-                                $importvatfile->statistical_number = $xmlvalue['statvalue'];
-                                $importvatfile->e_statistical_number = $xmlvalue['statvalue_ex'];
-                                $importvatfile->adjustment_no = $xmlvalue['adjustment'];
-                                $importvatfile->invoice_total = $xmlvalue['invoice_total'];
+                                if($importvatfile->statistical_number == $xmlvalue['statvalue'])
+                                {
+                                    echo $noInvoice->client->client_name . " - SAME IVF datas - " . $importvatfile->statistical_number . ' - ' . $xmlvalue['statvalue'] . '<br>';
+                                }
+                                else
+                                {
+                                    //Reload IVF xml files
+                                    $importvatfile->fee_number = $xmlvalue['fee'];                                
+                                    $importvatfile->e_fee_number = $xmlvalue['fee_ex'];
+                                    $importvatfile->statistical_number = $xmlvalue['statvalue'];
+                                    $importvatfile->e_statistical_number = $xmlvalue['statvalue_ex'];
+                                    $importvatfile->adjustment_no = $xmlvalue['adjustment'];
+                                    $importvatfile->invoice_total = $xmlvalue['invoice_total'];
 
-                                $importvatfile->box_85 = $xmlvalue['box_85'];
+                                    $importvatfile->box_85 = $xmlvalue['box_85'];
 
-                                $importvatfile->save();
+                                    //$importvatfile->save();
 
-                                echo $noInvoice->client->client_name . " - Reloaded IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
+                                    echo $noInvoice->client->client_name . " - Reloaded IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
+                                }
                                 //Reload IVF xml files
 
                                 //Cargo Files

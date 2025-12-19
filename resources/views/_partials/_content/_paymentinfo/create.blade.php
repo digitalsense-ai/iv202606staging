@@ -148,6 +148,7 @@
               <option value="Sweden" {{ ($paymentinfo) ? (($paymentinfo->country == 'Sweden') ? 'selected' : '') : '' }}>Sweden</option>
               <option value="Switzerland" {{ ($paymentinfo) ? (($paymentinfo->country == 'Switzerland') ? 'selected' : '') : '' }}>Switzerland</option>
               <option value="United Kingdom" {{ ($paymentinfo) ? (($paymentinfo->country == 'United Kingdom') ? 'selected' : '') : '' }}>United Kingdom</option>
+              <option value="HK" {{ isset($paymentinfo) ? (($paymentinfo->country == 'Hong Kong') ? 'selected' : '') : '' }}>Hong Kong</option>
             </select>
           </div>   
           <div class="col-md-6"></div>                

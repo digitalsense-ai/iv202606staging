@@ -73,9 +73,10 @@
                         <option value="CH" class="{{ isset($countries) ? ((in_array('CH', $countries)) ? '' : 'd-none') : 'd-none' }}">Switzerland</option>
                         <option value="GB" class="{{ isset($countries) ? ((in_array('GB', $countries)) ? '' : 'd-none') : 'd-none' }}">United Kingdom</option>
                       </optgroup>
-                      {{--<optgroup label="Rest of the world">
+                      <optgroup label="Rest of the world">
                         <option value="US" class="{{ isset($countries) ? ((in_array('US', $countries)) ? '' : 'd-none') : 'd-none' }}">United States of America</option>
-                      </optgroup>--}}
+                        <option value="HK" class="{{ isset($countries) ? ((in_array('HK', $countries)) ? '' : 'd-none') : 'd-none' }}">Hong Kong</option>
+                      </optgroup>
                    </select>     
                   </div>
                 </div>
@@ -198,7 +199,7 @@
                   </div>
                 </div>
 
-                <div class="col-3">
+                <div class="col-2">
                   <div class="mb-3">
                     <label class="form-label" for="period">Period</label>          
                     <select id="period" class="form-select" name="period" required disabled="disabled">
@@ -228,7 +229,7 @@
                     </select> 
                   </div>
                 </div>
-                <div class="col-3">
+                <div class="col-2">
                   <div class="mb-3">
                     <label class="form-label" for="language">Language</label>          
                     <select id="language" class="form-select" name="language" required disabled="disabled">
@@ -237,7 +238,21 @@
                     </select> 
                   </div>
                 </div>
-                <div class="col-4">
+
+                <div class="col-3">
+                  <div class="mb-3">
+                    <label class="form-label" for="reminder_template">Reminder Template</label>          
+                    <select id="reminder_template" class="form-select" name="reminder_template" required disabled="disabled">
+                      <option value="" selected="selected">Select</option>
+                      <option value="reminder_1">1. Reminder</option>
+                      <option value="reminder_2">2. Reminder</option>
+                      <option value="reminder_2">3. Reminder</option>
+                      <option value="reminder_2">4. Reminder</option>                      
+                    </select> 
+                  </div>
+                </div>
+
+                <div class="col-3">
                   <label class="form-label" for="shortcodes">Shortcodes</label>
                     <br>[client_name] <b>&nbsp;</b> [period]
                 </div>

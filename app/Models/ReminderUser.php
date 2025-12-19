@@ -24,5 +24,13 @@ class ReminderUser extends Model
     public function user()
     {        
         return $this->belongsTo('App\Models\User', 'user_id', 'id');
-    }    
+    } 
+
+    /**
+     * Get the user clients for the reminder
+     */
+    public function reminderuserclient()
+    {
+        return $this->hasMany('App\Models\ReminderUserClient', 'reminder_user_id');        
+    }   
 }

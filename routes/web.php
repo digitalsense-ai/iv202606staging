@@ -234,7 +234,8 @@ Route::middleware([
 
         /* -- REMINDER -- */
             /* -- REMINDER:VIEW -- */
-            Route::get('reminders', [ReminderController::class, 'loadReminders'])->name('reminder.list'); 
+            //Route::get('reminders', [ReminderController::class, 'loadReminders'])->name('reminder.list');
+            Route::get('reminders/{reminder_type?}', [ReminderController::class, 'loadReminders'])->name('reminders'); 
             /* --end REMINDER:VIEW -- */
 
             /* -- REMINDER:REMINDER ACTIONS -- */
@@ -251,7 +252,8 @@ Route::middleware([
 
             /* -- REMINDER:USERS -- */
             //Route::get('reminder/{vat_reg_main_id}/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
-            Route::get('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
+            //Route::get('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
+            Route::post('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
             /* --end REMINDER:USERS -- */
 
             /* -- REMINDER:EDIT -- */
@@ -296,7 +298,7 @@ Route::middleware([
 
         /* -- TASKS: UPLOADS -- */
         //Route::get('uploads', [TasksController::class, 'Uploads'])->name('uploads');      
-        Route::get('uploads/{upload_file_type?}', [TasksController::class, 'Uploads'])->name('uploads');         
+        Route::get('uploads/{upload_file_type?}', [TasksController::class, 'Uploads'])->name('uploads');
 
            
         // Route::get('uploads/pivs', [TasksController::class, 'Uploads'])->name('uploads.pivs');         
@@ -717,6 +719,10 @@ Route::middleware([
                         /* -- DECLARATIONS: COM INVOICE - UNMATCH -- */
                         Route::post('declaration-invoice/{invoice_id}/unmatch', [DeclarationController::class, 'invoiceUnmatch'])->name('declaration.invoice.unmatch');
                         /* --end DECLARATIONS: COM INVOICE - UNMATCH -- */
+
+                        /* -- DECLARATIONS: SALES INVOICE FILE - MOVE -- */
+                        Route::post('declaration-invoice/{invoice_id}/move-file', [DeclarationController::class, 'invoiceFileMove'])->name('declaration.sales.invoice.file.move');
+                        /* --end DECLARATIONS: SALES INVOICE FILE - MOVE -- */
                     /* --end DECLARATIONS:VIEW -- */ 
 
                     /* -- CARGO DECLARATION FILES -- */

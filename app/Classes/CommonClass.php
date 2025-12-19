@@ -4319,7 +4319,10 @@ class CommonClass
             break;  
           case "importreconcilation-sales-invoice-ftp-data-edit":
             Log::info($authUserName . " updated the import reconciliation sales invoice datas.", $extras);
-            break;                     
+            break; 
+          case "importreconcilation-sales-invoice-file-move":
+            Log::info($authUserName . " moved the import reconciliation sales invoice files.", $extras);
+            break;                    
           /*end IMPORT RECONCILIATION*/
 
           /*IMPORT RECONCILIATION - NOTES*/
@@ -5112,7 +5115,7 @@ class CommonClass
     //GET Reminders
     public function getRemindersLazy($reminder_id = NULL, $_where = [], $_final = 'get')
     { 
-      $_with = ['reminderhistory', 'reminderuser', 'reminderuser.user', 'reminderuser.user.dvuser', 'reminderuser.user.roles', 'vatregmain', 'vatregmain.vatreg', 'vatregmain.vatreg.vatreturns', 'vatregmain.vatreg.vatreturnfiles', 'vatregmain.vatreg.pivs', 'vatregmain.vatreg.cas', 'vatregmain.vatreg.dda', 'vatregmain.client', 'reminderactionoption'];
+      $_with = ['reminderhistory', 'reminderuser', 'reminderuser.user', 'reminderuser.user.dvuser', 'reminderuser.user.roles', 'reminderuser.reminderuserclient', 'reminderuser.reminderuserclient.client', 'vatregmain', 'vatregmain.vatreg', 'vatregmain.vatreg.vatreturns', 'vatregmain.vatreg.vatreturnfiles', 'vatregmain.vatreg.pivs', 'vatregmain.vatreg.cas', 'vatregmain.vatreg.dda', 'vatregmain.client', 'reminderactionoption'];
      
       if($reminder_id != null)
       {
@@ -8722,6 +8725,8 @@ class CommonClass
 
         foreach($reminders as $key=>$reminder)
         {
+          $reminder->send_to_client = $reminder_request->send_to_client;
+
           $_start_at = Carbon::parse($reminder->start_at);
           $_schedule = $reminder->schedule;  
 
@@ -8954,7 +8959,7 @@ class CommonClass
           $sender_firstname = $sender_dvuser->firstname;
           $sender_designation = $sender_dvuser->designation;
           /* --end GET ADMIN USER -- */
-
+$x = ''; 
           /* Send reminder email based on condition */          
           if($send_test_text_yes == 'send_test_reminder' || $send_test_text_no == 'nosave')
           {            
@@ -9044,9 +9049,10 @@ class CommonClass
           else
           {
             $reminderusers = $reminder->reminderuser;
-
+  
             foreach($reminderusers as $reminderuser)
             {
+              //dd($reminder->send_to_client[$reminderuser->user_id], $reminderuser);
               $user = $reminderuser->user;
               $dvuser = $user->dvuser;
               $roles = $user->roles;
@@ -9136,114 +9142,117 @@ class CommonClass
               
               foreach($reminderuser_client_users as $reminderuser_client_user)
               {                
-                $clientname_final_title = str_replace(
-                  array(
-                    "[client_name]"
-                  ),
-                  array(
-                    $reminderuser_client_user->client->client_name
-                  ),           
-                "[client_name] - " . $final_title);
-                $data['subject'] = $clientname_final_title;
+                if(in_array($reminderuser_client_user->client_id, $reminder->send_to_client[$reminderuser->user_id]))
+                {                  
+                  $clientname_final_title = str_replace(
+                    array(
+                      "[client_name]"
+                    ),
+                    array(
+                      $reminderuser_client_user->client->client_name
+                    ),           
+                  "[client_name] - " . $final_title);
+                  $data['subject'] = $clientname_final_title;
 
-                $clientname_final_content = str_replace(
-                  array(
-                    "[client_name]"
-                  ),
-                  array(
-                    $reminderuser_client_user->client->client_name
-                  ),  
-                $final_content);
-                $data['message'] = (($_vatreg_folder == "general reminder") ? '' : ($_vatreg_folder . "<br>")) . $clientname_final_content;
+                  $clientname_final_content = str_replace(
+                    array(
+                      "[client_name]"
+                    ),
+                    array(
+                      $reminderuser_client_user->client->client_name
+                    ),  
+                  $final_content);
+                  $data['message'] = (($_vatreg_folder == "general reminder") ? '' : ($_vatreg_folder . "<br>")) . $clientname_final_content;
 
-                $mailsent = $this->SendEmail($data,$send_to,$_action_name);
+                  $mailsent = $this->SendEmail($data,$send_to,$_action_name);
 
-                if($mailsent)            
-                {
-                  $return_msg++;
-
-                  $email_headers = $mailsent->getOriginalMessage()->getHeaders();
-                  $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
-                  if ($message_id)
+                  if($mailsent)            
                   {
-                    $email_sent_to = $email_headers->getHeaderBody('To');
-                    $email_sent_subject = $email_headers->getHeaderBody('Subject');
+                    $return_msg++;
 
-                    if($dvuser != "")             
-                      $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
-                    else             
-                      $uname = $authUser->firstname . ' ' . $authUser->lastname;
-                   
-                    if(empty($vat_reg_ids))
+                    $email_headers = $mailsent->getOriginalMessage()->getHeaders();
+                    $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
+                    if ($message_id)
                     {
-                      if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                      $email_sent_to = $email_headers->getHeaderBody('To');
+                      $email_sent_subject = $email_headers->getHeaderBody('Subject');
+
+                      if($dvuser != "")             
+                        $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
+                      else             
+                        $uname = $authUser->firstname . ' ' . $authUser->lastname;
+                     
+                      if(empty($vat_reg_ids))
                       {
-                        $period_month = str_replace(
-                          array(
-                            "no_1",
-                            "no_2",
-                            "no_3",
-                            "no_4",
-                            "no_5",
-                            "no_6",
-                            "uk_1",
-                            "uk_2",
-                            "uk_3",
-                            "uk_4",
-                            "uk_5",
-                            "uk_6",
-                            "uk_7",
-                            "uk_8",
-                            "uk_9",
-                            "uk_10",
-                            "uk_11",
-                            "uk_12"
-                          ),
-                          array(
-                            '01',
-                            '03',
-                            '05',
-                            '07',
-                            '09',
-                            '11',
-                            '01',
-                            '02',
-                            '03',
-                            '04',
-                            '05',
-                            '06',
-                            '07',
-                            '08',
-                            '09',
-                            '10',
-                            '11',
-                            '12'
-                          ),           
-                        $_period);
+                        if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                        {
+                          $period_month = str_replace(
+                            array(
+                              "no_1",
+                              "no_2",
+                              "no_3",
+                              "no_4",
+                              "no_5",
+                              "no_6",
+                              "uk_1",
+                              "uk_2",
+                              "uk_3",
+                              "uk_4",
+                              "uk_5",
+                              "uk_6",
+                              "uk_7",
+                              "uk_8",
+                              "uk_9",
+                              "uk_10",
+                              "uk_11",
+                              "uk_12"
+                            ),
+                            array(
+                              '01',
+                              '03',
+                              '05',
+                              '07',
+                              '09',
+                              '11',
+                              '01',
+                              '02',
+                              '03',
+                              '04',
+                              '05',
+                              '06',
+                              '07',
+                              '08',
+                              '09',
+                              '10',
+                              '11',
+                              '12'
+                            ),           
+                          $_period);
 
-                        $vatreg = VATRegistration::with(['client'])
-                                    ->where('client_id', $reminderuser_client_user->client->id)
-                                    ->where('service_start', $_year . '-' . $period_month . '-01')
-                                    ->first();
+                          $vatreg = VATRegistration::with(['client'])
+                                      ->where('client_id', $reminderuser_client_user->client->id)
+                                      ->where('service_start', $_year . '-' . $period_month . '-01')
+                                      ->first();
 
-                        $emailNotification = new EmailNotification;
-                        $emailNotification->vat_reg_id = ($vatreg) ? $vatreg->id : NULL; 
-                        $emailNotification->message_id = $message_id;   
-                        $emailNotification->subject = $email_sent_subject;                   
-                        $emailNotification->name = $uname;            
-                        $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
-                        $emailNotification->sent_by = $authUser->user_id;
-                        $emailNotification->reminder_action_id = $_action_id;
-                        
-                        $emailNotification->save();
+                          $emailNotification = new EmailNotification;
+                          $emailNotification->vat_reg_id = ($vatreg) ? $vatreg->id : NULL; 
+                          $emailNotification->message_id = $message_id;   
+                          $emailNotification->subject = $email_sent_subject;                   
+                          $emailNotification->name = $uname;            
+                          $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
+                          $emailNotification->sent_by = $authUser->user_id;
+                          $emailNotification->reminder_action_id = $_action_id;
+                          
+                          $emailNotification->save();
+                        }
                       }
-                    }
-                  }              
-                }
+                    }              
+                  }                  
+                } //only selected CLIENT
               } //for user clients
             } //for loop
           }
-          
+         
           if($mailsent)            
           {
             $return_msg++;

@@ -145,7 +145,7 @@ class ApiClass
                       if($exname_key == 'EkspTypeNr')
                       {
                         $eksp_type = $EkspTypeNavn;
-                        if($EkspTypeNavn == 1 || $EkspTypeNavn == 3) 
+                        if($EkspTypeNavn == 1 || $EkspTypeNavn == 2 || $EkspTypeNavn == 3) 
                         {
                           $allow_sumpup = false;
                           break;
@@ -355,7 +355,7 @@ class ApiClass
                 else
                 {
                   //EX. STATISTICAL VALUE SHOULD HAVE EkspTypeNr. 1
-                  if($eksp_type == 1 || $eksp_type == 3) //3 included for BOLDLIGHT 
+                  if($eksp_type == 1 || $eksp_type == 2 || $eksp_type == 3) //3 included for BOLDLIGHT and 2 included for MØBEL24.NO 
                     $statvalue_ex += $value;       
                 }
 

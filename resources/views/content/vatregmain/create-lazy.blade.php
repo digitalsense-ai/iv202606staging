@@ -119,6 +119,7 @@ $(function () {
               </optgroup>
               <optgroup label="Rest of the world">
                 <option value="US" {{ isset($vatRegMain) ? (($vatRegMain->country == 'US') ? 'selected' : '') : '' }}>United States of America</option>
+                <option value="HK" {{ isset($vatRegMain) ? (($vatRegMain->country == 'HK') ? 'selected' : '') : '' }}>Hong Kong</option>                
               </optgroup>
             </select>
             <label for="country">Country</label>          

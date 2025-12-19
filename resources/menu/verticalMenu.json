@@ -141,14 +141,57 @@
     {
       "name": "Reminders",
       "icon": "menu-icon tf-icons bx bx-bell",
-      "slug": ["reminder.list", "reminder.history"],
+      "slug": ["reminders", "reminders.at", "reminders.dk", "reminders.fr", "reminders.no", "reminders.ch", "reminders.gb", "reminder.history"],
       "roles": ["super-admin","company-admin"],
       "submenu": [   
         {
           "name": "Active Reminders",
-          "slug": "reminder.list",
-          "roles": ["super-admin","company-admin"],
-          "url": "reminders"          
+          "slug": ["reminders", "reminders.at", "reminders.dk", "reminders.fr", "reminders.no", "reminders.ch", "reminders.gb"],
+          "roles": ["super-admin","company-admin"],          
+          "submenu": [  
+            {
+              "name": "All",
+              "slug": "reminders",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders"          
+            },  
+            {
+              "name": "AT",
+              "slug": "reminders.at",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/at"          
+            },     
+            {
+              "name": "DK",
+              "slug": "reminders.dk",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/dk"          
+            },
+            {
+              "name": "FR",
+              "slug": "reminders.fr",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/fr"          
+            },
+            {
+              "name": "NO",
+              "slug": "reminders.no",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/no"          
+            },
+            {
+              "name": "CH",
+              "slug": "reminders.ch",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/ch"          
+            },
+            {
+              "name": "GB",
+              "slug": "reminders.gb",
+              "roles": ["super-admin","company-admin"],
+              "url": "reminders/gb"          
+            }
+          ]          
         },     
         {
           "name": "History",

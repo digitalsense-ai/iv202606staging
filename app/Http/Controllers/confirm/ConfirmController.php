@@ -70,7 +70,7 @@ class ConfirmController extends Controller
                   //Forward the Auto reply email to info@intravat.com
                   if($email->status == 'auto_reply')
                   {
-                    $this->emailBoxApiClass->forwardAutoReplyEmail();
+                    $this->emailBoxApiClass->forwardAutoReplyEmail($emailAddress);
 
                     $this->commonClass->addLog(NULL, 'reminder-forwared-auto-reply'); 
                   }

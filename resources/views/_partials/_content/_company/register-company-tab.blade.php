@@ -66,6 +66,7 @@
       </optgroup>
       <optgroup label="Rest of the world">
         <option value="US">United States of America</option>
+        <option value="HK">Hong Kong</option>
       </optgroup>
     </select>
     <label for="multiStepsState">Country</label>          

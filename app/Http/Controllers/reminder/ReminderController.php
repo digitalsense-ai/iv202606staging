@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 
 use App\Models\Reminder;
 use App\Models\ReminderUser;
+use App\Models\ReminderUserClient;
 use App\Models\Client;
 use App\Models\UserClient;
 use App\Models\VATRegistration;
@@ -37,8 +38,8 @@ class ReminderController extends Controller
         });
     }      
    
-    /* -- GET /reminders -- */
-    public function loadReminders()
+    /* -- GET /reminders/{reminder_type} -- */
+    public function loadReminders($reminder_type = NULL)
     {   
       try
       {    
@@ -52,6 +53,13 @@ class ReminderController extends Controller
       
         /* -- GET REMINDERS -- */
         $reminders = $this->commonClass->getRemindersLazy();
+        if($reminder_type)
+        {
+          $reminders_result = $reminders;
+          $reminders = $reminders_result->filter(function ($reminder, $key) use($reminder_type) {         
+                          return ($reminder->reminder_country === strtoupper($reminder_type)); 
+                      });
+        }
         /* --end GET REMINDERS -- */
       
         /* -- LOG -- */
@@ -65,6 +73,7 @@ class ReminderController extends Controller
          
           'vat_reg_mains' => $vat_reg_mains,
       
+          'reminder_type' => $reminder_type,
           'reminders' => $reminders
         ]);
         /* --end RETURN VIEW -- */
@@ -90,7 +99,7 @@ class ReminderController extends Controller
         /* --end RETURN JSON -- */ 
       }  
     }  
-    /* --end GET /reminders -- */    
+    /* --end GET /reminders/{reminder_type} -- */    
    
     /* --LOAD REMINDER ACTIONS GET /reminders/{user_role}/reminderactions -- */    
    public function loadReminderActions(Request $request, $user_role)
@@ -409,6 +418,7 @@ class ReminderController extends Controller
            
             'schedule' => $schedule_value, 
             'start_at' => $datetime_value,
+            'reminder_template' => $request->reminder_template,
             'title' => $request->title,             
             'content' => $request->reminder_content_quill,
             'dk_title' => $request->dk_title,             
@@ -434,6 +444,7 @@ class ReminderController extends Controller
            
             'schedule' => $schedule_value, 
             'start_at' => $datetime_value,
+            'reminder_template' => $request->reminder_template,
             'title' => $request->title,             
             'content' => $request->reminder_content_quill,
             'dk_title' => $request->dk_title,             
@@ -460,7 +471,7 @@ class ReminderController extends Controller
 
         /* -- DELETE REMINDER USER -- */
         $reminder = ReminderUser::where('reminder_id', $reminder_id)->delete();
-        /* --end DELETE REMINDER USER -- */
+        /* --end DELETE REMINDER USER -- */        
 
         if($request->send_to != null)
         {
@@ -479,13 +490,29 @@ class ReminderController extends Controller
             /* --end GET USERS -- */
 
             /* -- CREATE REMINDER USER -- */
-            $reminder = ReminderUser::updateOrCreate(                     
+            $reminder_user = ReminderUser::updateOrCreate(                     
               [
                 'reminder_id' => $reminder_id,    
                 'user_id' => $user->id                
               ]
             );
             /* --end CREATE REMINDER USER -- */
+
+            /* -- DELETE REMINDER USER CLIENT -- */
+            $reminder_user_client = ReminderUserClient::where('reminder_user_id', $reminder_user->id)->delete();
+            /* --end DELETE REMINDER USER CLIENT -- */
+
+            /* -- CREATE REMINDER USER CLIENT -- */
+            foreach($request->send_to_client[$user->id] as $send_to_client)
+            {
+              $reminder_user_client = ReminderUserClient::updateOrCreate(                     
+                [
+                  'reminder_user_id' => $reminder_user->id,    
+                  'client_id' => $send_to_client          
+                ]
+              );
+            }
+            /* --end CREATE REMINDER USER CLIENT-- */
           } /* --end for SEND_TO -- */
         } /* --end if SEND_TO -- */
          else
@@ -508,13 +535,29 @@ class ReminderController extends Controller
               /* --end GET USERS -- */
 
               /* -- CREATE REMINDER USER -- */
-              $reminder = ReminderUser::updateOrCreate(                     
+              $reminder_user = ReminderUser::updateOrCreate(                     
                 [
                   'reminder_id' => $reminder_id,    
                   'user_id' => $user->id                
                 ]
               );
               /* --end CREATE REMINDER USER -- */
+
+              /* -- DELETE REMINDER USER CLIENT -- */
+              $reminder_user_client = ReminderUserClient::where('reminder_user_id', $reminder_user->id)->delete();
+              /* --end DELETE REMINDER USER CLIENT -- */
+
+              /* -- CREATE REMINDER USER CLIENT -- */
+              foreach($request->edit_send_to_client[$user->id] as $edit_send_to_client)
+              {
+                $reminder_user_client = ReminderUserClient::updateOrCreate(                     
+                  [
+                    'reminder_user_id' => $reminder_user->id,    
+                    'client_id' => $edit_send_to_client          
+                  ]
+                );
+              }
+              /* --end CREATE REMINDER USER CLIENT-- */
             }
           }
         } /* --end else SEND_TO -- */
@@ -545,7 +588,7 @@ class ReminderController extends Controller
         /* --end RETURN JSON -- */
       }      
       catch (\Exception $e) 
-      {           
+      {           dd($e);
         /* -- LOG -- */
         $this->commonClass->addLog($this->authUser, 'error-log', 
           [

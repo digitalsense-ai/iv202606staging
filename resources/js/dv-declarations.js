@@ -389,6 +389,11 @@ console.log(declaration_datas);
                                       '<span><i class="bx bx-list-minus"></i> Disregard invoice</span>' +
                                     '</button>';
           $(btn_disregard_invoice).appendTo('.'+ declaration_name +'-search-filter .sub-btns');
+
+          var btn_move_invoice_file =  '<button type="button" id="btn_'+ declaration_name +'_move_invoice_file" title="Move Invoice File" class="btn-move-invoice-file badge rounded-pill bg-label-secondary border-0 text-capitalize ms-2" disabled="disabled" data-invoice_name="sales" data-tab_name="'+ declaration_name +'" >' +                                     
+                                      '<span><i class="bx bx-move"></i> Move Invoice File</span>' +
+                                    '</button>';
+          $(btn_move_invoice_file).appendTo('.'+ declaration_name +'-search-filter .sub-btns');
       
           $("."+ declaration_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-declaration-export .'+ declaration_name +'-declaration-export');
 
@@ -1297,7 +1302,7 @@ console.log(declaration_datas);
               invoice_html += '<tr class="'+ tr_class_name + disregard_invoice_class_name +'">' +
                                   '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' +
                                     ((d[parent_row_no].co_invoices[row_no].invoices[j].disregard_invoice) ? '' : 
-                                    '<input type="checkbox" class="dt-chk form-check-input" value="'+ d[parent_row_no].co_invoices[row_no].invoices[j].id +'" data-invoice_no="'+ d[parent_row_no].co_invoices[row_no].invoices[j].invoice_no +'" data-invoice_date="'+ d[parent_row_no].co_invoices[row_no].invoices[j].o_invoice_date +'">') +                                   
+                                    '<input type="checkbox" class="dt-chk form-check-input '+ ((d[parent_row_no].co_invoices[row_no].category_desc == "Credit Notes/Missing Ref.") ? 'move-invoice-file' : '') +'" value="'+ d[parent_row_no].co_invoices[row_no].invoices[j].id +'" data-invoice_no="'+ d[parent_row_no].co_invoices[row_no].invoices[j].invoice_no +'" data-invoice_date="'+ d[parent_row_no].co_invoices[row_no].invoices[j].o_invoice_date +'">') +                                   
                                   '</td>' +                                      
                                   //'<td class="text-start declaration-th-w150"'+ disregard_invoice_tooltip +'>' + ((d[parent_row_no].co_invoices[row_no].category_type == 'RE') ? '-' : d[parent_row_no].co_invoices[row_no].invoices[j].invoice_no) + '</td>' +
                                   '<td class="text-start declaration-th-w150"'+ disregard_invoice_tooltip +'>' + d[parent_row_no].co_invoices[row_no].invoices[j].invoice_no + '</td>' +
@@ -3747,7 +3752,10 @@ console.log(declaration_datas);
     var chk_all = $(this).find(".form-check-input");
     var dt = $(this).closest(".datatables-declaration-invoices");
     
-    dt.find(".dt-chk").prop('checked', chk_all.prop('checked')); 
+    if(dt.find(".dt-chk.move-invoice-file"))
+      dt.find(".dt-chk.move-invoice-file").prop('checked', chk_all.prop('checked')); 
+    else
+      dt.find(".dt-chk:not(.move-invoice-file)").prop('checked', chk_all.prop('checked')); 
     
     var table = $(this).closest("table"); 
     var rows = table.find('tbody tr');    
@@ -3756,44 +3764,57 @@ console.log(declaration_datas);
     else    
       rows.removeClass('selected');          
 
-    checkSelectAll(dt);
+    if(dt.find(".dt-chk.move-invoice-file"))
+      checkSelectAll(dt, 'move-invoice-file');
+    else
+      checkSelectAll(dt);
   });
 
   $(document).on('click', '.datatables-declaration-invoices tbody tr td:first-child', function (e) {
     const $td = $(this);
     const $target = $(e.target);
 
-    if ($target.is('input[type="checkbox"].dt-chk')) {
-      // Checkbox was clicked
-      console.log('Checkbox clicked!');
-
-      var tr = $td.closest("tr");  
-
-      if($td.prop('checked'))
-        tr.addClass('selected');
-      else
-        tr.removeClass('selected');
-    } else {
-      // First td (but not checkbox) was clicked
-      console.log('First td clicked!');
-      
-      var chk = $td.find(".form-check-input.dt-chk");
-      console.log(chk);
-      var tr = $td.parent("tr");
-      if(tr.hasClass('selected'))
-      {
-        chk.prop('checked', '');   
-        tr.removeClass('selected');        
-      }
-      else
-      {
-        chk.prop('checked', 'checked');   
-        tr.addClass('selected');
-      }  
+    if ($target.is('input[type="checkbox"].dt-chk.move-invoice-file')) 
+    {
+      console.log('Checkbox move file clicked!');
     }
+    else
+    {
+      if ($target.is('input[type="checkbox"].dt-chk:not(.move-invoice-file)')) {
+        // Checkbox was clicked
+        console.log('Checkbox clicked!');
 
+        var tr = $td.closest("tr");  
+
+        if($td.prop('checked'))
+          tr.addClass('selected');
+        else
+          tr.removeClass('selected');
+      } else {
+        // First td (but not checkbox) was clicked
+        console.log('First td clicked!');
+        
+        var chk = $td.find(".form-check-input.dt-chk:not(.move-invoice-file)");
+        console.log(chk);
+        var tr = $td.parent("tr");
+        if(tr.hasClass('selected'))
+        {
+          chk.prop('checked', '');   
+          tr.removeClass('selected');        
+        }
+        else
+        {
+          chk.prop('checked', 'checked');   
+          tr.addClass('selected');
+        }  
+      }
+    }
+      
     var dt = $td.closest(".datatables-declaration-invoices");
-    checkSelectAll(dt);    
+    if ($target.is('input[type="checkbox"].dt-chk.move-invoice-file')) 
+      checkSelectAll(dt, 'move-invoice-file');
+    else
+      checkSelectAll(dt);
   });
 
   // $(document).on('click', 'td.dt-chk-cell', function() {console.log("td.dt-chk-cell click");
@@ -3824,38 +3845,72 @@ console.log(declaration_datas);
   //   checkSelectAll(dt);    
   // });
 
-  function checkSelectAll(dt)
-  {
-    var total_chk = dt.find(".dt-chk");
+  function checkSelectAll(dt, type = null)
+  {console.log(type);
+    if(type == 'move-invoice-file')
+      var total_chk = dt.find(".dt-chk.move-invoice-file");
+    else
+      var total_chk = dt.find(".dt-chk:not(.move-invoice-file)");
 
     var chk_all = dt.find("th.dt-chk-select-all .form-check-input");  
-    var remaining_chk = dt.find(".dt-chk:checked");
+    if(type == 'move-invoice-file')
+      var remaining_chk = dt.find(".dt-chk.move-invoice-file:checked");
+    else
+      var remaining_chk = dt.find(".dt-chk:not(.move-invoice-file):checked");
 
     if(remaining_chk.length == 0)
     {
       chk_all.removeClass('indeterminate');
       chk_all.prop('checked', false);   
 
-      $(".btn-disregard-invoice").attr('disabled', 'disabled');
-      $(".btn-disregard-invoice").addClass('bg-label-secondary');
-      $(".btn-disregard-invoice").removeClass('bg-label-primary');
+      if(type == 'move-invoice-file')
+      {
+        $(".btn-move-invoice-file").attr('disabled', 'disabled');
+        $(".btn-move-invoice-file").addClass('bg-label-secondary');
+        $(".btn-move-invoice-file").removeClass('bg-label-primary');
+      }
+      else
+      {
+        $(".btn-disregard-invoice").attr('disabled', 'disabled');
+        $(".btn-disregard-invoice").addClass('bg-label-secondary');
+        $(".btn-disregard-invoice").removeClass('bg-label-primary');
+      }
     }
     else
     {
       if(total_chk.length == remaining_chk.length)
       {
         chk_all.removeClass('indeterminate');
-        $(".btn-disregard-invoice").removeAttr('disabled');
-        $(".btn-disregard-invoice").addClass('bg-label-primary');
-        $(".btn-disregard-invoice").removeClass('bg-label-secondary');
+
+        if(type == 'move-invoice-file')
+        {
+          $(".btn-move-invoice-file").removeAttr('disabled');
+          $(".btn-move-invoice-file").addClass('bg-label-primary');
+          $(".btn-move-invoice-file").removeClass('bg-label-secondary');
+        }
+        else
+        {
+          $(".btn-disregard-invoice").removeAttr('disabled');
+          $(".btn-disregard-invoice").addClass('bg-label-primary');
+          $(".btn-disregard-invoice").removeClass('bg-label-secondary');
+        }
       }
       else
       {  
         chk_all.addClass('indeterminate');      
 
-        $(".btn-disregard-invoice").removeAttr('disabled');
-        $(".btn-disregard-invoice").addClass('bg-label-primary');
-        $(".btn-disregard-invoice").removeClass('bg-label-secondary');
+        if(type == 'move-invoice-file')
+        {
+          $(".btn-move-invoice-file").removeAttr('disabled');
+          $(".btn-move-invoice-file").addClass('bg-label-primary');
+          $(".btn-move-invoice-file").removeClass('bg-label-secondary');
+        }
+        else
+        {
+          $(".btn-disregard-invoice").removeAttr('disabled');
+          $(".btn-disregard-invoice").addClass('bg-label-primary');
+          $(".btn-disregard-invoice").removeClass('bg-label-secondary');
+        }
       }
     }
   }
@@ -3931,10 +3986,10 @@ console.log(declaration_datas);
     // var product_type_text = (product_type == 1) ? 'VAT Returns' : 'Import Reconciliation';
     // var accordion_name = (product_type == 1) ? 'All' : 'ImportReconciliation';
     
-    var selected_invoices_id = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk:checked'), function(c){
+    var selected_invoices_id = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk:not(.move-invoice-file):checked'), function(c){
                                   return c.value; 
                               });
-    var selected_invoices = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk:checked'), function(c){      
+    var selected_invoices = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk:not(.move-invoice-file):checked'), function(c){      
                               //return {id: c.value, invoice_no: $(c).data('invoice_no'), invoice_date: $(c).data('invoice_date')};       
                               return $(c).data('invoice_no');       
                             });
@@ -5442,7 +5497,7 @@ console.log(selected_invoices_id);
 
           var which_tab = result['tab_name'];
           $(".btn-move-declaration-salesinvoice").html(            
-            '<span><i class="bx bx-move"></i> Move Sales invoice</span>'
+            '<span><i class="bx bx-move"></i> Move Sales Invoice</span>'
           );
           
          
@@ -5466,8 +5521,8 @@ console.log(selected_invoices_id);
 
           Swal.fire({
             icon: 'success',
-            title: 'Sales Invoice moveed!',
-            text: swal_text + ' has been moveed.',
+            title: 'Sales Invoice moved!',
+            text: swal_text + ' has been moved.',
             customClass: {
               confirmButton: 'btn btn-success'
             }
@@ -6137,4 +6192,166 @@ console.log(result);
   //         }
   //       });
   // });
+
+  // Move invoice file
+  $(document).on('click', '.btn-move-invoice-file', function () {    
+    var btn_move_invoice_file = $(this);
+    var data = btn_move_invoice_file.data();
+
+    var move_invoice_file_text = (btn_move_invoice_file.attr('title') == 'Move Invoice File') ? 'move' : '';
+    var move_invoice_file_suffix = (btn_move_invoice_file.attr('title') == 'Move Invoice File') ? 'd' : 'd';
+    var move_invoice_file_text_capitalize = (btn_move_invoice_file.attr('title') == 'Move Invoice File') ? 'Move' : '';
+    var move_invoice_file_text_after = (btn_move_invoice_file.attr('title') == 'Move Invoice File') ? '' : 'Move';
+    var move_invoice_file_text_loading = (btn_move_invoice_file.attr('title') == 'Move Invoice File') ? 'Moving' : '';
+   
+    var vat_reg_id = $("#vat_reg_id").val();    
+    
+    var selected_invoices_id = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk.move-invoice-file:checked'), function(c){
+                                  return c.value; 
+                              });
+    var selected_invoices = $.map($('#navs-declaration-'+ data['tab_name'] +' .form-check-input.dt-chk.move-invoice-file:checked'), function(c){                                    
+                              return $(c).data('invoice_no');
+                              //return {id: c.value, invoice_no: $(c).data('invoice_no'), invoice_date: $(c).data('invoice_date')};              
+                            });
+console.log(selected_invoices);
+console.log(selected_invoices_id);
+    Swal.fire({
+      title: 'Are you sure?',
+      //text: "You want to "+ disregard_invoice_text +" the "+ vat_reg_period +" period for " + product_type_text + "!",
+      text: "You want to "+ move_invoice_file_text +" the selected invoice files!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, '+ move_invoice_file_text_capitalize +'!',
+      customClass: {
+        confirmButton: 'btn btn-primary me-2',
+        cancelButton: 'btn btn-label-secondary'
+      },
+      buttonsStyling: false
+    }).then(function (result) {
+    
+      if (result.value) {
+        
+        btn_move_invoice_file.attr('disabled', 'disabled');
+        btn_move_invoice_file.html(
+            '<span><i class="bx bx-list-minus"></i> ' +
+            move_invoice_file_text_loading + '...</span>');
+        
+        var filldata = {         
+          "invoice_id": selected_invoices_id,
+          "invoice_no": selected_invoices,
+          //"invoice_date": selected_invoices[0]['invoice_date'],          
+          "invoice_name": data['invoice_name'],
+          "tab_name": data['tab_name']
+        };
+        fillMoveInvoiceFileModal(filldata);        
+            
+      } else if (result.dismiss === Swal.DismissReason.cancel) {
+        Swal.fire({
+          title: 'Cancelled',
+          text: 'Cancelled ' + move_invoice_file_text_capitalize + ' Invoice file :)',
+          icon: 'error',
+          customClass: {
+            confirmButton: 'btn btn-success'
+          }
+        });
+      }
+     
+    }); 
+  });
+
+  function fillMoveInvoiceFileModal(data)
+  {          
+    $("#move_invoice_file_vat_reg_id").val($("#vat_reg_id").val());
+    $("#move_invoice_file_invoice_id").val(data['invoice_id']);
+    $("#move_invoice_file_invoice_no").val(data['invoice_no']);
+    $("#move_invoice_file_invoice_name").val(data['invoice_name']);
+    //$("#move_invoice_file_month_year").val(moment(data['invoice_date']).format('MM-YYYY'));    
+    $("#move_invoice_file_tab_name").val(data['tab_name']);
+
+    var sub_headline = 'Note: ' + $("#month_year_period").val();// +  ' ' + $("#org_no").val();// + 
+                        //' - Com. Invoice No: ' + data['invoice_no'];
+    $("#modalDeclarationMoveInvoiceFile .onboarding-info").html(sub_headline);
+  
+    var prefix = "Move ";
+    var suffix = " File";
+    var heading = 'Sales Invoice';   
+
+    $("#modalDeclarationMoveInvoiceFile .onboarding-title").html(prefix + heading + suffix);
+
+    $('#modalDeclarationMoveInvoiceFile').modal('show');
+  }
+
+  // Move sales invoice - save
+  $(document).on("submit", ".frm-declaration-salesinvoicefile-move", function(event) {  
+    event.preventDefault();
+
+    var formId = $(this).attr('id');   
+    var invoice_id = (String($('#move_invoice_file_invoice_id').val()).indexOf(',') != -1) ? 0 : $('#move_invoice_file_invoice_id').val();      
+         
+    var formData = new FormData(this); 
+    //formData.append("selected_invoices", $("#move_invoice_file_invoice_no").val());     
+               
+    var btn_file_move_save = $("#" + formId + " #btn-declaration-salesinvoicefile-move-save");
+    btn_file_move_save.attr('disabled', 'disabled');
+    btn_file_move_save.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
+            'Moving...');
+    
+    $.ajax({
+      url: `${declarationInvoiceUrl}${invoice_id}/move-file`,
+      type: 'POST',
+      dataType: "JSON",
+      data: formData,
+      processData: false,
+      contentType: false,
+      success: function (result) {
+       
+        if(result)    
+        {                 
+          btn_file_move_save.removeAttr('disabled');
+          btn_file_move_save.html('Move');
+          btn_file_move_save.removeClass('disabled');
+
+          var which_tab = result['tab_name'];
+          $(".btn-move-invoice-file").html(            
+            '<span><i class="bx bx-move"></i> Move Invoice File</span>'
+          );
+         
+          var declaration_datas = drawDtTable(result, 'declaration');
+          reloadDeclarations(declaration_datas);          
+        
+          var swal_text = 'Sales invoice file';          
+         
+          //Clear Modal Values          
+          //var com_invoices = declaration_datas['declaration_'+ which_tab +'_datas'][0]['modal_co_invoices'];          
+          //$("#declaration-salesinvoicefile-move").html('');
+
+          // var options = '<option value="" selected="selected">--Select Com. Invoices--</option>';            
+          // $.each(com_invoices, function (index, com_invoice) { 
+          //   var com_invoice_disabled = (com_invoice['disabled']) ? 'disabled="disabled"' : '';
+          //   options += '<option value="'+com_invoice['id']+'" '+ com_invoice_disabled +'>'+com_invoice['co_invoice_no']+'</option>';
+          // });
+          // $('#declaration-salesinvoicefile-move').html(options); 
+          
+          $('#modalDeclarationMoveInvoiceFile').modal('hide');
+          var moved_message = (result['moved_message'] == 'none') ? ' Cannot move the selected files.' : ((result['moved_message'] == 'partial') ? ' Cannot move some of the files.' : '');
+          Swal.fire({
+            icon: 'success',
+            title: 'Sales Invoice File moved!',
+            text: swal_text + ' has been moved.' + moved_message,
+            customClass: {
+              confirmButton: 'btn btn-success'
+            }
+          });
+        }
+      },
+      error: function (error) {
+        $(".btn-move-invoice-file").html(            
+            '<span><i class="bx bx-move"></i> Move Invoice File</span>'
+          );
+
+        console.log(error);
+      }
+    });  
+  });
+
 });

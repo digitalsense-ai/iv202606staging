@@ -534,7 +534,7 @@ class EmailBoxApiClass
   /* --end READ EMAIL FOR CARGO DECLARATION FILES -- */  
 
   /* -- FORWARD EMAIL TO info@intravat.com -- */  
-  public function forwardAutoReplyEmail()
+  public function forwardAutoReplyEmail($emailAddress)
   {
     try 
     {           
@@ -586,15 +586,15 @@ class EmailBoxApiClass
                 try {
                   
                   /** @var \Webklex\PHPIMAP\Query\WhereQuery $query */              
-                  $query->unflagged()->fetchOrderAsc()->chunked(function($messages, $chunk) {
+                  $query->unflagged()->fetchOrderAsc()->chunked(function($messages, $chunk) use ($emailAddress) {
                       /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
-                      
+                      Log::info("From email : " . $emailAddress);
                       if ($messages->isEmpty()) {
                           Log::info("Empty response received. Skipping chunk #$chunk");
                           return;
                       }
                    
-                      $messages->each(function($message) {
+                      $messages->each(function($message) use ($emailAddress) {
                         $move_message = 0;
                         /** @var \Webklex\PHPIMAP\Message $message */
                             
@@ -607,7 +607,8 @@ class EmailBoxApiClass
                             stripos($decoded_subject, "auto response") !== false ||
                             stripos($decoded_subject, "auto-reply") !== false ||
                             stripos($decoded_subject, "out of office") !== false ||
-                            stripos($decoded_subject, "autoreply") !== false
+                            stripos($decoded_subject, "autoreply") !== false ||
+                            stripos($decoded_subject, "autosvar") !== false
                         ) {
                             Log::info("FORWARDING AUTO-REPLY...");
 
@@ -618,6 +619,7 @@ class EmailBoxApiClass
 
                                 // Forward using Laravel Mail
                                 \Mail::send(new \App\Mail\ForwardAutoReply(
+                                    $emailAddress,
                                     $decoded_subject,
                                     $htmlBody,
                                     $textBody

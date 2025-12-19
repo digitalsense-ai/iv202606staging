@@ -50,57 +50,7 @@ $(function () {
 
     var result = { 'reminders': {!! json_encode($reminders) !!}, 'authUser': {!! json_encode($authUser) !!} };    
     reminder_history_datas = drawDtTable(result, 'reminderhistory');
-    
-    {{--
-    @foreach ($reminders as $reminder)  
-      var reminder_users = [];
-      var reminder_histories = [];
-      @php  
-        $reminderhistories = $reminder->reminderhistory; 
-        $reminderusers = $reminder->reminderuser;
-        $reminderactionoption = $reminder->reminderactionoption;
-        $vatregmain = $reminder->vatregmain; 
-        $client = $vatregmain->client;         
-      @endphp  
-
-      @foreach ($reminderhistories as $reminderhistory)         
-        reminder_histories.push({
-          'sent_at' : '{{ \Carbon\Carbon::parse($reminderhistory->sent_at)->format("d-m-Y") }}',                   
-        });
-      @endforeach 
-
-      @foreach ($reminderusers as $reminderuser) 
-        @php            
-          $user = $reminderuser->user;             
-          $dvuser = $user->dvuser;
-          $role = $user->roles->first();                
-        @endphp
-
-        reminder_users.push({      
-          'name' : '{{ $dvuser->firstname . " " . $dvuser->lastname }}',  
-          'firstname' : '{{ $dvuser->firstname }}',
-          'lastname' : '{{ $dvuser->lastname }}',
-          'email' : '{{ $user->email }}',
-          'role' : '{{ $role->name }}',
-        });
-      @endforeach 
-
-      reminder_history_datas.push({         
-            'id' : '{{ $reminder->id }}',
-            'fake_id' : reminder_history_start,
-            'title' : '{{ $reminder->title }}',     
-            'users' : reminder_users,            
-            'client' : '{{ $client->client_name }}',
-            'vatregmain' : '{{ $vatregmain->country . " " . \Carbon\Carbon::parse($vatregmain->service_start)->format("M Y") . " " . $vatregmain->general_periods }}',
-            'reminder_action' : '{{ $reminderactionoption->action_name }}',
-            'schedule' : '{{ $reminder->schedule }}',
-            'start_at' : '{{ \Carbon\Carbon::parse($reminder->start_at)->format("d-m-Y g:i A") }}',
-            'status' : parseInt('{{ $reminder->status }}'),
-            'histories' : reminder_histories, 
-          });
-      reminder_history_start = reminder_history_start + 1;     
-    @endforeach 
-    --}}   
+       
 });
 </script>
 
@@ -126,10 +76,11 @@ $(function () {
         <tr>            
           <th></th>  
           <th>Country</th>
+          <th>Type</th>
           <th>Title</th>
           <!-- <th>Action</th>
           <th>Schedule</th> -->
-          <th>Period</th>
+          <th>Year/Period</th>
           <th>Start Date</th>
           <th>User</th>  
           <th>Vat Reg.</th>

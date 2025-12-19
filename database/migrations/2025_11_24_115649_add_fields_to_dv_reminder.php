@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('dk_content')->after('dk_title');
             $table->string('year')->after('dk_content');
             $table->string('period')->after('year');
+            $table->string('reminder_template')->nullable()->after('period');
         });
     }
 

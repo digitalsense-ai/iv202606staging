@@ -83,6 +83,7 @@
               </optgroup>
               <optgroup label="Rest of the world">
                 <option value="US" {{ isset($client) ? (($client->off_country == 'US') ? 'selected' : '') : '' }}>United States of America</option>
+                <option value="HK" {{ isset($client) ? (($client->off_country == 'HK') ? 'selected' : '') : '' }}>Hong Kong</option>
               </optgroup>
             </select>
           </div>

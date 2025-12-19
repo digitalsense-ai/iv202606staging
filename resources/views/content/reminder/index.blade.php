@@ -74,11 +74,11 @@ $(function () {
       <thead>        
         <tr>            
           <th></th>  
-          <th>Country</th>
+          <th>Country</th>          
           <th>Title</th>
           <th>Action</th>
           <th>Schedule</th>
-          <th>Period</th>
+          <th>Year/Period</th>
           <th>Start Date</th>
           <th>User</th>  
           <th>Vat Reg.</th>

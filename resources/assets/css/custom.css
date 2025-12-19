@@ -126,7 +126,13 @@ div.dts tbody td { white-space: unset; }
 .switch.fs-big .switch-input:checked ~ .switch-toggle-slider::after { left: 1.50rem; }
 
 /*.formEmail .switch .switch-toggle-slider,*/
-.switch.fs-big .switch-toggle-slider { top: 0; bottom: 0; margin: auto; }
+.switch.fs-big .switch-toggle-slider { /*top: 0; bottom: 0; margin: auto;*/ top: 15px; }
+.switch.fs-big.select-all .switch-toggle-slider { top: 0; }
+
+.switch.fs-normal .switch-toggle-slider { width: 2.5rem; height: 1.35rem; }
+.switch.fs-normal .switch-toggle-slider::after { width: 13px; height: 13px; }
+.switch.fs-normal .switch-input:checked ~ .switch-toggle-slider::after { left: 1.15rem; }
+.switch.fs-normal .switch-toggle-slider { top: 0; bottom: 0; margin: auto; }
 
 .right-3 { right: 1rem !important; }
 
@@ -408,7 +414,12 @@ html[data-theme="theme-bordered"] .bg-navbar-theme { background: #f9fafb !import
 #d1d5dc
 /*Theme Border*/
 
-.menu-sub { margin-left: 20px; }
+.menu-item.open > .menu-sub,
+.menu-item.open > .menu-sub .menu-item.open > .menu-sub { margin-left: 20px !important; }
+.menu-item.open .menu-sub .menu-sub li a::before { border: 1px solid #fff; background: none !important; }
+.bg-menu-theme .menu-sub > .menu-item.active > .menu-link:not(.menu-toggle)::before { background: none !important; }
+
+.custom-option .custom-option-content.reminder-user-main { cursor: default; }
 
 /*Extra small devices (portrait phones, less than 576px)*/
 @media (max-width: 575.98px) {

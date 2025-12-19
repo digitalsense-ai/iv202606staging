@@ -160,7 +160,7 @@
                 <div class="d-inline-block align-center px-3 mx-3 fw-normal">Select All</div>
 
                 <div class="d-inline-block">
-                  <label class="switch form-check-label custom-option-content text-end px-3 fs-big" for="send-to-reminder-all">
+                  <label class="switch form-check-label custom-option-content text-end px-3 fs-big select-all" for="send-to-reminder-all">
                    <input class="form-check-input switch-input send-to-reminder-all" type="checkbox" id="send-to-reminder-all" />
                     <span class="switch-toggle-slider right-3">
                       <span class="switch-on"></span>
@@ -173,7 +173,7 @@
           </div>
 
           @php                                                         
-            $unique_reminder_user_ids = [];                    
+            $unique_reminder_user_ids = [];       
           @endphp
 
           @foreach($reminder_users as $key=>$reminder_user)
@@ -182,7 +182,7 @@
               $user = $reminder_user->user;   
               $dvuser = $user->dvuser;         
               $notificationsettings = $user->notificationsettings;
-              $checked = ''; 
+              $checked = '';               
             @endphp
             @if(!in_array($user->id, $unique_reminder_user_ids, true)) 
               @php            
@@ -195,7 +195,7 @@
                       <div class="col-sm-12 mb-3">
                         <div class="form-check custom-option custom-option-basic">
                         
-                          <label class="switch form-check-label custom-option-content text-end px-3 fs-big" for="send-to-reminder-{{ $dvuser->user_id }}">
+                          <label class="switch form-check-label custom-option-content text-end px-3 fs-big reminder-user-main" for="send-to-reminder-{{ $dvuser->user_id }}">
                             @if($reminderusers)                          
                               @foreach($reminderusers as $reminderuser)
                                 @php                                 
@@ -212,7 +212,7 @@
                             </span>
 
                             <div class="d-block w-100 text-start">
-                              <div class="d-inline-block w-50">
+                              <div class="d-inline-block w-40">
                                 <span class="custom-option-header switch-label px-0">
                                   <span class="h6 mb-0">{{ $dvuser->firstname . ' ' . $dvuser->lastname }}</span>
                                 </span>
@@ -221,8 +221,46 @@
                                 </span>
                               </div>
 
-                              <div class="d-inline-block w-25 align-top">
-                                <span class="h6">{{ ($client_id == '0') ? 'All' : $client_name }}</span>
+                              <div class="d-inline-block w-40 align-top">
+                                {{--<span class="">{{ ($client_id == '0') ? 'All' : $client_name }}--}}
+                                @if($client_id == '0')
+                                  @foreach($reminder_users as $reminder_user_client)
+                                    @if($reminder_user->user_id == $reminder_user_client->user_id)
+                                      @php                                                
+                                        $client_name_final = $reminder_user_client->client->client_name; 
+                                        $client_checked = '';                                     
+                                      @endphp
+                                      
+                                      <label class="switch form-check-label custom-option-content text-start fw-light fs-normal p-2 reminder-user-sub m-0 w-auto" for="send-to-reminder-client-{{ $reminder_user->user_id . '-' . $reminder_user_client->client_id }}">
+
+                                        @if($reminderusers) 
+                                          @foreach($reminderusers as $reminderuser)
+                                            @if($reminder_user_client->user_id == $reminderuser['user_id'])
+                                              @if(isset($reminderuser['reminderuserclient']))
+                                                @foreach($reminderuser['reminderuserclient'] as $reminderuserclient)
+                                                  @php                                 
+                                                    if($reminder_user_client->client_id == $reminderuserclient['client_id'])
+                                                      $client_checked = "checked='checked'";                                    
+                                                  @endphp
+                                                @endforeach
+                                              @endif    
+                                            @endif                      
+                                          @endforeach
+                                        @endif
+
+                                        <input name="send_to_client[{{$reminder_user->user_id}}][]" class="form-check-input switch-input send-to-reminder-client" type="checkbox" value="{{ $reminder_user_client->client_id }}" id="send-to-reminder-client-{{ $reminder_user->user_id . '-' . $reminder_user_client->client_id }}" {{ $client_checked }} />
+                                        <span class="switch-toggle-slider">
+                                          <span class="switch-on"></span>
+                                          <span class="switch-off"></span>
+                                        </span>
+                                        <div class="ms-5">{{ $client_name_final }}</div>
+                                      </label><br>
+                                    @endif
+                                  @endforeach
+                                @else
+                                  {{ $client_name }} 
+                                @endif
+                                {{--</span>--}}
                               </div>
                             </div>
 
