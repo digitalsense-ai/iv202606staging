@@ -31,10 +31,10 @@
 		$box1 = $pivsmonthtotal + $salestotalvat;
 		$box2 = 0;
 		$box3 = $box1 + $box2;
-		$box4 = $c79numbers + $pivsmonthtotal + $purchasetotalvat;
+		$box4 = abs(($c79numbers + $pivsmonthtotal + $purchasetotalvat));
 		$box5 = $box3 - $box4;
 		$box6 = $salestotalnet;
-		$box7 = (($c79numbers/0.2) + ($pivsmonthtotal/0.2) + $purchasetotalnet);
+		$box7 = abs((($c79numbers/0.2) + ($pivsmonthtotal/0.2) + $purchasetotalnet));
 		$box8 = 0;
 		$box9 = 0;
 	}
@@ -50,7 +50,7 @@
 		
 	<input type="hidden" id="pivsmonthtotal-{{ $vat_reg_id }}" value="{{ $pivsmonthtotal }}" required>
 	<input type="hidden" id="c79numbers-{{ $vat_reg_id }}" value="{{ $c79numbers }}" required>
-
+<fieldset {{ ($vatreg_status == 6) ? 'disabled' : '' }}>
 	<div class="row g-3">
 		<div class="col-12">	
 			<ul class="list-group">
@@ -172,5 +172,6 @@
 		*/
 		@endphp
 	</div>
+</fieldset>	
 </form>
 <!--/ Submitting Fields -->  

@@ -11,6 +11,13 @@ class AuthenticatedSessionController extends Controller
 {
     public function destroy(Request $request)
 	{
+		$user = Auth::user();
+
+        if ($user) {
+            // Revoke OCR API token(s) for this user
+            $user->tokens()->where('name', 'OCR API Token')->delete();
+        }
+        
 	    // Clear session role data
 	    Session::forget(['current_role', 'multi_roles']);
 

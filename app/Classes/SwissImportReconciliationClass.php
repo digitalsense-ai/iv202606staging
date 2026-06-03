@@ -5,6 +5,7 @@ namespace App\Classes;
 use Spatie\PdfToText\Pdf as PdfExtract;
 
 use Storage;
+use Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Carbon;
 
@@ -22,7 +23,7 @@ class SwissImportReconciliationClass
       {
         $flepath = 'SWISS/';
         
-        $filename = 'taxationDecisionVAT_25CHEI003677866440_1_CHE332375380.pdf';
+        $filename = '05112107844148_26CHEI004135985004_20260317070040_689004.pdf';
 
         $file = public_path($flepath . $filename);   
       }
@@ -56,13 +57,14 @@ class SwissImportReconciliationClass
             {
               if(stripos("localhost:8000", $_SERVER['HTTP_HOST']) !== false)
               {
-                if (stripos(trim($arraytext[$key + 2]), ".") !== false) 
+                if ((stripos(trim($arraytext[$key + 2]), ".") !== false || stripos(trim($arraytext[$key + 2]), "-") !== false) 
+                  && (stripos(trim($arraytext[$key + 2]), ":") !== false))
                   $start_pos_date = $key + 2;
 
                 if (stripos(trim($arraytext[$key + 10]), ":") !== false)
                   $start_pos_category_no = $key + 26;
                 else
-                  $start_pos_category_no = $key + 10;
+                  $start_pos_category_no = $key + 10;                
               } //LOCALHOST
               else
               {
@@ -80,10 +82,26 @@ class SwissImportReconciliationClass
                 if (stripos(trim($arraytext[$key - 4]), ".") !== false)
                   $start_pos_category_no = $key - 4;
                 else
-                  $start_pos_category_no = $key + 2;
+                {
+                  if ((stripos(trim($arraytext[$key - 4]), ".") !== false || stripos(trim($arraytext[$key - 4]), "-") !== false)
+                    && (stripos(trim($arraytext[$key - 4]), ":") !== false)
+                  )
+                  {
+                    $start_pos_date = $key - 4;
+                    $start_pos_category_no = $key - 6;
+                  }
+                  else  
+                    $start_pos_category_no = $key + 2;
+                }
               } //SERVER
             }
           }// if start_pos_category_no & start_pos_date              
+
+          if (Str::startsWith(Str::lower($arraytext[$start_pos_category_no]), ['s']))
+          {
+            if (stripos(trim($text), "Zollanmeldungsnummer:") !== false)              
+              $start_pos_category_no = $key;
+          }
 
           if($start_pos_com_invoice_no == 0)
           {
@@ -137,9 +155,16 @@ class SwissImportReconciliationClass
           $category_type = trim($arr_category_type_declaration_no[1]);
           $decalration_no = trim($arr_category_type_declaration_no[0]); 
         }
+        else
+        {
+          $arr_category_type_declaration_no = explode(' ', $arraytext[$start_pos_category_no]);
+
+          $category_type = 1;
+          $decalration_no = trim($arr_category_type_declaration_no[1]); 
+        }
       }
       /*end CATEGORY n DECLARATION NO. */ 
-
+ 
       /* DATE */ 
       if($start_pos_date > 0)
       {
@@ -151,11 +176,22 @@ class SwissImportReconciliationClass
 
           $format_date = (stripos("localhost:8000", $_SERVER['HTTP_HOST']) !== false) ? $arr_date[2] : $arr_date[0];
 
-          $arr_com_invoice_date = explode('.', trim($format_date));
+          if (stripos(trim($format_date), ".") !== false)  
+          {     
+            $arr_com_invoice_date = explode('.', trim($format_date));
 
-          $com_invoice_date_year = trim(str_replace(',', '', $arr_com_invoice_date[2]));
-          $com_invoice_date_month = trim(str_replace(',', '', $arr_com_invoice_date[1]));
-          $com_invoice_date_date = trim(str_replace(',', '', $arr_com_invoice_date[0]));
+            $com_invoice_date_year = trim(str_replace(',', '', $arr_com_invoice_date[2]));
+            $com_invoice_date_month = trim(str_replace(',', '', $arr_com_invoice_date[1]));
+            $com_invoice_date_date = trim(str_replace(',', '', $arr_com_invoice_date[0]));
+          }
+          else if (stripos(trim($format_date), "-") !== false)    
+          {   
+            $arr_com_invoice_date = explode('-', trim($format_date));
+
+            $com_invoice_date_year = trim(str_replace(',', '', $arr_com_invoice_date[0]));
+            $com_invoice_date_month = trim(str_replace(',', '', $arr_com_invoice_date[1]));
+            $com_invoice_date_date = trim(str_replace(',', '', $arr_com_invoice_date[2]));
+          } 
           
           $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT); 
         }
@@ -176,7 +212,12 @@ class SwissImportReconciliationClass
             if($matches)
             {
               if (isset($matches[count($matches) - 1]))
-                $com_invoice_no = trim($matches[count($matches) - 1]);
+              {
+                if(trim($matches[count($matches) - 1]) == Carbon::now()->year)
+                  $com_invoice_no = trim($matches[1]);
+                else  
+                  $com_invoice_no = trim($matches[count($matches) - 1]);
+              }
             }
             else
             {
@@ -198,7 +239,12 @@ class SwissImportReconciliationClass
           if($matches)
           {
             if (isset($matches[count($matches) - 1]))
-              $com_invoice_no = trim($matches[count($matches) - 1]);
+            {
+              if(trim($matches[count($matches) - 1]) == Carbon::now()->year)
+                $com_invoice_no = trim($matches[1]);
+              else
+                $com_invoice_no = trim($matches[count($matches) - 1]);
+            }
           }
           else
           {                              
@@ -222,12 +268,20 @@ class SwissImportReconciliationClass
             {
               $net_amount_line = (preg_match('/\d/', $arraytext[$start_pos_net_amount])) ? $arraytext[$start_pos_net_amount] : $arraytext[$start_pos_net_amount + 1];
 
+              if(trim($net_amount_line) == '')
+              {
+                $net_amount = trim($arraytext[$start_pos_net_amount + 2]);
+                $com_invoice_net_amount += (float) trim(str_replace('\'', '', $net_amount));
+              }
+              else
+              {
                 $arr_net_amount = explode(' ', trim($net_amount_line));
             
                 $net_amount = (preg_match('/\d/', $arraytext[$start_pos_net_amount])) ? $arr_net_amount[count($arr_net_amount) -1] : 
                                 $arr_net_amount[0];
 
                 $com_invoice_net_amount += (float) trim(str_replace('\'', '', $net_amount));
+              }
             }
           }//loop
         } //LOCALHOST   
@@ -278,7 +332,12 @@ class SwissImportReconciliationClass
                 else
                 {
                   $net_amount_text = trim($arraytext[$start_pos_net_amount + 6]);
-                  if($net_amount_text != '')
+                  if($net_amount_text == '')
+                  {
+                    $net_amount_text = trim($arraytext[$start_pos_net_amount + 4]);
+                    $com_invoice_net_amount += (float) str_replace('\'', '', $net_amount_text); 
+                  }
+                  else
                     $com_invoice_net_amount += (float) str_replace('\'', '', $net_amount_text); 
                 }   
               } 

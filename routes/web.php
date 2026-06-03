@@ -36,8 +36,20 @@ use App\Http\Controllers\anyexcel\AnyExcelController;
 
 use App\Http\Controllers\RoleController;
 
+use App\Http\Controllers\ocr\AnalyzePdfController;
+use App\Http\Controllers\ocr\SplitPdfController;
+//use App\Http\Controllers\ocr\MicrosoftAzureController;
+use App\Http\Controllers\ocr\MailReaderController;
+
 use \App\Classes\DynamicsApiClass;
 use \App\Classes\EconomicApiClass;
+
+use App\Http\Controllers\crm\OverviewController;
+use App\Http\Controllers\crm\LeadController;
+use App\Http\Controllers\crm\QuoteController;
+use App\Http\Controllers\crm\QuoteAddonController;
+use App\Http\Controllers\crm\ReminderController as CRMReminderController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -62,6 +74,17 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified'
 ])->group(function () {   
+
+//    Route::get('/test-parser', function () {
+//     $reflection = new ReflectionClass(\App\Parsers\ClientInvoiceParser::class);
+
+//     return (string) $reflection->getConstructor();
+// });
+// Route::get('/test-parser-resolve', function () {
+//     $parser = app(\App\Parsers\ClientInvoiceParser::class);
+
+//     return get_class($parser);
+// });
    
     /* -- LOCALE -- */
     Route::get('lang/{locale}', [LanguageController::class, 'swap']);
@@ -125,8 +148,14 @@ Route::middleware([
         Route::get('convert-table-index', [TestSampleController::class, 'index'])->name('convert.table.index');
         Route::post('convert-table', [TestSampleController::class, 'convertHtmlTableToExcel'])->name('convert.table');
 
-        Route::get('analyzepdf', [TestSampleController::class, 'analyzepdf'])->name('analyze.pdf.index');
-        Route::post('analyze-pdf', [TestSampleController::class, 'analyze'])->name('analyze.pdf.post');
+        // Route::get('analyzepdf', [TestSampleController::class, 'analyzepdf'])->name('analyze.pdf.index');
+        // Route::post('analyze-pdf', [TestSampleController::class, 'analyze'])->name('analyze.pdf.post');
+        // Route::post('analyze-invoice', [TestSampleController::class, 'analyzeInvoice'])->name('analyze.invoice.post');
+        // Route::post('analyze-invoice-pdf', [TestSampleController::class, 'analyzeInvoicePdfs'])->name('analyze.invoice.pdf.post');       
+        // Route::get('/api/batches/{batch}/progress',[TestSampleController::class, 'batchProgress']);
+
+        Route::get('hmrc-validate', [TestSampleController::class, 'sendHmrcValidate'])->name('send.hmrc.validate');
+        Route::post('hmrc-validate', [TestSampleController::class, 'hmrcValidate'])->name('hmrc.validate');
 
         /* -- STATISTICS -- */
         Route::get('stats-excel', [StatsController::class, 'exportToExcelStats'])->name('stats.export.excel'); 
@@ -165,6 +194,47 @@ Route::middleware([
                 /* --end STATISTICS:VIEW -- */
             /* --end STATISTICS -- */
         /* --end SETTINGS -- */
+
+        /* -- CRM -- */
+        Route::prefix('crm')->group(function(){
+            Route::resource('leads', LeadController::class);
+            //Route::post('leads/{lead}/create-quote', [LeadController::class,'createQuote']);
+            //Route::post('leads/{lead}/no-quote', [LeadController::class,'noQuote']);
+            Route::get('leads/{cvr_no}/company', [LeadController::class,'getCompany']);
+            Route::get('leads/{user_id}/user', [LeadController::class,'getUser']);
+
+            //Route::resource('quotes', QuoteController::class);
+            Route::get('quotes/', [QuoteController::class,'index'])->name('quotes.index');
+
+            Route::get('quotes1/', [QuoteController::class,'index1'])->name('quotes.index1');
+            
+            Route::get('quotes/create/{lead}', [QuoteController::class,'create'])->name('quotes.create');
+            Route::post('quotes', [QuoteController::class,'store'])->name('quotes.store');
+            Route::get('quotes/{quote}', [QuoteController::class,'show'])->name('quotes.show');
+            Route::get('quotes/{quote}/edit', [QuoteController::class,'edit'])->name('quotes.edit');
+            Route::put('quotes/{quote}', [QuoteController::class,'update'])->name('quotes.update');
+            Route::delete('quotes/{quote}', [QuoteController::class,'destroy'])->name('quotes.delete');
+
+            Route::post('quotes/{quote}/status', [QuoteController::class,'changeStatus'])->name('quotes.change-status');
+            Route::post('quotes/{quote}/duplicate', [QuoteController::class,'duplicate'])->name('quotes.duplicate');
+
+            Route::get('approved', [QuoteController::class,'approved'])->name('quotes.approved');  
+            Route::get('rejected', [QuoteController::class,'rejected'])->name('quotes.rejected');   
+            
+            Route::resource('reminders', CRMReminderController::class)->names('crm.reminders');
+
+            Route::get('overview', [OverviewController::class,'index'])->name('crm.overview');
+            //Route::get('rejected', [LeadController::class,'rejected'])->name('crm.rejected');           
+
+            Route::post('quotes/{quote}/negotiate', [QuoteController::class,'negotiate'])
+                ->name('quotes.negotiate');
+
+            Route::post('quote-addons/store', [QuoteAddonController::class,'store'])->name('quote-addons.store');
+            Route::put('quote-addons/{id}', [QuoteAddonController::class,'update'])->name('quote-addons.update');
+            Route::delete('quote-addons/{id}', [QuoteAddonController::class,'destroy'])->name('quote-addons.destroy');
+            Route::get('quotes/{id}/calculate', [QuoteAddonController::class,'calculate'])->name('quotes.calculate');
+        });
+        /* --end CRM -- */
     });
     /* -- ROLE: SUPER-ADMIN -- */
 
@@ -231,51 +301,6 @@ Route::middleware([
             Route::delete('splitted-files', [ComplianceController::class, 'deleteSplittedFiles'])->name('compliance.delete.splitted.files'); 
             /* --end COMPLIANCE:DELETE SPLITTED FILES -- */
         /* --end COMPLIANCE -- */
-
-        /* -- REMINDER -- */
-            /* -- REMINDER:VIEW -- */
-            //Route::get('reminders', [ReminderController::class, 'loadReminders'])->name('reminder.list');
-            Route::get('reminders/{reminder_type?}', [ReminderController::class, 'loadReminders'])->name('reminders'); 
-            /* --end REMINDER:VIEW -- */
-
-            /* -- REMINDER:REMINDER ACTIONS -- */
-            Route::get('reminder/{user_role}/reminderactions', [ReminderController::class, 'loadReminderActions'])->name('reminder.action');
-            /* --end REMINDER:REMINDER ACTIONS -- */
-
-            /* -- REMINDER:COMPANIES -- */
-            Route::get('reminder/{country}/companies', [ReminderController::class, 'loadReminderCompanies'])->name('reminder.company.list');
-            /* --end REMINDER:COMPANIES -- */
-
-            /* -- REMINDER:ALL COMPANIES -- */
-            Route::get('reminder/{country}/allcompanies', [ReminderController::class, 'loadAllReminderCompanies'])->name('reminder.allcompany.list');
-            /* --end REMINDER:ALL COMPANIES -- */
-
-            /* -- REMINDER:USERS -- */
-            //Route::get('reminder/{vat_reg_main_id}/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
-            //Route::get('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
-            Route::post('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
-            /* --end REMINDER:USERS -- */
-
-            /* -- REMINDER:EDIT -- */
-            Route::get('reminder/{reminder_id}/edit', [ReminderController::class, 'editReminder'])->name('reminder.edit');
-            /* --end REMINDER:EDIT -- */
-
-            /* -- REMINDER:STORE -- */
-            Route::post('reminder', [ReminderController::class, 'postReminder'])->name('reminder.add'); 
-            /* --end REMINDER:STORE -- */
-
-            /* -- REMINDER:DELETE -- */
-            Route::delete('reminder/{reminder_id}', [ReminderController::class, 'deleteReminder'])->name('reminder.delete');
-            /* --end REMINDER:DELETE -- */
-
-            /* -- REMINDER:HISTORY -- */
-            Route::get('reminder-history', [ReminderController::class, 'historyReminder'])->name('reminder.history');
-            /* --end REMINDER:HISTORY -- */
-
-            /* -- REMINDER:SEND TEST EMAIL -- */
-            Route::get('reminder/sendtestemail', [ReminderController::class, 'sendreminderemail'])->name('reminder.sendtestemail');
-            /* --end REMINDER:SEND TEST EMAIL -- */
-        /* --end REMINDER -- */
     });
     /* -- ROLE: SUPER-ADMIN|COMPANY-ADMIN -- */
 
@@ -402,7 +427,92 @@ Route::middleware([
 
             Route::delete('mail-box-files/dismiss', [MailboxController::class, 'dismiss'])->name('mail.box.files.dismiss');  
             /* --end MAILBOX -- */ 
-        /* --end SETTINGS -- */       
+
+            /* -- OCR PDF -- */
+            Route::get('analyzepdf', [AnalyzePdfController::class, 'index'])->name('analyze.pdf.index');
+            Route::post('analyzepdf', [AnalyzePdfController::class, 'analyze'])->name('analyze.pdf.post');                
+            Route::get('/analyzepdf/batch/{batch}/progress',[AnalyzePdfController::class, 'batchProgress']);
+            Route::put('analyzepdf/{analyze_id}', [AnalyzePdfController::class, 'analyzeUpdate'])->name('analyze.pdf.update');
+            Route::get('analyzepdf/{analyze_id}/sas-url', [AnalyzePdfController::class, 'getSasUrl'])->name('analyze.pdf.sas-url');
+            Route::get('analyzepdf/fetchinbox', [AnalyzePdfController::class, 'fetchInbox'])->name('analyze.pdf.fetchinbox');
+            Route::get('/analyzepdf/progress',[AnalyzePdfController::class, 'inboxProgress'])->name('analyze.pdf.inbox.progress');
+
+            Route::get('analyzepdf/search', [AnalyzePdfController::class, 'search'])->name('analyze.pdf.search');
+            Route::post('analyzepdf/{analyze_id}/delete', [AnalyzePdfController::class, 'deleteAnalyzePdf'])->name('analyze.pdf.delete');
+
+            Route::get('analyzepdf-sync', [AnalyzePdfController::class, 'syncAnalyzePdf'])->name('analyze.pdf.sync');
+
+            Route::get('analyzepdf/{analyze_id}/recapture', [AnalyzePdfController::class, 'recapture'])->name('analyze.pdf.recapture');
+
+            // Route::get('/microsoftazure/login', [MicrosoftAzureController::class, 'login'])->name('microsoft.azure.login');
+            // Route::get('/oauth/callback', [MicrosoftAzureController::class, 'callback'])->name('microsoft.azure.callback');
+            // Route::get('/emails', [MicrosoftAzureController::class, 'listInboxEmails'])->name('microsoft.azure.emails.list');
+
+            Route::get('/emails/fetch', [MailReaderController::class, 'fetchInbox'])->name('emails.fetch');
+
+            /* -- BULK UPLOAD -- */            
+            Route::post('analyzepdf/bulk-upload', [AnalyzePdfController::class, 'ocrBulkUpload'])->name('analyze.pdf.bulk.upload');           
+            /* --end BULK UPLOAD -- */
+
+            /* -- RE-LOAD -- */            
+            Route::post('analyzepdf/reload', [AnalyzePdfController::class, 'ocrReload'])->name('analyze.pdf.reload');           
+            /* --end RE-LOAD -- */
+            /* --end OCR PDF -- */
+
+            /* -- SPLIT PDF -- */
+            Route::get('splitpdf', [SplitPdfController::class, 'index'])->name('split.pdf.index');
+            Route::post('splitpdf', [SplitPdfController::class, 'splitPdf'])->name('split.pdf.post');   
+            /* --end SPLIT PDF -- */
+
+            /* -- VALIDATE -- */            
+            Route::get('analyzepdf/validate', [AnalyzePdfController::class, 'analyzeValidate'])->name('analyze.pdf.validate');           
+            /* --end VALIDATE -- */
+        /* --end SETTINGS -- */ 
+
+        /* -- REMINDER -- */
+            /* -- REMINDER:VIEW -- */
+            //Route::get('reminders', [ReminderController::class, 'loadReminders'])->name('reminder.list');
+            Route::get('reminders/{reminder_type?}', [ReminderController::class, 'loadReminders'])->name('reminders'); 
+            /* --end REMINDER:VIEW -- */
+
+            /* -- REMINDER:REMINDER ACTIONS -- */
+            Route::get('reminder/{user_role}/reminderactions', [ReminderController::class, 'loadReminderActions'])->name('reminder.action');
+            /* --end REMINDER:REMINDER ACTIONS -- */
+
+            /* -- REMINDER:COMPANIES -- */
+            Route::get('reminder/{country}/companies', [ReminderController::class, 'loadReminderCompanies'])->name('reminder.company.list');
+            /* --end REMINDER:COMPANIES -- */
+
+            /* -- REMINDER:ALL COMPANIES -- */
+            Route::get('reminder/{country}/allcompanies', [ReminderController::class, 'loadAllReminderCompanies'])->name('reminder.allcompany.list');
+            /* --end REMINDER:ALL COMPANIES -- */
+
+            /* -- REMINDER:USERS -- */
+            //Route::get('reminder/{vat_reg_main_id}/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
+            //Route::get('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
+            Route::post('reminder/users', [ReminderController::class, 'loadReminderUsers'])->name('reminder.user.list');
+            /* --end REMINDER:USERS -- */
+
+            /* -- REMINDER:EDIT -- */
+            Route::get('reminder/{reminder_id}/edit', [ReminderController::class, 'editReminder'])->name('reminder.edit');
+            /* --end REMINDER:EDIT -- */
+
+            /* -- REMINDER:STORE -- */
+            Route::post('reminder', [ReminderController::class, 'postReminder'])->name('reminder.add'); 
+            /* --end REMINDER:STORE -- */
+
+            /* -- REMINDER:DELETE -- */
+            Route::delete('reminder/{reminder_id}', [ReminderController::class, 'deleteReminder'])->name('reminder.delete');
+            /* --end REMINDER:DELETE -- */
+
+            /* -- REMINDER:HISTORY -- */
+            Route::get('reminder-history', [ReminderController::class, 'historyReminder'])->name('reminder.history');
+            /* --end REMINDER:HISTORY -- */
+
+            /* -- REMINDER:SEND TEST EMAIL -- */
+            Route::get('reminder/sendtestemail', [ReminderController::class, 'sendreminderemail'])->name('reminder.sendtestemail');
+            /* --end REMINDER:SEND TEST EMAIL -- */
+        /* --end REMINDER -- */      
     });
     /* --end ROLE: SUPER-ADMIN|TEAM-USER|COMPANY-ADMIN -- */
 
@@ -735,9 +845,9 @@ Route::middleware([
                 /* --end HISTORY TAB -- */
 
                 /* -- NOTES TAB -- */
-                    Route::get('import-reconciliation-notes-tab/{vat_reg_id}', [TasksController::class, 'loadImportReconciliationNotesTab'])->name('vat.return.notes.tab');
-                    Route::post('import-reconciliation-notes-tab/{vat_reg_id}', [TasksController::class, 'postImportReconciliationNotes'])->name('vat.return.notes.store');
-                    Route::delete('import-reconciliation-notes-tab/{note_id}', [TasksController::class, 'deleteImportReconciliationNotes'])->name('vat.return.notes.delete');
+                    Route::get('import-reconciliation-notes-tab/{vat_reg_id}', [TasksController::class, 'loadImportReconciliationNotesTab'])->name('import.reconciliation.notes.tab');
+                    Route::post('import-reconciliation-notes-tab/{vat_reg_id}', [TasksController::class, 'postImportReconciliationNotes'])->name('import.reconciliation.notes.store');
+                    Route::delete('import-reconciliation-notes-tab/{note_id}', [TasksController::class, 'deleteImportReconciliationNotes'])->name('import.reconciliation.notes.delete');
                 /* --end NOTES TAB -- */ 
 
                 /* -- CONTROL TAB -- */

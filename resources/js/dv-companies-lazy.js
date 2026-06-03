@@ -185,8 +185,8 @@ $(function () {
       order: [[2, 'asc']],
       dom:
         '<"row mx-2"' +
-        '<"col-md-2"<"me-3"l>>' +
-        '<"col-md-10"<"dt-action-buttons text-xl-end text-lg-start text-md-end text-start d-flex align-items-center justify-content-end flex-md-row flex-column mb-3 mb-md-0"fB>>' +
+        '<"col-md-7"<"me-3"l>>' +
+        '<"col-md-5"<"dt-action-buttons text-xl-end text-lg-start text-md-end text-start d-flex align-items-center justify-content-end flex-md-row flex-column mb-3 mb-md-0"fB>>' +
         '>t' +
         '<"row mx-2"' +
         '<"col-sm-12 col-md-6"i>' +
@@ -237,7 +237,93 @@ $(function () {
           }
         }
       },
-      initComplete: function () {  
+      initComplete: function () { 
+        var api = this.api();
+        var container = $(api.table().container());
+
+        // Get distinct vat_country values
+        let countries = new Set();
+
+        // Loop through all rows
+        api.rows().every(function () {
+            var data = this.data();
+
+            if (data.vat_country && data.vat_country !== '-') {
+
+                // Split by space
+                var splitCountries = data.vat_country.split(' ');
+
+                splitCountries.forEach(function(code) {
+                    code = code.trim();
+                    if (code !== '') {
+                        countries.add(code);
+                    }
+                });
+            }
+        });
+
+        countries = Array.from(countries).sort();
+
+        // Wrapper
+        //var flagWrapper = $('<div class="dt-country-flags d-flex flex-wrap align-items-center"></div>');
+        var flagWrapper = $('<span class="filter_client_vat_country mx-3"></span>');
+
+        countries.forEach(function(countryCode) {
+
+            var flagHtml = `
+                <div class="flag-filter d-inline-flex align-middle my-3"
+                     data-country="${countryCode}"
+                     style="cursor:pointer;">
+
+                    <img src="assets/img/flags/${countryCode}.png"
+                         alt="${countryCode}"
+                         title="${countryCode}"
+                         class="country-flag me-2">
+
+                    <span class="align-middle me-4">${countryCode}</span>
+                </div>
+            `;
+
+            flagWrapper.append(flagHtml);
+        });
+
+        // Append next to length dropdown
+        container.find('.col-md-7 .me-3').append(flagWrapper);
+
+        
+
+        container.on('click', '.flag-filter', function () {
+
+          var country = $(this).data('country');
+          var table = api.table().body();
+
+          if ($(this).hasClass('active')) {
+
+              // Reset filter
+              $('.flag-filter').removeClass('active');
+              $(table).find('tr').show();
+
+          } else {
+
+              $('.flag-filter').removeClass('active');
+              $(this).addClass('active');
+
+              $(table).find('tr').each(function () {
+
+                  var hasCountry = $(this)
+                      .find('.client-vat_country img[alt="' + country + '"]')
+                      .length > 0;
+
+                  if (hasCountry) {
+                      $(this).show();
+                  } else {
+                      $(this).hide();
+                  }
+              });
+          }
+      });
+
+
         if($("#btn-my-companies span").length > 0)
         {
           var company_total = this.api().data().length;
@@ -556,8 +642,8 @@ $(function () {
       order: [[2, 'asc']],
       dom:
         '<"row mx-2"' +
-        '<"col-md-2"<"me-3"l>>' +
-        '<"col-md-10"<"dt-action-buttons text-xl-end text-lg-start text-md-end text-start d-flex align-items-center justify-content-end flex-md-row flex-column mb-3 mb-md-0"fB>>' +
+        '<"col-md-7"<"me-3"l>>' +
+        '<"col-md-5"<"dt-action-buttons text-xl-end text-lg-start text-md-end text-start d-flex align-items-center justify-content-end flex-md-row flex-column mb-3 mb-md-0"fB>>' +
         '>t' +
         '<"row mx-2"' +
         '<"col-sm-12 col-md-6"i>' +
@@ -605,6 +691,91 @@ $(function () {
         }
       },
       initComplete: function () { 
+        var api = this.api();
+        var container = $(api.table().container());
+
+        // Get distinct vat_country values
+        let countries = new Set();
+
+        // Loop through all rows
+        api.rows().every(function () {
+            var data = this.data();
+
+            if (data.vat_country && data.vat_country !== '-') {
+
+                // Split by space
+                var splitCountries = data.vat_country.split(' ');
+
+                splitCountries.forEach(function(code) {
+                    code = code.trim();
+                    if (code !== '') {
+                        countries.add(code);
+                    }
+                });
+            }
+        });
+
+        countries = Array.from(countries).sort();
+
+        // Wrapper
+        //var flagWrapper = $('<div class="dt-country-flags d-flex flex-wrap align-items-center"></div>');
+        var flagWrapper = $('<span class="filter_client_vat_country mx-3"></span>');
+
+        countries.forEach(function(countryCode) {
+
+            var flagHtml = `
+                <div class="flag-filter d-inline-flex align-middle my-3"
+                     data-country="${countryCode}"
+                     style="cursor:pointer;">
+
+                    <img src="assets/img/flags/${countryCode}.png"
+                         alt="${countryCode}"
+                         title="${countryCode}"
+                         class="country-flag me-2">
+
+                    <span class="align-middle me-4">${countryCode}</span>
+                </div>
+            `;
+
+            flagWrapper.append(flagHtml);
+        });
+
+        // Append next to length dropdown
+        container.find('.col-md-7 .me-3').append(flagWrapper);
+
+        
+
+        container.on('click', '.flag-filter', function () {
+
+          var country = $(this).data('country');
+          var table = api.table().body();
+
+          if ($(this).hasClass('active')) {
+
+              // Reset filter
+              $('.flag-filter').removeClass('active');
+              $(table).find('tr').show();
+
+          } else {
+
+              $('.flag-filter').removeClass('active');
+              $(this).addClass('active');
+
+              $(table).find('tr').each(function () {
+
+                  var hasCountry = $(this)
+                      .find('.client-vat_country img[alt="' + country + '"]')
+                      .length > 0;
+
+                  if (hasCountry) {
+                      $(this).show();
+                  } else {
+                      $(this).hide();
+                  }
+              });
+          }
+      });
+
         var other_company_total = this.api().data().length;
         $("#btn-other-companies span").html(other_company_total);
 

@@ -66,8 +66,8 @@ class TasksController extends Controller
             $anyexcel_templates = $this->commonClass->getAnyExcelTemplates();
             /* --/ GET ANYEXCEL TEMPLATES -- */   
 
-            if($upload_file_type)
-                $this->pageSize = 100;
+            //if($upload_file_type)
+                //$this->pageSize = 100;
             /* -- GET ALL VAT REG. -- */            
             $vatregs_result = $this->commonClass->getAllVatRegQuery($this->authUser, NULL, true, $this->pageSize); //10
 
@@ -294,8 +294,8 @@ class TasksController extends Controller
 
         $authUser = $this->authUser;
 
-        if($pagename == 'uploadspivs' || $pagename == 'uploadscas' || $pagename == 'uploadsdda')
-            $this->pageSize = 100;
+        //if($pagename == 'uploadspivs' || $pagename == 'uploadscas' || $pagename == 'uploadsdda')
+            //$this->pageSize = 100;
 
         if($this->clientIds)
             $vatregs_result = $this->commonClass->getAllVatRegQuery($this->authUser, $this->clientIds, true, $this->pageSize, $morepage); //10
@@ -872,6 +872,9 @@ class TasksController extends Controller
     {                               
         $client_id = $request->client_id;
 
+        $vatreg = $this->commonClass->getVatRegLazy($vat_reg_id, [], []);
+        $vatreg_country = $vatreg->country;
+
         $general_notes = $this->commonClass->getVatReturnNotes('general', $client_id);
         $specific_notes = $this->commonClass->getVatReturnNotes('specific', $vat_reg_id);
 
@@ -883,7 +886,8 @@ class TasksController extends Controller
             compact(
                 'authUser',
                 'vat_reg_id',
-                'vatreturn_notes'            
+                'vatreturn_notes',
+                'vatreg_country'
             )
         )->render();  
 
@@ -912,7 +916,9 @@ class TasksController extends Controller
             $client_id = $vatreg->client_id;
             if($vatregmain_status)
             {                
-                $note_id = $request->note_id;            
+                $note_id = $request->note_id;
+                $countries = implode(', ', $request->vatreturn_selectedCountries);
+       
                 if($note_id)            
                     $vatreturn_note = VATReturnNotes::updateOrCreate(    
                         ['id' => $note_id],
@@ -921,6 +927,7 @@ class TasksController extends Controller
                             'vat_reg_id' => $vat_reg_id, 
                             'type' => $request->vatreturn_note_type,                             
                             'notes' => $request->vatreturn_note_quill,
+                            'countries' => $countries,
                             'created_by' => $this->authUser->user_id
                         ]
                     );
@@ -931,6 +938,7 @@ class TasksController extends Controller
                         'vat_reg_id' => $vat_reg_id, 
                         'type' => $request->vatreturn_note_type,                             
                         'notes' => $request->vatreturn_note_quill,
+                        'countries' => $countries,
                         'created_by' => $this->authUser->user_id
                     ]
                 );
@@ -959,7 +967,7 @@ class TasksController extends Controller
                 return response()->json(
                     [
                       'status' => 200,
-                      'message' => 'You cannot create inactive VAT Reg.',
+                      'message' => 'You cannot create note for inactive VAT Reg.',
                       'client_id' => $client_id,
                       'vat_reg_id' => $vat_reg_id
                     ]
@@ -1015,7 +1023,7 @@ class TasksController extends Controller
                 return response()->json(
                     [
                       'status' => 400,
-                      'message' => 'You cannot delete inactive VAT Reg.',
+                      'message' => 'You cannot delete note for inactive VAT Reg.',
                       'client_id' => $client_id,
                       'vat_reg_id' => $vat_reg_id
                     ]
@@ -1034,6 +1042,7 @@ class TasksController extends Controller
         $vatreg = $this->commonClass->getSpecificVatRegQuery($vat_reg_id); 
         
         $vatregmain_status = $vatreg->vatregmain->status;
+        $vatreg_status = $vatreg->status;
         $vatreg_is_disregard = $vatreg->is_disregard;
 
         $salestotalnet = 0; 
@@ -1129,8 +1138,8 @@ class TasksController extends Controller
             
             if($vatreturn->invoice_type == 'sale')
             {                               
-                $salestotalnet += $vatreturn->net_amount;
-                $salestotalvat += $vatreturn->vat_amount;
+                // $salestotalnet += $vatreturn->net_amount;
+                // $salestotalvat += $vatreturn->vat_amount;
 
                 if($vatreg->country == 'NO')
                 {
@@ -1173,6 +1182,19 @@ class TasksController extends Controller
                         $sales_reduced_totalvat += $vatreturn->vat_amount;
                     } /* --end if 2.60% -- */
                 } /* --end if CH -- */
+                else if($vatreg->country == 'GB')
+                {
+                    if($vatreturn->currency_code == 'GBP')
+                    {
+                        $salestotalnet += $vatreturn->net_amount;
+                        $salestotalvat += $vatreturn->vat_amount;
+                    }
+                } /* --end if GB -- */
+                else
+                {
+                    $salestotalnet += $vatreturn->net_amount;
+                    $salestotalvat += $vatreturn->vat_amount;
+                }  /* --end if OTHER -- */
             } /* --end if SALE -- */
 
             if($vatreturn->invoice_type == 'purchase')
@@ -1219,6 +1241,7 @@ class TasksController extends Controller
             $view = view('_partials._content._vatreturn.submitting-fields-lazy', 
                 compact(  
                     'vatregmain_status',
+                    'vatreg_status',
                     'vatreg_is_disregard',
 
                     'vat_reg_id',
@@ -1237,6 +1260,7 @@ class TasksController extends Controller
             $view = view('_partials._content._vatreturn.submitting-fields-NO-lazy', 
                 compact(
                     'vatregmain_status',
+                    'vatreg_status',
                     'vatreg_is_disregard',
 
                     'vat_reg_id',
@@ -1284,6 +1308,7 @@ class TasksController extends Controller
             $view = view('_partials._content._vatreturn.submitting-fields-CH', 
                 compact(
                     'vatregmain_status',
+                    'vatreg_status',
                     'vatreg_is_disregard',
                     
                     'vat_reg_id',                   
@@ -1655,6 +1680,9 @@ class TasksController extends Controller
     {                               
         $client_id = $request->client_id;
 
+        $vatreg = $this->commonClass->getVatRegLazy($vat_reg_id, [], []);
+        $vatreg_country = $vatreg->country;
+
         $general_notes = $this->commonClass->getImportReconciliationNotes('general', $client_id);
         $specific_notes = $this->commonClass->getImportReconciliationNotes('specific', $vat_reg_id);
 
@@ -1666,7 +1694,8 @@ class TasksController extends Controller
             compact(
                 'authUser',
                 'vat_reg_id',
-                'importreconciliation_notes'            
+                'importreconciliation_notes',
+                'vatreg_country'
             )
         )->render();  
 
@@ -1695,7 +1724,9 @@ class TasksController extends Controller
 
             if($vatregmain_status)
             {
-                $note_id = $request->ir_note_id;            
+                $note_id = $request->ir_note_id;     
+                $countries = implode(', ', $request->importreconciliation_selectedCountries);
+
                 if($note_id)            
                     $importreconciliation_note = ImportReconciliationNotes::updateOrCreate(    
                         ['id' => $note_id],
@@ -1704,6 +1735,7 @@ class TasksController extends Controller
                             'vat_reg_id' => $vat_reg_id, 
                             'type' => $request->importreconciliation_note_type,                             
                             'notes' => $request->importreconciliation_note_quill,
+                            'countries' => $countries,
                             'created_by' => $this->authUser->user_id
                         ]
                     );
@@ -1714,6 +1746,7 @@ class TasksController extends Controller
                         'vat_reg_id' => $vat_reg_id, 
                         'type' => $request->importreconciliation_note_type,                             
                         'notes' => $request->importreconciliation_note_quill,
+                        'countries' => $countries,
                         'created_by' => $this->authUser->user_id
                     ]
                 );
@@ -1742,7 +1775,7 @@ class TasksController extends Controller
                 return response()->json(
                     [
                       'status' => 400,
-                      'message' => 'You cannot create inactive VAT Reg.',
+                      'message' => 'You cannot create note for inactive VAT Reg.',
                       'client_id' => $client_id,
                       'vat_reg_id' => $vat_reg_id
                     ]
@@ -1798,7 +1831,7 @@ class TasksController extends Controller
                 return response()->json(
                     [
                       'status' => 400,
-                      'message' => 'You cannot delete inactive VAT Reg.',
+                      'message' => 'You cannot delete note for inactive VAT Reg.',
                       'client_id' => $client_id,
                       'vat_reg_id' => $vat_reg_id
                     ]

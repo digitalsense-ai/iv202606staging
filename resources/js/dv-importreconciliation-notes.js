@@ -117,6 +117,8 @@ document.addEventListener('DOMContentLoaded', function () {
       $('#importreconciliation-note-type-' + vat_reg_id).val('');      
       $('#importreconciliation-note-editor-'+ vat_reg_id+' .ql-editor').html('');
 
+      $('#importreconciliation-selectedCountries-' + vat_reg_id).selectpicker('deselectAll');
+
       $('#btn-importreconciliation-note-save-' + vat_reg_id).html('Save');
     }
 
@@ -213,7 +215,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                   //var message = {message_title: 'Notes saved!', message_text: 'Notes has been saved.'};
                   //loadImportReconciliationNotesTab(client_id, vat_reg_id, message);                
-                  loadImportReconciliationNotesTab(client_id, vat_reg_id);
+                  //loadImportReconciliationNotesTab(client_id, vat_reg_id);
+
+                  loadAllImportReconciliationNotes();
                 }
               },
               error: function (error) {
@@ -245,12 +249,20 @@ document.addEventListener('DOMContentLoaded', function () {
       var vat_reg_id = data.vat_reg_id;
       var note_type = data.note_type;
       var note_comment = data.note_comment;
+      var note_countries = data.note_countries;
 
       clearImportReconciliationNotes(vat_reg_id);
 
       $('#ir-note-id-' + vat_reg_id).val(note_id);
       $('#importreconciliation-note-type-' + vat_reg_id).val(note_type);      
       $('#importreconciliation-note-editor-'+ vat_reg_id+' .ql-editor').html(note_comment);
+      
+      // Convert to array and remove extra spaces
+      var arr_note_countries = note_countries.split(',').map(function(item) {
+          return item.trim();
+      });
+      $('#importreconciliation-selectedCountries-' + vat_reg_id).selectpicker('deselectAll');
+      $('#importreconciliation-selectedCountries-'+ vat_reg_id).selectpicker('val', arr_note_countries);
       
       $('#importreconciliationNotesModal-' + vat_reg_id).modal('show');
     });

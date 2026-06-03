@@ -209,6 +209,12 @@ mix.js('resources/js/dv-global-search.js', 'public/js/');
 mix.js('resources/js/dv-anyexcel-template.js', 'public/js/');
 mix.js('resources/js/dv-anyexcel-template-others.js', 'public/js/');
 
+//mix.js('resources/js/dv-ocr-invoice-pdfs', 'public/js/');
+mix.js('resources/js/dv-analyze-pdf', 'public/js/');
+mix.js('resources/js/dv-analyze-pdf-search', 'public/js/');
+
+mix.js('resources/js/dv-crm', 'public/js/');
+
 mix.copy('node_modules/boxicons/fonts/*', 'public/assets/vendor/fonts/boxicons');
 mix.copy('node_modules/@fortawesome/fontawesome-free/webfonts/*', 'public/assets/vendor/fonts/fontawesome');
 mix.copy('node_modules/katex/dist/fonts/*', 'public/assets/vendor/libs/quill/fonts');

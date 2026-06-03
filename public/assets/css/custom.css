@@ -8,6 +8,11 @@ table.dataTable:not(.datatables-declarations) > tbody > tr:hover { color: #67778
 
 .country-flag { width: 24px; height: 24px; }
 
+.user-profile-header .country-flag { cursor: pointer; transition: all 0.2s ease; }
+.user-profile-header .country-flag:hover,
+.user-profile-header .country-flag.active { transform: scale(1.3); border-radius: 100%; 
+  box-shadow: 0 0 6px rgba(13,110,253,.6); }
+
 /*Accordion*/
 .accordion.accordion-header-primary .accordion-item .accordion-button td { font-weight: normal; 
 	font-size: var(--bs-body-font-size); text-align: left; }
@@ -182,7 +187,13 @@ div.dts tbody td { white-space: unset; }
 .dt-declaration-export button,
 .dt-declaration-export .dt-buttons,
 .dt-mailboxfile-export button,
-.dt-mailboxfile-export .dt-buttons { display: inline-block !important; margin-right: 0.5rem !important;
+.dt-mailboxfile-export .dt-buttons,
+.dt-analyzepdf-export button,
+.dt-analyzepdf-export .dt-buttons,
+.dt-analyzepdfsearch-export button,
+.dt-analyzepdfsearch-export .dt-buttons,
+.dt-quote-export button,
+.dt-quote-export .dt-buttons { display: inline-block !important; margin-right: 0.5rem !important;
   margin-left: 0.5rem !important; margin-top: 0.25rem !important; margin-bottom: 0.25rem !important; }
 .dt-invoice-export .dt-buttons,
 .dt-declaration-export .dt-buttons,
@@ -411,15 +422,109 @@ html[data-theme="theme-bordered"] .container-xxl { max-width: 100%; }
 
 html[data-theme="theme-bordered"] .layout-page,
 html[data-theme="theme-bordered"] .bg-navbar-theme { background: #f9fafb !important; }
-#d1d5dc
 /*Theme Border*/
 
-.menu-item.open > .menu-sub,
-.menu-item.open > .menu-sub .menu-item.open > .menu-sub { margin-left: 20px !important; }
+.menu-vertical .menu-item.open > .menu-sub,
+.menu-vertical .menu-item.open > .menu-sub .menu-item.open > .menu-sub { margin-left: 20px !important; }
 .menu-item.open .menu-sub .menu-sub li a::before { border: 1px solid #fff; background: none !important; }
 .bg-menu-theme .menu-sub > .menu-item.active > .menu-link:not(.menu-toggle)::before { background: none !important; }
 
 .custom-option .custom-option-content.reminder-user-main { cursor: default; }
+
+.overflow-scroll-y { overflow-y: scroll !important; overflow-x: hidden !important; }
+.h-px-240 { height: 240px !important; }
+
+/*.datatables-correct-invoices thead th,
+.datatables-wrong-invoices thead th,
+.datatables-managed-invoices thead th { position: sticky; top: 0; z-index: 3; }*/
+/* Sticky header */
+.datatables-correct-invoices thead th,
+.datatables-wrong-invoices thead th,
+.datatables-managed-invoices thead th { position: sticky; top: 0; z-index: 5; }
+
+/* Top scrollbar container */
+.dt-top-scroll { position: sticky; top: 40px; /* MUST match header height */ z-index: 4; overflow-x: auto; overflow-y: hidden; 
+  height: 16px; background: #f8f9fa; }
+
+/* Force scrollbar rendering */
+.dt-top-scroll-inner { height: 1px; }
+
+#client-page #DataTables_Table_0_length { display: inline-block; }
+.flag-filter:hover .country-flag,
+.flag-filter.active .country-flag { transform: scale(1.3); border-radius: 100%; box-shadow: 0 0 6px rgba(13,110,253,.6); }
+
+.disabled-opacity { opacity: 0.7; }
+
+.ellipsis { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 300px !important; }
+
+
+/*.crm-child-row td
+{
+    background: #fffdf5 !important;
+}
+
+.crm-child-row td:first-child
+{
+    border-left: 3px solid #ffc107;
+}*/
+
+/**
+ * ROOT
+ */
+.crm-level-0 td { background: #ffffff !important; }
+
+/**
+ * LEVEL 1
+ */
+.crm-level-1 td { background: #f4fbf6 !important; }
+
+.crm-level-1 td:first-child { border-left: 3px solid #198754; }
+
+/**
+ * LEVEL 2
+ */
+.crm-level-2 td { background: #fffdf5 !important; }
+
+.crm-level-2 td:first-child { border-left: 3px solid #ffc107; }
+
+/**
+ * LEVEL 3
+ */
+.crm-level-3 td { background: #f4f8ff !important; }
+
+.crm-level-3 td:first-child { border-left: 3px solid #0d6efd; }
+
+/**
+ * DEEP LEVELS
+ */
+.crm-level-4 td,
+.crm-level-5 td { background: #f8f9fa !important; }
+
+.crm-level-4 td:first-child,
+.crm-level-5 td:first-child { border-left: 3px solid #6c757d; }
+
+table.dataTable.datatables-analyzepdfsearch {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+table.dataTable.datatables-analyzepdfsearch th,
+table.dataTable.datatables-analyzepdfsearch td {
+  box-sizing: border-box;
+}
+
+#navs-analyzepdfsearch-commercial-invoice .dataTables_scrollHeadInner,
+#navs-analyzepdfsearch-commercial-invoice .dataTables_scrollHeadInner table,
+#navs-analyzepdfsearch-sales-invoice .dataTables_scrollHeadInner,
+#navs-analyzepdfsearch-sales-invoice .dataTables_scrollHeadInner table {
+  width: 100% !important;
+}
+
+.bg-menu-theme li.menu-item:last-of-type .menu-sub > .menu-item > .menu-link::before { 
+	background: none !important; }
+.menu-vertical li.menu-item:last-of-type .menu-sub .menu-link .menu-icon.tf-icons.sub-icons::before { 
+	margin-left: -15px; }
+li.menu-item.open:last-of-type .menu-sub .menu-sub li a::before { border: none !important; }
 
 /*Extra small devices (portrait phones, less than 576px)*/
 @media (max-width: 575.98px) {

@@ -97,6 +97,7 @@
 @endphp	
 <form id="formSubmittingFields-{{ $vat_reg_id }}" class="needs-validation formSubmittingFields" novalidate data-vatid="{{ $vat_reg_id }}" data-country="CH">
 @csrf
+<fieldset {{ ($vatreg_status == 6) ? 'disabled' : '' }}>
 	<div class="row g-3">
 		<div class="col-12">
 			<h5 class="my-4">I. Turnover</h5>
@@ -358,5 +359,6 @@
 			<button type="submit" class="btn btn-primary float-end submittingfields-save" {{ (!$vatregmain_status || $vatreg_is_disregard) ? 'disabled=disabled' : '' }}>Save</button> 
 		</div>
 	</div>
+</fieldset>
 </form>
 <!--/ Submitting Fields -->  

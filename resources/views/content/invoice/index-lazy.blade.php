@@ -183,6 +183,10 @@ if($currency_code == '')
 
         <div class="tab-content px-0 pb-0">
             <div class="tab-pane fade show active" id="navs-invoice-correct" role="tabpanel">
+              <div id="top-scroll-navs-invoice-correct" class="dt-top-scroll">
+                <div class="dt-top-scroll-inner"></div>
+              </div>
+
               <table class="datatables-correct-invoices table">     
                   <thead class="bg-label-primary">
                     <tr>
@@ -220,6 +224,10 @@ if($currency_code == '')
               </table>
             </div><!--/ navs-invoice-correct-->
             <div class="tab-pane fade" id="navs-invoice-wrong" role="tabpanel">
+              <div id="top-scroll-navs-invoice-wrong" class="dt-top-scroll">
+                <div class="dt-top-scroll-inner"></div>
+              </div>
+
               <table class="datatables-wrong-invoices table">     
                   <thead class="bg-label-primary">
                     <tr>
@@ -257,6 +265,9 @@ if($currency_code == '')
               </table>    
             </div><!--/ navs-invoice-wrong-->
             <div class="tab-pane fade" id="navs-invoice-managed" role="tabpanel">
+              <div id="top-scroll-navs-invoice-managed" class="dt-top-scroll">
+                <div class="dt-top-scroll-inner"></div>
+              </div>
               <table class="datatables-managed-invoices table">     
                   <thead class="bg-label-primary">
                     <tr>

@@ -83,7 +83,7 @@
     {
       "name": "Settings",
       "icon": "menu-icon tf-icons bx bx-cog",
-      "slug": ["settings", "stats.index", "payment.info.index", "email.templates", "taskdates.list", "mail.box.files.index", "global.search.index", "anyexcel-template.index"
+      "slug": ["settings", "stats.index", "payment.info.index", "email.templates", "taskdates.list", "mail.box.files.index", "global.search.index", "anyexcel-template.index", "analyze.pdf.index"
       ],
       "roles": ["super-admin","company-admin"],
       "submenu": [   
@@ -128,7 +128,26 @@
           "slug": "mail.box.files.index",
           "roles": ["super-admin","team-user"],
           "url": "mail-box-files"          
-        }       
+        },
+        {
+          "name": "Analyze PDF",
+          "slug": ["analyze.pdf.index", "analyze.pdf.search"],
+          "roles": ["super-admin","team-user"],
+          "submenu": [   
+            {
+              "name": "Capture",
+              "slug": "analyze.pdf.index",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf"          
+            },     
+            {
+              "name": "Search",
+              "slug": "analyze.pdf.search",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf/search"          
+            }
+          ]
+        }
       ]
     },
     {
@@ -142,53 +161,53 @@
       "name": "Reminders",
       "icon": "menu-icon tf-icons bx bx-bell",
       "slug": ["reminders", "reminders.at", "reminders.dk", "reminders.fr", "reminders.no", "reminders.ch", "reminders.gb", "reminder.history"],
-      "roles": ["super-admin","company-admin"],
+      "roles": ["super-admin","team-user","company-admin"],
       "submenu": [   
         {
           "name": "Active Reminders",
           "slug": ["reminders", "reminders.at", "reminders.dk", "reminders.fr", "reminders.no", "reminders.ch", "reminders.gb"],
-          "roles": ["super-admin","company-admin"],          
+          "roles": ["super-admin","team-user","company-admin"],          
           "submenu": [  
             {
               "name": "All",
               "slug": "reminders",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders"          
             },  
             {
               "name": "AT",
               "slug": "reminders.at",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/at"          
             },     
             {
               "name": "DK",
               "slug": "reminders.dk",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/dk"          
             },
             {
               "name": "FR",
               "slug": "reminders.fr",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/fr"          
             },
             {
               "name": "NO",
               "slug": "reminders.no",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/no"          
             },
             {
               "name": "CH",
               "slug": "reminders.ch",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/ch"          
             },
             {
               "name": "GB",
               "slug": "reminders.gb",
-              "roles": ["super-admin","company-admin"],
+              "roles": ["super-admin","team-user","company-admin"],
               "url": "reminders/gb"          
             }
           ]          
@@ -196,8 +215,73 @@
         {
           "name": "History",
           "slug": "reminder.history",
-          "roles": ["super-admin","company-admin"],
+          "roles": ["super-admin","team-user","company-admin"],
           "url": "reminder-history"          
+        }
+      ]
+    },
+    {
+      "name": "CRM",
+      "icon": "menu-icon tf-icons bx bx-calendar-event",
+      "slug": ["leads.index", "leads.edit", "quotes.index", "crm.reminders.index", "quotes.rejected", "crm.overview"],
+      "roles": ["super-admin","team-user"],
+      "submenu": [  
+        {
+          "name": "Overview",
+          "icon": "menu-icon tf-icons sub-icons bx bx-layout",
+          "slug": "crm.overview",
+          "roles": ["super-admin","team-user"],
+          "url": "crm/overview"
+        }, 
+        {
+          "name": "Leads",
+          "icon": "menu-icon tf-icons sub-icons bx bx-user-plus",
+          "slug": "leads.index",
+          "roles": ["super-admin","team-user"],
+          "url": "crm/leads"
+        },     
+        {
+          "name": "Quotes",
+          "icon": "menu-icon tf-icons sub-icons bx bx-dollar",
+          "slug": "quotes.index",
+          "roles": ["super-admin","team-user"],
+          "url": "crm/quotes"
+        },        
+        {
+          "name": "Rejected",
+          "icon": "menu-icon tf-icons sub-icons bx bx-trash",
+          "slug": "quotes.rejected",
+          "roles": ["super-admin","team-user"],
+          "url": "crm/rejected"
+        },
+        {
+          "name": "Reminders",
+          "icon": "menu-icon tf-icons sub-icons bx bx-alarm",
+          "slug": "crm.reminders.index",
+          "roles": ["super-admin","team-user"],
+          "url": "crm/reminders"
+        },
+        {
+          "name": "Settings",          
+          "icon": "menu-icon tf-icons sub-icons bx bx-cog",
+          "slug": ["settings", "stats.index", "payment.info.index"],
+          "roles": ["super-admin","team-user"],
+          "submenu": [   
+            {
+              "name": "Addons",
+              "icon": "menu-icon tf-icons sub-icons bx bx-extension",
+              "slug": "crm.addons.index",
+              "roles": ["super-admin","team-user"],
+              "url": "crm/addons"          
+            },
+            {
+              "name": "Contract Templates",
+              "icon": "menu-icon tf-icons sub-icons bx bx-layout",
+              "slug": "crm.contract.templates.index",
+              "roles": ["super-admin","team-user"],
+              "url": "crm/contract-templates"          
+            }
+          ]           
         }
       ]
     }

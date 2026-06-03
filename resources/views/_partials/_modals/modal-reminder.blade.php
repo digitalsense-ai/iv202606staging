@@ -204,27 +204,205 @@
                     <label class="form-label" for="period">Period</label>          
                     <select id="period" class="form-select" name="period" required disabled="disabled">
                       <option value="" selected="selected">Select</option>
-                      <optgroup label="NO">
-                        <option value="no_1">Jan - Feb</option>
-                        <option value="no_2">Mar - Apr</option>
-                        <option value="no_3">May - Jun</option>
-                        <option value="no_4">Jul - Aug</option>
-                        <option value="no_5">Sep - Oct</option>
-                        <option value="no_6">Nov - Dec</option> 
+
+                      <optgroup label="AT">
+                        <option value="at_1">January</option>
+                        <option value="at_2">February</option>
+                        <option value="at_3">March</option>
+                        <option value="at_4">April</option>
+                        <option value="at_5">May</option>
+                        <option value="at_6">June</option>  
+                        <option value="at_7">July</option>
+                        <option value="at_8">August</option>
+                        <option value="at_9">September</option>
+                        <option value="at_10">October</option>
+                        <option value="at_11">November</option>
+                        <option value="at_12">December</option>
+                      </optgroup>
+                      <optgroup label="BE">
+                        <option value="be_1">January - March</option>                                                
+                        <option value="be_2">April - June</option>                        
+                        <option value="be_3">July - September</option>                        
+                        <option value="be_4">October - December</option>                       
+                      </optgroup>
+                      <optgroup label="CZ">
+                        <option value="cz_1">January</option>
+                        <option value="cz_2">February</option>
+                        <option value="cz_3">March</option>
+                        <option value="cz_4">April</option>
+                        <option value="cz_5">May</option>
+                        <option value="cz_6">June</option>  
+                        <option value="cz_7">July</option>
+                        <option value="cz_8">August</option>
+                        <option value="cz_9">September</option>
+                        <option value="cz_10">October</option>
+                        <option value="cz_11">November</option>
+                        <option value="cz_12">December</option>
+                      </optgroup>
+                      <optgroup label="FI">
+                        <option value="fi_1">January</option>
+                        <option value="fi_2">February</option>
+                        <option value="fi_3">March</option>
+                        <option value="fi_4">April</option>
+                        <option value="fi_5">May</option>
+                        <option value="fi_6">June</option>  
+                        <option value="fi_7">July</option>
+                        <option value="fi_8">August</option>
+                        <option value="fi_9">September</option>
+                        <option value="fi_10">October</option>
+                        <option value="fi_11">November</option>
+                        <option value="fi_12">December</option>
+                      </optgroup>
+                      <optgroup label="DE">
+                        <option value="de_1">January - March</option>                                                
+                        <option value="de_2">April - June</option>                        
+                        <option value="de_3">July - September</option>                        
+                        <option value="de_4">October - December</option>
+                        <option value="de_5">January - June</option>
+                        <option value="de_6">July - December</option>
+                        <option value="de_7">January - December</option>
+                        <option value="de_8">January</option>
+                        <option value="de_9">February</option>
+                        <option value="de_10">March</option>
+                        <option value="de_11">April</option>
+                        <option value="de_12">May</option>
+                        <option value="de_13">June</option>  
+                        <option value="de_14">July</option>
+                        <option value="de_15">August</option>
+                        <option value="de_16">September</option>
+                        <option value="de_17">October</option>
+                        <option value="de_18">November</option>
+                        <option value="de_19">December</option>
+                      </optgroup>
+                      <optgroup label="DK">
+                        <option value="dk_1">January - March</option>                                                
+                        <option value="dk_2">April - June</option>                        
+                        <option value="dk_3">July - September</option>                        
+                        <option value="dk_4">October - December</option>
+                        <option value="dk_5">January - June</option>
+                        <option value="dk_6">July - December</option>
                       </optgroup> 
+                      <optgroup label="FR">
+                        <option value="fr_1">January</option>
+                        <option value="fr_2">February</option>
+                        <option value="fr_3">March</option>
+                        <option value="fr_4">April</option>
+                        <option value="fr_5">May</option>
+                        <option value="fr_6">June</option>  
+                        <option value="fr_7">July</option>
+                        <option value="fr_8">August</option>
+                        <option value="fr_9">September</option>
+                        <option value="fr_10">October</option>
+                        <option value="fr_11">November</option>
+                        <option value="fr_12">December</option>
+                      </optgroup>
+                      <optgroup label="IE">
+                        <option value="ie_1">January - February</option>
+                        <option value="ie_2">March - April</option>
+                        <option value="ie_3">May - June</option>
+                        <option value="ie_4">July - August</option>
+                        <option value="ie_5">September - October</option>
+                        <option value="ie_6">November - December</option> 
+                      </optgroup> 
+                      <optgroup label="IT">
+                        <option value="it_1">January - March</option>                                                
+                        <option value="it_2">April - June</option>                        
+                        <option value="it_3">July - September</option>                        
+                        <option value="it_4">October - December</option>                       
+                      </optgroup>
+                      <optgroup label="LU">
+                        <option value="lu_1">January</option>
+                        <option value="lu_2">February</option>
+                        <option value="lu_3">March</option>
+                        <option value="lu_4">April</option>
+                        <option value="lu_5">May</option>
+                        <option value="lu_6">June</option>  
+                        <option value="lu_7">July</option>
+                        <option value="lu_8">August</option>
+                        <option value="lu_9">September</option>
+                        <option value="lu_10">October</option>
+                        <option value="lu_11">November</option>
+                        <option value="lu_12">December</option>
+                      </optgroup>
+                      <optgroup label="NL">
+                        <option value="nl_1">January - March</option>                                                
+                        <option value="nl_2">April - June</option>                        
+                        <option value="nl_3">July - September</option>                        
+                        <option value="nl_4">October - December</option>                       
+                      </optgroup>
+                      <optgroup label="NO">
+                        <option value="no_1">January - February</option>
+                        <option value="no_2">March - April</option>
+                        <option value="no_3">May - June</option>
+                        <option value="no_4">July - August</option>
+                        <option value="no_5">September - October</option>
+                        <option value="no_6">November - December</option> 
+                      </optgroup> 
+                      <optgroup label="PL">
+                        <option value="pl_1">January</option>
+                        <option value="pl_2">February</option>
+                        <option value="pl_3">March</option>
+                        <option value="pl_4">April</option>
+                        <option value="pl_5">May</option>
+                        <option value="pl_6">June</option>  
+                        <option value="pl_7">July</option>
+                        <option value="pl_8">August</option>
+                        <option value="pl_9">September</option>
+                        <option value="pl_10">October</option>
+                        <option value="pl_11">November</option>
+                        <option value="pl_12">December</option>
+                      </optgroup>
+                      <optgroup label="PT">
+                        <option value="pt_1">January</option>
+                        <option value="pt_2">February</option>
+                        <option value="pt_3">March</option>
+                        <option value="pt_4">April</option>
+                        <option value="pt_5">May</option>
+                        <option value="pt_6">June</option>  
+                        <option value="pt_7">July</option>
+                        <option value="pt_8">August</option>
+                        <option value="pt_9">September</option>
+                        <option value="pt_10">October</option>
+                        <option value="pt_11">November</option>
+                        <option value="pt_12">December</option>
+                      </optgroup>
+                      <optgroup label="ES">
+                        <option value="es_1">January - March</option>                                                
+                        <option value="es_2">April - June</option>                        
+                        <option value="es_3">July - September</option>                        
+                        <option value="es_4">October - December</option>                       
+                      </optgroup>
+                      <optgroup label="SE">
+                        <option value="se_1">January - March</option>                                                
+                        <option value="se_2">April - June</option>                        
+                        <option value="se_3">July - September</option>                        
+                        <option value="se_4">October - December</option>                       
+                      </optgroup>
+                      <optgroup label="CH">
+                        <option value="ch_1">January - March</option>
+                        <option value="ch_2">April - June</option>
+                        <option value="ch_3">July - September</option>
+                        <option value="ch_4">October - December</option>                       
+                      </optgroup>                      
                       <optgroup label="UK">
-                        <option value="uk_1">Jan - Mar</option>
-                        <option value="uk_2">Feb - Apr</option>
-                        <option value="uk_3">Mar - May</option>
-                        <option value="uk_4">Apr - Jun</option>
-                        <option value="uk_5">May - Jul</option>
-                        <option value="uk_6">Jun - Aug</option>  
-                        <option value="uk_7">Jul - Sep</option>
-                        <option value="uk_8">Aug - Oct</option>
-                        <option value="uk_9">Sep - Nov</option>
-                        <option value="uk_10">Oct - Dec</option>
-                        <option value="uk_11">Nov - Jan</option>
-                        <option value="uk_12">Dec - Feb</option>
+                        <option value="uk_1">January - March</option>
+                        <option value="uk_2">February - April</option>
+                        <option value="uk_3">March - May</option>
+                        <option value="uk_4">April - June</option>
+                        <option value="uk_5">May - July</option>
+                        <option value="uk_6">June - August</option>  
+                        <option value="uk_7">July - September</option>
+                        <option value="uk_8">August - October</option>
+                        <option value="uk_9">September - November</option>
+                        <option value="uk_10">October - December</option>
+                        <option value="uk_11">November - January</option>
+                        <option value="uk_12">December - February</option>
+                      </optgroup>
+                      <optgroup label="US">
+                        <option value="us_1">January - March</option>                                                
+                        <option value="us_2">April - June</option>                        
+                        <option value="us_3">July - September</option>                        
+                        <option value="us_4">October - December</option>                       
                       </optgroup>                    
                     </select> 
                   </div>
@@ -246,8 +424,8 @@
                       <option value="" selected="selected">Select</option>
                       <option value="reminder_1">1. Reminder</option>
                       <option value="reminder_2">2. Reminder</option>
-                      <option value="reminder_2">3. Reminder</option>
-                      <option value="reminder_2">4. Reminder</option>                      
+                      <option value="reminder_3">3. Reminder</option>
+                      <option value="reminder_4">4. Reminder</option>                      
                     </select> 
                   </div>
                 </div>

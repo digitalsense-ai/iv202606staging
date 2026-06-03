@@ -14,7 +14,7 @@ use GuzzleHttp\Client as GuzzleClient;
 class CVRApiClass
 {       
     /*CVR API - COMPANY */  
-    public function getCVRCompany($cvrNumber, $client_id = null, $refresh = [])
+    public function getCVRCompany($cvrNumber, $client_id = null, $refresh = [], $type = null)
     {
       try
       {       
@@ -51,182 +51,264 @@ class CVRApiClass
         
         $client_cvr = [];
         if(!empty($response_data->hits->hits))
-        {            
-          $participant_Relation =$response_data->hits->hits[0]->_source->Vrvirksomhed->deltagerRelation;
-          $jsoncontent = json_decode(json_encode($participant_Relation),true);
-         
-          $person_address_details = "";
-
-          foreach($participant_Relation as $participant)        
+        { 
+          if($type == 'crm')           
           {
-              // Getting the organizations
-                 $organizations =   $participant->organisationer;  
-                 $organizations_name = json_encode($organizations);
-                 $org_array = json_decode(json_encode($organizations),true);
-              
-                 $person = isset($participant->deltager) ? $participant->deltager->navne[0] : '';
-                 $person_address = isset($participant->deltager) ? $participant->deltager->beliggenhedsadresse : '';
-               
-               // if (stripos(trim($person->navn), "Jonas Pichard Hedegaard") !== false)  
-               //    dd(count($person_address), $person_address);
-              if(!empty($person_address))
-              {
-                $last_index = count($person_address) - 1;
+            $company_business = $response_data->hits->hits[0]->_source->Vrvirksomhed;
+            
+            $company_info = $company_business->virksomhedMetadata;
+            
+            $company_desc = $company_info->nyesteVirksomhedsform->langBeskrivelse;
 
-                  // $person_address_details = 'Road code:'. (empty($person_address[$last_index]->vejkode ) ? '-' : $person_address[$last_index]->vejkode)
-                  //                         .', Road Name:'. (empty($person_address[$last_index]->vejnavn) ? '-' : $person_address[$last_index]->vejnavn) 
-                  //                         . ', Municipality Code:' . (empty($person_address[$last_index]->kommune->kommuneKode) ? '-' : $person_address[$last_index]->kommune->kommuneKode)
-                  //                         . ', Municipality Name:' . (empty($person_address[$last_index]->kommune->kommuneNavn) ? '-' : $person_address[$last_index]->kommune->kommuneNavn) 
-                  //                         . ', Country code:' . (empty($person_address[$last_index]->landekode) ? '-' : $person_address[$last_index]->landekode)
-                  //                         . ', Postal code:' . (empty($person_address[$last_index]->postnummer) ? '-' : $person_address[$last_index]->postnummer);
+            $company_name = $company_info->nyesteNavn->navn;
 
-                $person_address_details = 'Road code:'. ($person_address[$last_index]->vejkode ?? '-')
-                                          .', Road Name:'. ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? '')
-                                          . ', Municipality Code:' . ($person_address[$last_index]->kommune->kommuneKode ?? '-')
-                                          . ', Municipality Name:' . ($person_address[$last_index]->kommune->kommuneNavn ?? '-') 
-                                          . ', Country code:' . ($person_address[$last_index]->landekode ?? '-')
-                                          . ', Postal code:' . ($person_address[$last_index]->postnummer ?? '-');
-              }
-                 
-                 foreach($org_array as $organization_name)
-                 {
-                    $member_details = [];
-                    if(!empty($organization_name['medlemsData']))
-                    {                      
-                      $member_datas = $organization_name['medlemsData'][0]['attributter'];
+            $company_contact = $company_info->nyesteKontaktoplysninger;
 
-                      $member_details = [];
-                      foreach($member_datas as $member) 
-                      {                 
-                        $member_details[] = $member['vaerdier'][0]['vaerdi'];
-                      }
+            $company_phone = null;
+            $company_fax = null;
+            $company_email = null;
+            $company_website = null;
+
+            foreach ($company_contact as $contact) {
+
+                // Email
+                if (filter_var($contact, FILTER_VALIDATE_EMAIL)) {
+                    $company_email = $contact;
+                }
+
+                // Website
+                elseif (filter_var($contact, FILTER_VALIDATE_URL)
+                    || str_contains($contact, 'www.')) {
+
+                    $company_website = $contact;
+                }
+
+                // Phone/Fax (numbers only)
+                elseif (preg_match('/^\d+$/', $contact)) {
+
+                    if (!$company_phone) {
+                        $company_phone = $contact;
+                    } else {
+                        $company_fax = $contact;
                     }
-                     
-                    if($client_id)          
-                    {
-                      $organizations_details[] = [
-                        'organization_name' => $organization_name['organisationsNavn'][0]['navn'],                    
-                        'organization_no' => $organization_name['enhedsNummerOrganisation'],  
-                        'person_name' => ($person) ? $person->navn : '-', 
-                        'person_designation' => $member_details,
-                        'person_address' => $person_address_details                        
-                      ];
-                    }
-                    else
-                    { 
-                      $lrep_role = '';
-                      if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'DIREKTØR' || $organization_name['organisationsNavn'][0]['navn'] == 'Direktion')
-                        $lrep_role = 'director';
-                      else if(strtolower($organization_name['organisationsNavn'][0]['navn']) == 'reel ejer')
-                        $lrep_role = 'ultimate-beneficial-owner';
-                      else if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'EJERREGISTER')
-                        $lrep_role = 'legal-owner';
-                      
-                      if($lrep_role)  
-                      {
-                        $last_index = count($person_address) - 1;
+                }
+            }            
 
-                        // $organizations_details[] = [                        
-                        //   'id' => '',
-                        //   'lrep_role' => $lrep_role,
-                        //   'lrep_fname' => ($person) ? $person->navn : '', 
-                        //   'lrep_sname' => '',
-                        //   'lrep_address' => (empty($person_address[$last_index]->vejnavn) ? '' : $person_address[$last_index]->vejnavn),
-                        //   'lrep_postcode' => (empty($person_address[$last_index]->postnummer) ? '' : $person_address[$last_index]->postnummer),
-                        //   'lrep_city' => (empty($person_address[$last_index]->bynavn) ? '' : $person_address[$last_index]->bynavn),
-                        //   'lrep_country' => (empty($person_address[$last_index]->landekode) ? '' : $person_address[$last_index]->landekode)
-                        // ];
+            $latest_address = $company_info->nyesteBeliggenhedsadresse;
+            $company_roadname = $latest_address->vejnavn;
+            $company_houseno = $latest_address->husnummerFra;
+            $company_city = $latest_address->bynavn;
+            $company_postaldistrict = $latest_address->postdistrikt;
+            $company_postcode = $latest_address->postnummer;
+            $company_countrycode = $latest_address->landekode;
+            $company_commune = $latest_address->kommune;
+            $company_commune_name = $company_commune->kommuneNavn;
+            $company_commune_code = $company_commune->kommuneKode;
 
-                        $organizations_details[] = [                        
-                          'id' => '',
-                          'lrep_role' => $lrep_role,
-                          'lrep_fname' => ($person) ? $person->navn : '', 
-                          'lrep_sname' => '',
-                          'lrep_address' => ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? ''),
-                          'lrep_postcode' => $person_address[$last_index]->postnummer ?? '',
-                          'lrep_city' => $person_address[$last_index]->bynavn ?? ($person_address[$last_index]->postdistrikt ?? ''),
-                          'lrep_country' => $person_address[$last_index]->landekode ?? ''
-                        ];
-                      } //has role
-                    }
-                 }
-                 
-               // Getting the organizations
+            $company_address = $company_houseno . ' ' . $company_roadname;
+            // . ' ' . $company_city . ' ' . $company_postcode . '' ' . $company_postaldistrict . ' ' . $company_countrycode;
 
+            $employees = ($company_info->nyesteKvartalsbeskaeftigelse) ? $company_info->nyesteKvartalsbeskaeftigelse->antalAnsatte : null;
 
-          }
-         
-          if($client_id)          
-          {
-            // Delete the cvr datas for the client id and insert with updated datas 
-            $del_client_cvr = ClientCvr::where('client_id', $client_id)->delete();
+            return [
+              'name' => $company_name,
+              'address' => $company_address,
+              'houseno' => $company_houseno,
+              'roadname' => $company_roadname,
+              'city' => $company_city,
+              'postcode' => $company_postcode,
+              'district' => $company_postaldistrict,
+              'countrycode' => $company_countrycode,
+              'commune_code' => $company_commune_code,
+              'commune_name' => $company_commune_name,
 
-            /* Store Client CVR Details */
-            foreach($organizations_details as $organizations_detail) 
-            {                
-              foreach($organizations_detail['person_designation'] as $person_designation)  
-              {                    
-                $client_cvr = ClientCvr::updateOrCreate(
-                  [
-                    'client_id' => $client_id, 
-                    'organization_name' => $organizations_detail['organization_name'],
-                    'organization_no' => $organizations_detail['organization_no'],
-                    'person_name' => $organizations_detail['person_name'],                        
-                    'person_designation' => $person_designation ,
-                    'person_address' => $organizations_detail['person_address']                        
-                  ],
-                  [
-                    'client_id' => $client_id, 
-                    'organization_name' => $organizations_detail['organization_name'],
-                    'organization_no' => $organizations_detail['organization_no'],
-                    'person_name' => $organizations_detail['person_name'],                        
-                    'person_designation' => $person_designation ,
-                    'person_address' => $organizations_detail['person_address']                        
-                  ]
-                );
-              }                
-            }
-          } //not direct
+              'telephone' => $company_phone,
+              'fax' => $company_fax,
+              'email' => $company_email,
+              'website' => $company_website,
+
+              'desc' => $company_desc,
+              'employees' => $employees
+            ];
+          }//for CRM creation
           else
           {
-            $client_cvr_view = '';
-            foreach($organizations_details as $clientlegalrepkey => $organizations_detail) 
-            {    
-              if($refresh)
-              {
-                $client_legalrep = ClientLegalRep::updateOrCreate(
-                  [
-                    'client_id' => $refresh['client_id'],
-                    'lrep_fname' => $organizations_detail['lrep_fname'],
-                  ],              
-                  [                
-                    'client_id' => $refresh['client_id'], 
-                    'lrep_role' => $organizations_detail['lrep_role'],
-                    'lrep_fname' => $organizations_detail['lrep_fname'],       
-                    'lrep_sname' => $organizations_detail['lrep_sname'],
-                    'lrep_address' => $organizations_detail['lrep_address'],       
-                    'lrep_postcode' => $organizations_detail['lrep_postcode'],
-                    'lrep_city' => $organizations_detail['lrep_city'],                
-                    'lrep_country' => $organizations_detail['lrep_country'],
-                    'updated_by' => 1
-                  ]
-                );
-              } // if refresh
+            $participant_Relation =$response_data->hits->hits[0]->_source->Vrvirksomhed->deltagerRelation;
+            $jsoncontent = json_decode(json_encode($participant_Relation),true);
+           
+            $person_address_details = "";
+            $organizations_details = [];
+            foreach($participant_Relation as $participant)        
+            {
+                // Getting the organizations
+                   $organizations =   $participant->organisationer;  
+                   $organizations_name = json_encode($organizations);
+                   $org_array = json_decode(json_encode($organizations),true);
+                
+                   $person = isset($participant->deltager) ? $participant->deltager->navne[0] : '';
+                   $person_address = isset($participant->deltager) ? $participant->deltager->beliggenhedsadresse : '';
+                 
+                 // if (stripos(trim($person->navn), "Jonas Pichard Hedegaard") !== false)  
+                 //    dd(count($person_address), $person_address);
+                if(!empty($person_address))
+                {
+                  $last_index = count($person_address) - 1;
 
-              $clientlegalrep = json_decode(json_encode($organizations_detail));
-              
-              /* -- RENDER VIEW -- */
-              $client_cvr_view .= view('_partials._content._company.legalrep-row-repeater', 
-                      compact(
-                        'clientlegalrepkey',
-                        'clientlegalrep'
-                      )
-                  )->render();
-              /* --end RENDER VIEW -- */
+                    // $person_address_details = 'Road code:'. (empty($person_address[$last_index]->vejkode ) ? '-' : $person_address[$last_index]->vejkode)
+                    //                         .', Road Name:'. (empty($person_address[$last_index]->vejnavn) ? '-' : $person_address[$last_index]->vejnavn) 
+                    //                         . ', Municipality Code:' . (empty($person_address[$last_index]->kommune->kommuneKode) ? '-' : $person_address[$last_index]->kommune->kommuneKode)
+                    //                         . ', Municipality Name:' . (empty($person_address[$last_index]->kommune->kommuneNavn) ? '-' : $person_address[$last_index]->kommune->kommuneNavn) 
+                    //                         . ', Country code:' . (empty($person_address[$last_index]->landekode) ? '-' : $person_address[$last_index]->landekode)
+                    //                         . ', Postal code:' . (empty($person_address[$last_index]->postnummer) ? '-' : $person_address[$last_index]->postnummer);
+
+                  $person_address_details = 'Road code:'. ($person_address[$last_index]->vejkode ?? '-')
+                                            .', Road Name:'. ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? '')
+                                            . ', Municipality Code:' . ($person_address[$last_index]->kommune->kommuneKode ?? '-')
+                                            . ', Municipality Name:' . ($person_address[$last_index]->kommune->kommuneNavn ?? '-') 
+                                            . ', Country code:' . ($person_address[$last_index]->landekode ?? '-')
+                                            . ', Postal code:' . ($person_address[$last_index]->postnummer ?? '-');
+                }
+                   
+                   foreach($org_array as $organization_name)
+                   {
+                      $member_details = [];
+                      if(!empty($organization_name['medlemsData']))
+                      {                      
+                        $member_datas = $organization_name['medlemsData'][0]['attributter'];
+
+                        $member_details = [];
+                        foreach($member_datas as $member) 
+                        {                 
+                          $member_details[] = $member['vaerdier'][0]['vaerdi'];
+                        }
+                      }
+                       
+                      if($client_id)          
+                      {
+                        $organizations_details[] = [
+                          'organization_name' => $organization_name['organisationsNavn'][0]['navn'],                    
+                          'organization_no' => $organization_name['enhedsNummerOrganisation'],  
+                          'person_name' => ($person) ? $person->navn : '-', 
+                          'person_designation' => $member_details,
+                          'person_address' => $person_address_details                        
+                        ];
+                      }
+                      else
+                      { 
+                        $lrep_role = '';
+                        if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'DIREKTØR' || $organization_name['organisationsNavn'][0]['navn'] == 'Direktion')
+                          $lrep_role = 'director';
+                        else if(strtolower($organization_name['organisationsNavn'][0]['navn']) == 'reel ejer')
+                          $lrep_role = 'ultimate-beneficial-owner';
+                        else if(strtoupper($organization_name['organisationsNavn'][0]['navn']) == 'EJERREGISTER')
+                          $lrep_role = 'legal-owner';
+                        
+                        if($lrep_role)  
+                        {
+                          $last_index = count($person_address) - 1;
+
+                          // $organizations_details[] = [                        
+                          //   'id' => '',
+                          //   'lrep_role' => $lrep_role,
+                          //   'lrep_fname' => ($person) ? $person->navn : '', 
+                          //   'lrep_sname' => '',
+                          //   'lrep_address' => (empty($person_address[$last_index]->vejnavn) ? '' : $person_address[$last_index]->vejnavn),
+                          //   'lrep_postcode' => (empty($person_address[$last_index]->postnummer) ? '' : $person_address[$last_index]->postnummer),
+                          //   'lrep_city' => (empty($person_address[$last_index]->bynavn) ? '' : $person_address[$last_index]->bynavn),
+                          //   'lrep_country' => (empty($person_address[$last_index]->landekode) ? '' : $person_address[$last_index]->landekode)
+                          // ];
+
+                          $organizations_details[] = [                        
+                            'id' => '',
+                            'lrep_role' => $lrep_role,
+                            'lrep_fname' => ($person) ? $person->navn : '', 
+                            'lrep_sname' => '',
+                            'lrep_address' => ($person_address[$last_index]->vejnavn ?? '-') . ' ' . ($person_address[$last_index]->husnummerFra ?? '') . ($person_address[$last_index]->bogstavFra ?? ''),
+                            'lrep_postcode' => $person_address[$last_index]->postnummer ?? '',
+                            'lrep_city' => $person_address[$last_index]->bynavn ?? ($person_address[$last_index]->postdistrikt ?? ''),
+                            'lrep_country' => $person_address[$last_index]->landekode ?? ''
+                          ];
+                        } //has role
+                      }
+                   }
+                   
+                 // Getting the organizations
+
+
             }
+           
+            if($client_id)          
+            {
+              // Delete the cvr datas for the client id and insert with updated datas 
+              $del_client_cvr = ClientCvr::where('client_id', $client_id)->delete();
 
-            return $client_cvr_view;
-          } //direct
+              /* Store Client CVR Details */
+              foreach($organizations_details as $organizations_detail) 
+              {                
+                foreach($organizations_detail['person_designation'] as $person_designation)  
+                {                    
+                  $client_cvr = ClientCvr::updateOrCreate(
+                    [
+                      'client_id' => $client_id, 
+                      'organization_name' => $organizations_detail['organization_name'],
+                      'organization_no' => $organizations_detail['organization_no'],
+                      'person_name' => $organizations_detail['person_name'],                        
+                      'person_designation' => $person_designation ,
+                      'person_address' => $organizations_detail['person_address']                        
+                    ],
+                    [
+                      'client_id' => $client_id, 
+                      'organization_name' => $organizations_detail['organization_name'],
+                      'organization_no' => $organizations_detail['organization_no'],
+                      'person_name' => $organizations_detail['person_name'],                        
+                      'person_designation' => $person_designation ,
+                      'person_address' => $organizations_detail['person_address']                        
+                    ]
+                  );
+                }                
+              }
+            } //not direct
+            else
+            {
+              $client_cvr_view = '';
+              foreach($organizations_details as $clientlegalrepkey => $organizations_detail) 
+              {    
+                if($refresh)
+                {
+                  $client_legalrep = ClientLegalRep::updateOrCreate(
+                    [
+                      'client_id' => $refresh['client_id'],
+                      'lrep_fname' => $organizations_detail['lrep_fname'],
+                    ],              
+                    [                
+                      'client_id' => $refresh['client_id'], 
+                      'lrep_role' => $organizations_detail['lrep_role'],
+                      'lrep_fname' => $organizations_detail['lrep_fname'],       
+                      'lrep_sname' => $organizations_detail['lrep_sname'],
+                      'lrep_address' => $organizations_detail['lrep_address'],       
+                      'lrep_postcode' => $organizations_detail['lrep_postcode'],
+                      'lrep_city' => $organizations_detail['lrep_city'],                
+                      'lrep_country' => $organizations_detail['lrep_country'],
+                      'updated_by' => 1
+                    ]
+                  );
+                } // if refresh
+
+                $clientlegalrep = json_decode(json_encode($organizations_detail));
+                
+                /* -- RENDER VIEW -- */
+                $client_cvr_view .= view('_partials._content._company.legalrep-row-repeater', 
+                        compact(
+                          'clientlegalrepkey',
+                          'clientlegalrep'
+                        )
+                    )->render();
+                /* --end RENDER VIEW -- */
+              }
+
+              return $client_cvr_view;
+            } //direct
+          }//for company creation
         }  
         
         return $client_cvr;

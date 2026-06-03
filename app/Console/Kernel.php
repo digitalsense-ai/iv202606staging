@@ -34,6 +34,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('apidatas:load')->dailyAt('00:00');    
         $schedule->command('exchangerate:task')->dailyAt('14:30');  
         //$schedule->command('reminder:task')->hourly();
+        $schedule->command('crmreminder:task')->hourly();
         
         $schedule->command('irazure:task')->dailyAt('00:00'); 
         

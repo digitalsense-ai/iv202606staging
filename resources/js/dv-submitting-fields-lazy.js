@@ -272,7 +272,7 @@ $(function () {
           {            
             Swal.fire({
               title: 'Error!',
-              text: response.message.message,
+              text: response.message,
               icon: 'error',
               customClass: {
                 confirmButton: 'btn btn-success'

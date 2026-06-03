@@ -46,7 +46,7 @@ $(function () {
   if (dt_user_table.length) {
     var dt_user = dt_user_table.DataTable({
       data: user_datas,        
-      processing: true,
+      processing: true,      
       // serverSide: true,
       // ajax: {
       //   url: baseUrl + 'dv-user'
@@ -186,7 +186,10 @@ $(function () {
           render: function (data, type, full, meta) {
             var $telephone = full['telephone'];
 
-            return '<span class="fw-semibold">' + $telephone + '</span>';
+            if(type == 'display')
+              return '<span class="fw-semibold">' + $telephone + '</span>';
+            else
+              return '<span class="fw-semibold">' + $telephone.replace(/\s+/g, '') + '</span>';
           }
         },  
         {

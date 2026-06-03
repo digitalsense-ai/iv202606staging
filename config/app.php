@@ -192,7 +192,11 @@ return [
 
         App\Providers\ColumnMappingServiceProvider::class,
 
-        OpenAI\Laravel\ServiceProvider::class
+        OpenAI\Laravel\ServiceProvider::class,
+
+        App\Providers\AzureStorageServiceProvider::class,
+
+        App\Providers\OcrInvoiceParserServiceProvider::class,
     ],
 
     /*

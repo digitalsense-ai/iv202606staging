@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 use PDF;
 use App\Events\VATReturnEvent;
@@ -59,7 +60,11 @@ class ConfirmController extends Controller
               $recipients = $bounce['bouncedRecipients'];
               foreach ($recipients as $recipient)
               {
-                $emailAddress = $recipient['emailAddress'];
+                //$emailAddress = $recipient['emailAddress'];
+                $emailAddress = Str::of($recipient['emailAddress'])
+                    ->match('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i')
+                    ->toString();
+
                 $email = EmailNotification::where('message_id', $message_id)->where('email', $emailAddress)->first();
                 if($email)
                 {
@@ -70,9 +75,14 @@ class ConfirmController extends Controller
                   //Forward the Auto reply email to info@intravat.com
                   if($email->status == 'auto_reply')
                   {
-                    $this->emailBoxApiClass->forwardAutoReplyEmail($emailAddress);
+                    sleep(5);
+                    $forwarded = $this->emailBoxApiClass->forwardAutoReplyEmail($emailAddress);
 
-                    $this->commonClass->addLog(NULL, 'reminder-forwared-auto-reply'); 
+                    if($forwarded)
+                      $this->commonClass->addLog(NULL, 'reminder-forwared-auto-reply', [
+                        'Subject' => $email->subject,
+                        'Error Message' => $forwarded
+                      ]);
                   }
                   //Forward the Auto reply email to info@intravat.com
                 }
@@ -84,7 +94,11 @@ class ConfirmController extends Controller
               $recipients = $complaint['complainedRecipients'];
               foreach ($recipients as $recipient)
               {
-                $emailAddress = $recipient['emailAddress'];
+                //$emailAddress = $recipient['emailAddress'];
+                $emailAddress = Str::of($recipient['emailAddress'])
+                    ->match('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i')
+                    ->toString();
+
                 $email = EmailNotification::where('message_id', $message_id)->where('email', $emailAddress)->first();
                 if($email)
                 {
@@ -167,7 +181,7 @@ class ConfirmController extends Controller
 
         return false;
       */
-
+        /*
       if (
         ($message['eventType'] ?? null) !== 'Bounce'
       ) {
@@ -181,7 +195,36 @@ class ConfirmController extends Controller
       // Auto-replies in SES are always undetermined/undetermined
       return $type === 'undetermined'
         && $subtype === 'undetermined'
-        && empty($diagnostic);      
+        && empty($diagnostic);
+        */
+
+      if (($message['eventType'] ?? null) !== 'Bounce') {
+          return false;
+      }
+
+      $type = strtolower($message['bounce']['bounceType'] ?? '');
+      $subtype = strtolower($message['bounce']['bounceSubType'] ?? '');
+      $diagnostic = strtolower(
+          $message['bounce']['bouncedRecipients'][0]['diagnosticCode'] ?? ''
+      );
+
+      // Known SES auto-reply patterns
+      if (
+          $type === 'undetermined' &&
+          $subtype === 'undetermined'
+      ) {
+          return true;
+      }
+
+      if (
+          $type === 'transient' &&
+          in_array($subtype, ['general', 'mailboxfull'], true) &&
+          ($diagnostic === '' || str_contains($diagnostic, 'auto'))
+      ) {
+          return true;
+      }
+
+      return false;        
     }
 
     public function handleCCTracking(Request $request)

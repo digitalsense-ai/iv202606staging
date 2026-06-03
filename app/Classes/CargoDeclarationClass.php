@@ -49,7 +49,7 @@ class CargoDeclarationClass
             {
                 $flepath = 'CARGO-DECLARATION-FILES/';
 
-                $filename = '25I21120600_20251212.PDF';//            
+                $filename = 'MILLARCO-0864732.pdf';//            
 
                 $file = public_path($flepath . $filename);   
             }
@@ -206,6 +206,8 @@ class CargoDeclarationClass
                   else if (stripos(trim($text), "OMBEREGNING") !== false)                    
                     $start_pos = $key;
                   else if (stripos(trim($text), "Sats dato:") !== false)                    
+                    $start_pos = $key;
+                  else if (stripos(trim($text), "MIDLERTIDIG TOLLDEKLARASJON") !== false)                    
                     $start_pos = $key;
                 }
 
@@ -1100,33 +1102,32 @@ class CargoDeclarationClass
                               $com_invoice_no = trim($com_invoice_no_date_text[0]);
 
                               $arr_com_invoice_date = explode('-', trim($com_invoice_no_date_text[1]));
-
                               if(count($arr_com_invoice_date) == 3)
+                              {                              
+                                $com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+                                $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                                $com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+
+                                $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                              }
+                              else
                               {
-	                              $com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
-	                              $com_invoice_date_month = trim($arr_com_invoice_date[1]);
-	                              $com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+                                $com_invoice_no_date = trim($arraytext[$start_pos_com_invoice + 41]);
+                                if (stripos(trim($com_invoice_no_date), " - ") !== false) 
+                                {
+                                  $com_invoice_no_date_text = explode(' - ', trim($com_invoice_no_date));
 
-	                              $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
-	                          }
-	                          else
-	                          {
-	                          	$com_invoice_no_date = trim($arraytext[$start_pos_com_invoice + 41]);
-	                          	if (stripos(trim($com_invoice_no_date), " - ") !== false) 
-                            	{
-									$com_invoice_no_date_text = explode(' - ', trim($com_invoice_no_date));
+                                  $com_invoice_no = trim($com_invoice_no_date_text[0]);
 
-									$com_invoice_no = trim($com_invoice_no_date_text[0]);
+                                  $arr_com_invoice_date = explode('-', trim($com_invoice_no_date_text[1]));
 
-									$arr_com_invoice_date = explode('-', trim($com_invoice_no_date_text[1]));
+                                  $com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+                                  $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                                  $com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
 
-									$com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
-									$com_invoice_date_month = trim($arr_com_invoice_date[1]);
-									$com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
-
-									$com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
-                            	} //has -
-	                          } //
+                                  $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                                } //has -
+                              } //  
                             } //has -
                           }
                           else
@@ -1207,7 +1208,7 @@ class CargoDeclarationClass
                 } //NOT FAKTURA list
               }//BANK DATA
               /*end COM. INVOICE*/                  
-dd($com_invoice_no, $com_invoice_date);  
+//dd($com_invoice_no, $com_invoice_date);  
               /* CHECK EXPO, LOPE NO. LENGTH*/ 
               $final_expo_no = $expo_no;  
               $final_lope_no = $lope_no;  

@@ -1,0 +1,1 @@
+<p>Virksomhed: {{ $data['company_name'] }}</p><p>Kontaktperson:</p><p>{{ $data['first_name'] }} {{ $data['last_name'] }}</p><p>{{ $data['phone'] }}</p><p>{{ $data['email'] }}</p><p>{{ $data['designation'] }}</p><p>Hjemmeside:</p><p>{{ $data['company_website'] }}</p><p>Påmindelsesnoter:</p><p>{!! $data['message'] !!}</p><p>{{ $data['app_name'] }}</p>

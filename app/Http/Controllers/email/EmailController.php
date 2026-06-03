@@ -222,6 +222,7 @@ class EmailController extends Controller
                     'team_user_firstname' => '[team_user_firstname]',
                     'team_user_designation' => '[team_user_designation]',
                   ],
+                  'account_number' => '[account-number]', 
                   'message' => '[email_message]',                  
                   'attachment' => [],
                   'align' => 'left'
@@ -431,6 +432,27 @@ class EmailController extends Controller
               'template_name' => __('Reminder', [], $key) . ': ' . __('General Reminder', [], $key),
               'template' => 'emails.'.$emailKey.'reminder-general',
               'template_edit' => 'emails.edit.'.$emailKey.'reminder-general'
+          ],
+          $emailKey.'crm-noquote-reminder' => [
+              'data' =>  [                                                
+                  'subject' => '[subject]',
+                  'lang' => $key,
+                  'app_name' => '[app_name]',                  
+                  'company_name' => '[company_name]',          
+                  'company_website' => '[company_website]',
+                  'first_name' => '[first_name]',
+                  'last_name' => '[last_name]',  
+                  'email' => '[email]',  
+                  'phone' => '[phone]',  
+                  'designation' => '[designation]',                  
+                  'message' => '[email_message]',
+                  'attachment' => [],
+                  'align' => 'left'
+              ],   
+              'template_lang' => strtoupper($key),
+              'template_name' => __('CRM Reminder', [], $key) . ': ' . __('Follow Up Required', [], $key),
+              'template' => 'emails.'.$emailKey.'crm-noquote-reminder',
+              'template_edit' => 'emails.edit.'.$emailKey.'crm-noquote-reminder'
           ]          
         ];
 
@@ -723,7 +745,8 @@ class EmailController extends Controller
                   "[team_user_firstname]", 
                   "[team_user_designation]", 
                   "[app_name]",               
-                  "[email_message]"              
+                  "[email_message]",
+                  "[account-number]"
                 ),
                 array(                  
                   "{{ \$data['subject'] }}", 
@@ -733,7 +756,8 @@ class EmailController extends Controller
                   "{{ \$data['client']['team_user_firstname'] }}", 
                   "{{ \$data['client']['team_user_designation'] }}",
                   "{{ \$data['app_name'] }}",                 
-                  "{{ \$data['message'] }}"
+                  "{{ \$data['message'] }}",
+                  "{{ \$data['account_number'] }}"
                 ),
                 $editor);
 
@@ -1033,6 +1057,38 @@ class EmailController extends Controller
 
             $subject_line = __('Reminder', [], $emaillang) . ': ' . __('General Reminder', [], $emaillang);            
             $emailtemplate = '<x-mail::message :subject="\''.$subject_line.' - \'.$data[\'subject\'].\'\'" :lang="\''.$emaillang.'\'">'. $replaceeditor .'</x-mail::message>';
+          } 
+          else if(strpos($emailtype, "crm-noquote-reminder") !== false)
+          {
+            $replaceeditor = str_replace(
+                array(                 
+                  //"[subject]", 
+                  "[company_name]",                   
+                  "[company_website]", 
+                  "[first_name]", 
+                  "[last_name]", 
+                  "[email]", 
+                  "[phone]", 
+                  "[designation]",                  
+                  "[app_name]",                
+                  "[email_message]"                 
+                ),
+                array(                  
+                  //"{{ \$data['subject'] }}", 
+                  "{{ \$data['company_name'] }}", 
+                  "{{ \$data['company_website'] }}", 
+                  "{{ \$data['first_name'] }}", 
+                  "{{ \$data['last_name'] }}", 
+                  "{{ \$data['email'] }}",
+                  "{{ \$data['phone'] }}", 
+                  "{{ \$data['designation'] }}",
+                  "{{ \$data['app_name'] }}",                  
+                  "{{ \$data['message'] }}"
+                ),
+                $editor);
+            
+            $subject_line = __('CRM Reminder', [], $emaillang) . ': ' . __('Follow Up Required', [], $emaillang);            
+            $emailtemplate = '<x-mail::message :subject="\''.$subject_line.'\'" :lang="\''.$emaillang.'\'">'. $replaceeditor .'</x-mail::message>';
           }          
           
           $path = base_path('resources/views/emails/'.$emailtype.'.blade.php');

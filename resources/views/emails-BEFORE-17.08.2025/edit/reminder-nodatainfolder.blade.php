@@ -1,1 +1,0 @@
-<p>Dear {{ $data['user_firstname'] }} {{ $data['user_lastname'] }}</p><p>No data in folder</p><p>{!! $data['message'] !!}</p><p>Best regards</p><p>{{ $data['sender_firstname'] }}</p><p>{{ $data['sender_designation'] }}</p><p>{{ $data['app_name'] }}</p>

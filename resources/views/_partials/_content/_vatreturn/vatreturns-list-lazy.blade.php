@@ -11,7 +11,7 @@
     $disabled = '';
     if($check_product_type == 1 || $check_product_type == 4)
     {
-      $show_accordion = true;
+      $show_accordion = ($vatreg->vatregmain->is_deleted) ? false : true;
 
       $statusorder = $vatreg->statusorder; 
       $statustext = $vatreg->statustext; 

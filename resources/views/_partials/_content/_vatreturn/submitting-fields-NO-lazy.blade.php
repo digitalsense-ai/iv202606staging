@@ -77,7 +77,10 @@
 			$e_statistical_number = $import_vat_file->e_statistical_number;
 			$box_85 += $import_vat_file->box_85 + $e_fee_number;
 
-			$box_52 += ($e_fee_number + $e_statistical_number);
+			if($import_vat_file->box_85 == 0)
+				$box_52 += ($e_fee_number + $e_statistical_number);
+			else
+				$box_52 += $e_statistical_number;	
 		}
 
 		if($total_statistical_amount > 0)
@@ -126,6 +129,7 @@
 @endphp	
 <form id="formSubmittingFields-{{ $vat_reg_id }}" class="needs-validation formSubmittingFields" novalidate data-vatid="{{ $vat_reg_id }}" data-country="NO">
 @csrf
+<fieldset {{ ($vatreg_status == 6) ? 'disabled' : '' }}>
 	<div class="row g-3">
 		<div class="col-12">
 			<h5 class="my-4">Sales of goods and services in Norway</h5>	
@@ -416,5 +420,6 @@
 			<button type="submit" class="btn btn-primary float-end submittingfields-save" {{ (!$vatregmain_status || $vatreg_is_disregard) ? 'disabled=disabled' : '' }}>Save</button> 
 		</div>
 	</div>
+</fieldset>
 </form>
 <!--/ Submitting Fields -->  

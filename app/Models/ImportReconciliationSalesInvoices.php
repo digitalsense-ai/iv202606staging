@@ -24,6 +24,7 @@ class ImportReconciliationSalesInvoices extends Model
         'total_amount' => 'encrypted',
         'shipping' => 'encrypted',
         'variance' => 'encrypted',
+        'adjustment_amount' => 'encrypted',
         'convert_net_amount' => 'encrypted',
         'convert_vat_amount' => 'encrypted',
         'convert_total_amount' => 'encrypted'

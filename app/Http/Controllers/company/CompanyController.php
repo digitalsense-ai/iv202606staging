@@ -887,6 +887,8 @@ class CompanyController extends Controller
 
           $client_histories = $this->loadCompanyHistoryTab($client_id, true);
           
+          $note_countries = VATRegistrationMain::distinct()->orderBy('country', 'asc')->pluck('country')->toArray();         
+          
 //dd($client_histories);
           // if($client->status == 0)
           //   return abort(403, 'Cannot view inactive client.');
@@ -906,7 +908,9 @@ class CompanyController extends Controller
                 'authUser' => $this->authUser,
                 'client' => $client,
                 'otherClient' => (in_array($client_id, $this->clientIds)) ? false : true,
-             
+                
+                'note_countries' => $note_countries,
+                
                 'client_histories' => $client_histories,
 
                 'team_users' => $team_users,

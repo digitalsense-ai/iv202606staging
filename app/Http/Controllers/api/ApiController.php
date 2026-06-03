@@ -37,10 +37,34 @@ class ApiController extends Controller
 
         $user = User::where('email', $request['email'])->firstOrFail();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        //$token = $user->createToken('auth_token')->plainTextToken;
+
+        // Check if user already has a valid OCR token
+        $existingToken = $user->tokens()
+            ->where('name', 'OCR API Token')
+            ->where(function($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            })
+            ->first();
+
+        if (!$existingToken) {
+            // Create a new token valid for 12 hours
+            $token = $user->createToken(
+                'OCR API Token',
+                ['ocr-read'],            // abilities
+                now()->addHours(12)     // expiration
+            )->plainTextToken;
+
+            // return response()->json([
+            //     'message' => 'OCR token created',
+            //     'token' => $token,
+            //     'expires_at' => now()->addHours(12)->toDateTimeString()
+            // ]);
+        }
 
         return response()->json([
-            'access_token' => $token,
+            'access_token' => (!$existingToken) ? $token : $existingToken,
             'token_type' => 'Bearer',
         ]);
     }

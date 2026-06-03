@@ -10,7 +10,13 @@
     <div class="col-12">
       <ul class="timeline timeline-center mt-5">
         @foreach ($importreconciliation_notes as $note_key => $note)      
-          @if($note->created_at)
+          @if(
+              $note->created_at &&
+              in_array(
+                  $vatreg_country,
+                  array_map('trim', explode(',', $note->countries ?? ''))
+              )
+          )
             @php               
               $user = $note->user;
               $role = $user->roles->first();
@@ -34,9 +40,9 @@
 
                   @if($authUser->id  == $user->id)
                     <div class="float-end">
-                      <button type="button" id="btn-edit-importreconciliation-note-{{ $note->id }}" class="btn btn-primary mx-1 btn-edit-importreconciliation-note" data-vat_reg_id="{{ $note->vat_reg_id }}" data-note_id="{{ $note->id }}" data-note_type="{{ $note->type }}" data-note_comment="{{ $note->notes }}" >Edit</button>
+                      <button type="button" id="btn-edit-importreconciliation-note-{{ $note->id }}" class="btn btn-primary mx-1 btn-edit-importreconciliation-note" data-vat_reg_id="{{ $vat_reg_id }}" data-note_id="{{ $note->id }}" data-note_type="{{ $note->type }}" data-note_comment="{{ $note->notes }}" data-note_countries="{{ $note->countries }}">Edit</button>
 
-                      <button type="button" id="btn-delete-importreconciliation-note-{{ $note->id }}" class="btn btn-danger mx-1 btn-delete-importreconciliation-note" data-vat_reg_id="{{ $note->vat_reg_id }}" data-note_id="{{ $note->id }}">Delete</button>
+                      <button type="button" id="btn-delete-importreconciliation-note-{{ $note->id }}" class="btn btn-danger mx-1 btn-delete-importreconciliation-note" data-vat_reg_id="{{ $vat_reg_id }}" data-note_id="{{ $note->id }}">Delete</button>
                     </div>
                   @endif
                 </div> 

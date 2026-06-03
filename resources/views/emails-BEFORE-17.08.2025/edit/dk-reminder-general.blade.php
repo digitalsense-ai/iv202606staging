@@ -1,1 +1,0 @@
-<p>Kære {{ $data['user_firstname'] }} {{ $data['user_lastname'] }}</p><p>Generel påmindelse</p><p>{{ $data['message'] }}</p><p>Med venlig hilsen</p><p>{{ $data['sender_firstname'] }}</p><p>{{ $data['sender_designation'] }}</p><p>{{ $data['app_name'] }}</p>

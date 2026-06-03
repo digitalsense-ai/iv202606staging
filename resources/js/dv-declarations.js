@@ -744,7 +744,11 @@ console.log(declaration_datas);
                 let sales_invoice_variance_amount = d[row_no].co_invoices[i].invoices[j].variance;
                 let parsed_salesinvoice_variance_amount = parseAmountValue(sales_invoice_variance_amount, d[row_no].co_invoices[i].invoices[j].currency);
 
-                parsed_salesinvoice_net_amount_gross += (parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount);                            
+                let sales_invoice_adjustment_amount = d[row_no].co_invoices[i].invoices[j].adjustment_amount;
+                let parsed_salesinvoice_adjustment_amount = parseAmountValue(sales_invoice_adjustment_amount, d[row_no].co_invoices[i].invoices[j].currency);
+
+                if(!d[row_no].co_invoices[i].invoices[j].disregard_invoice)
+                  parsed_salesinvoice_net_amount_gross += ((parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount) - parsed_salesinvoice_adjustment_amount); 
               }
 
               var currency_locale = 'da-DK';
@@ -1295,8 +1299,13 @@ console.log(declaration_datas);
               let sales_invoice_variance_amount = d[parent_row_no].co_invoices[row_no].invoices[j].variance;
               let parsed_salesinvoice_variance_amount = parseAmountValue(sales_invoice_variance_amount, d[parent_row_no].co_invoices[row_no].invoices[j].currency);
 
+              let sales_invoice_adjustment = d[parent_row_no].co_invoices[row_no].invoices[j].adjustment_amount;
+              let parsed_salesinvoice_adjustment_amount = parseAmountValue(sales_invoice_adjustment, d[parent_row_no].co_invoices[row_no].invoices[j].currency);
+
+              let rawAdjustmentValue = (parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount) - parsed_salesinvoice_adjustment_amount;
+
               let sales_invoice_adjustment_amount = new Intl.NumberFormat(currency_locale, {
-      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount));
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(Math.abs(rawAdjustmentValue));
               /*--end Adjustment Amount Calculation --*/ 
               
               invoice_html += '<tr class="'+ tr_class_name + disregard_invoice_class_name +'">' +
@@ -1471,7 +1480,10 @@ console.log(declaration_datas);
               let variance_amount = rowData['variance'];
               let parsed_variance_amount =  parseAmountValue(variance_amount, currency_style);
 
-              let parsed_gross_net_amount = (parsed_net_amount + parsed_shipping_amount + parsed_variance_amount);
+              let adjustment_amount = rowData['adjustment_amount'];
+              let parsed_adjustment_amount =  parseAmountValue(adjustment_amount, currency_style);
+
+              let parsed_gross_net_amount = ((parsed_net_amount + parsed_shipping_amount + parsed_variance_amount) - parsed_adjustment_amount);
 
               //total_parsed_net_amount += parsed_gross_net_amount;
 
@@ -2029,7 +2041,10 @@ console.log(declaration_datas);
                   let variance_amount = rowData['variance'];
                   let parsed_variance_amount =  parseAmountValue(variance_amount, currency_style);
 
-                  let parsed_gross_net_amount = (parsed_net_amount + parsed_shipping_amount + parsed_variance_amount);
+                  let adjustment_amount = rowData['adjustment_amount'];
+                  let parsed_adjustment_amount =  parseAmountValue(adjustment_amount, currency_style);
+
+                  let parsed_gross_net_amount = ((parsed_net_amount + parsed_shipping_amount + parsed_variance_amount) - parsed_adjustment_amount);
 
                   //total_parsed_net_amount += parsed_gross_net_amount;
 
@@ -2294,7 +2309,10 @@ console.log(declaration_datas);
                   let variance_amount_sales_invoice = sales_invoice['variance'];
                   let parsed_salesinvoice_variance_amount = parseAmountValue(variance_amount_sales_invoice, currency_code);
 
-                  parsed_salesinvoice_net_amount_gross += (parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount);
+                  let adjustment_amount_sales_invoice = sales_invoice['adjustment_amount'];
+                  let parsed_salesinvoice_adjustment_amount = parseAmountValue(adjustment_amount_sales_invoice, currency_code);
+
+                  parsed_salesinvoice_net_amount_gross += ((parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount) - parsed_salesinvoice_adjustment_amount);
 
                   //total_parsed_salesinvoice_net_amount += (parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount);
 
@@ -2682,22 +2700,51 @@ console.log(declaration_datas);
 
                     var proceed = false;
 
-                    if(String(co_invoice['group_lope_no']).indexOf('***') != -1)
-                    {
-                      let arr_com_invoice_no = co_invoice['co_invoice_no'].split(", ");
-                      let arr_o_com_invoice_no = co_invoice['orginal_co_invoice_no'].split(", ");
+                    // if(String(co_invoice['group_lope_no']).indexOf('***') != -1)
+                    // {
+                    //   let arr_com_invoice_no = co_invoice['co_invoice_no'].split(", ");
+                    //   let arr_o_com_invoice_no = co_invoice['orginal_co_invoice_no'].split(", ");
 
-                      if( (arr_com_invoice_no.includes(com_invoice_no) && lope_no == co_invoice['lope_no']) ||
-                        (arr_o_com_invoice_no.includes(com_invoice_no) && lope_no == co_invoice['lope_no']) 
-                        )
-                        proceed = true;                 
+                    //   if( (arr_com_invoice_no.includes(com_invoice_no) && lope_no == co_invoice['lope_no']) ||
+                    //     (arr_o_com_invoice_no.includes(com_invoice_no) && lope_no == co_invoice['lope_no']) 
+                    //     )
+                    //     proceed = true;                 
+                    // }
+                    // else
+                    // {
+                    //   if((com_invoice_no == co_invoice['co_invoice_no'] && lope_no == co_invoice['lope_no']) || 
+                    //     (com_invoice_no == co_invoice['orginal_co_invoice_no'] && lope_no == co_invoice['lope_no']))
+                    //     proceed = true;
+                    // }
+
+
+                    let arr_com_invoice_no = String(co_invoice['co_invoice_no'])
+                      .split(',')
+                      .map(x => x.trim());
+
+                    let arr_o_com_invoice_no = String(co_invoice['orginal_co_invoice_no'])
+                      .split(',')
+                      .map(x => x.trim());
+
+                    let arr_input_invoice_no = String(com_invoice_no)
+                      .split(',')
+                      .map(x => x.trim());
+
+                    let matchFound = arr_input_invoice_no.some(inv =>
+                      arr_com_invoice_no.includes(inv) || arr_o_com_invoice_no.includes(inv)
+                    );
+
+                    if (
+                      matchFound &&
+                      lope_no == co_invoice['lope_no'] &&
+                      (
+                        String(co_invoice['group_lope_no']).indexOf('***') !== -1 ||
+                        true // same logic applies anyway
+                      )
+                    ) {
+                      proceed = true;
                     }
-                    else
-                    {
-                      if((com_invoice_no == co_invoice['co_invoice_no'] && lope_no == co_invoice['lope_no']) || 
-                        (com_invoice_no == co_invoice['orginal_co_invoice_no'] && lope_no == co_invoice['lope_no']))
-                        proceed = true;
-                    }              
+              
 //console.log(com_invoice_no + " -- " + proceed);
 //console.log(co_invoice);
                     // if((com_invoice_no == co_invoice['co_invoice_no'] && lope_no == co_invoice['lope_no']) || 
@@ -2747,7 +2794,10 @@ console.log(declaration_datas);
                             let variance_amount_sales_invoice = sales_invoice['variance'];
                             let parsed_salesinvoice_variance_amount = parseAmountValue(variance_amount_sales_invoice, currency_code);
 
-                            parsed_salesinvoice_net_amount_gross += (parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount);
+                            let adjustment_amount_sales_invoice = sales_invoice['adjustment_amount'];
+                            let parsed_salesinvoice_adjustment_amount = parseAmountValue(adjustment_amount_sales_invoice, currency_code);
+
+                            parsed_salesinvoice_net_amount_gross += ((parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount + parsed_salesinvoice_variance_amount) - parsed_salesinvoice_adjustment_amount);
 
                             //total_parsed_salesinvoice_net_amount += (parsed_salesinvoice_net_amount + parsed_salesinvoice_shipping_amount);
 

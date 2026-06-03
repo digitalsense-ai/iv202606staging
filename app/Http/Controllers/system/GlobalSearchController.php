@@ -118,7 +118,7 @@ class GlobalSearchController extends Controller
     public function refreshGlobalSearch(Request $request)
     {
       try
-      {         
+      {
         $client_id = $request->client_id;
  
         $system = $this->commonClass->getSystemInfoLazy(); 
@@ -171,18 +171,42 @@ class GlobalSearchController extends Controller
             $data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, $full_refresh);
             
             if($data)
-            {              
-              if($data['insert_invoices'] > 0)
-                $batchIds[] = [                
-                  'batchId' => $data['insert_invoices'],                
-                ];
-             
-              if($data['result']) 
-              {       
-                if($result)                      
-                  $result = array_merge($result, $data['result']);
-                else     
-                  $result = $data['result'];
+            {
+              if(is_array($data))
+              {
+                if(isset($data['processed']))
+                {
+                  
+                }
+                else
+                {
+                  if($data['insert_invoices'] > 0)
+                    $batchIds[] = [                
+                      'batchId' => $data['insert_invoices'],                
+                    ];
+               
+                  if($data['result']) 
+                  {       
+                    if($result)
+                    {
+                      if (is_array($result))
+                        $result = array_merge($result, $data['result']);
+                      else
+                        $result = array_merge($result->toArray(), $data['result']);
+                    }
+                    else     
+                      $result = $data['result'];
+                  }
+                }
+              }
+              else
+              {
+                if($data > 0)
+                {
+                  $batchIds[] = [
+                    'batchId' => $data              
+                  ];
+                }
               }
             }
 

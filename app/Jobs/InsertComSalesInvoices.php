@@ -672,7 +672,8 @@ class InsertComSalesInvoices implements ShouldQueue
               {
                 $this->commonClass->addLog($this->authUser, 'importreconcilation-global-search-refresh',
                   [                        
-                    'VAT Reg.' => $unique_logs,            
+                    'VAT Reg.' => $unique_logs,
+                    'TESTTTTTTTTTTTT' => '111111111111111111',            
                   ]
                 );          
               }
@@ -689,7 +690,8 @@ class InsertComSalesInvoices implements ShouldQueue
               {
                 $this->commonClass->addLog($this->authUser, 'importreconcilation-control-refresh',
                   [                    
-                    'VAT Reg.' => $unique_logs,            
+                    'VAT Reg.' => $unique_logs,
+                    'TESTTTTTTTTTTTT' => '22222222222222222222',                  
                   ]
                 );
               }   

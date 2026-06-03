@@ -356,7 +356,8 @@ class VATRegistrationMainController extends Controller
                           'api_secret_key' => "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1",
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
-                          'status' => 1,                      
+                          'status' => 1,
+                          'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,
                         ]
                       );
                     }                  
@@ -737,7 +738,8 @@ class VATRegistrationMainController extends Controller
                           'api_secret_key' => "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1",
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
-                          'status' => 1,                     
+                          'status' => 1,    
+                          'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,                 
                         ]
                       );
                     }                  

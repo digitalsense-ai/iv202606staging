@@ -29,7 +29,7 @@
 
 		        @if($vatreg->country == 'GB' || $vatreg->country == 'NO' || $vatreg->country == 'CH')	                
 		        <li class="nav-item">
-		          <button type="button" id="btn-submitting-fields-{{ $vat_reg_id }}" class="btn-submitting-fields nav-link {{ ($vatreg->status == 6) ? 'disabled' : '' }}" role="tab" data-bs-toggle="tab" data-bs-target="#navs-vatreturns-submittingfields-{{ $vat_reg_id }}" aria-controls="navs-vatreturns-submittingfields-{{ $vat_reg_id }}" aria-selected="false">Submitting Fields</button>
+		          <button type="button" id="btn-submitting-fields-{{ $vat_reg_id }}" class="btn-submitting-fields nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#navs-vatreturns-submittingfields-{{ $vat_reg_id }}" aria-controls="navs-vatreturns-submittingfields-{{ $vat_reg_id }}" aria-selected="false">Submitting Fields</button>
 		        </li>
 		        @endif
 
@@ -405,7 +405,7 @@
 	        	@if($vatreg->country == 'GB' || $vatreg->country == 'CH')
 	        		@if($vatreg->country == 'GB')
 		        	<div class="col-sm-12 text-end">									
-						<button class="btn btn-primary btn-export-excel-submittingfields" data-vat_reg_id="{{ $vat_reg_id }}">
+						<button class="btn btn-primary btn-export-excel-submittingfields" data-vat_reg_id="{{ $vat_reg_id }}" {{ ($vatreg->status == 6) ? 'disabled' : '' }}>
 							<i class='bx bx-up-arrow-circle me-1'></i>
 							<span class="align-middle">Export to excel</span>
 						</button>

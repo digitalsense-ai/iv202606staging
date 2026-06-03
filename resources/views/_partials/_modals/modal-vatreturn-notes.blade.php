@@ -16,14 +16,25 @@
                   @csrf   
                   <input type="hidden" name="note_id" id="note-id-{{ $vat_reg_id }}">
                   <div class="row mb-3">
-                    <div class="col-6">
-                      <!-- <label class="form-label" for="vatreturn_note_type">Type</label> -->
-                      <select class="form-select vatreturn-note-type w-50 d-inline-block" name="vatreturn_note_type" id="vatreturn-note-type-{{ $vat_reg_id }}" data-vat_reg_id="{{ $vat_reg_id }}" required>
+                    <div class="col-3">
+                      <label class="form-label" for="vatreturn_note_type">Type</label><br>
+                      <select class="form-select vatreturn-note-type d-inline-block" name="vatreturn_note_type" id="vatreturn-note-type-{{ $vat_reg_id }}" data-vat_reg_id="{{ $vat_reg_id }}" required>
                         <option value="">Select Type</option>                                          
                         <option value="general">General Notes</option>  
                         <option value="specific">Specific Notes</option>  
                       </select>                
                     </div>
+
+                    <!-- Select / Deselect All -->
+                    <div class="col-4">
+                      <label for="vatreturn-selectedCountries-{{ $vat_reg_id }}" class="form-label">Select Country</label>
+                      <select id="vatreturn-selectedCountries-{{ $vat_reg_id }}" name="vatreturn_selectedCountries[]" class="selectpicker w-100" data-style="btn-default" multiple data-actions-box="true">
+                        @foreach($note_countries as $note_country)
+                          <option>{{ $note_country }}</option>
+                        @endforeach                        
+                      </select>
+                    </div>
+
                   </div>
 
                   <!-- HTML Editor-->

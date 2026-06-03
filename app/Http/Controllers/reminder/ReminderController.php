@@ -253,12 +253,12 @@ class ReminderController extends Controller
     } 
     /* --end GET /reminder/{country}/companies -- */
 
-    /* -- GET /reminder/{vat_reg_main_id}/users -- */  
+    /* -- GET /reminder/users -- */  
     public function loadReminderUsers(Request $request)
     {
       try
       {
-        $country = $request->country;
+        $country = $request->country_value;
         $user_role = $request->user_role;
         $vat_reg_main_id = $request->vat_reg_main_id;
 
@@ -365,7 +365,7 @@ class ReminderController extends Controller
         /* --end RETURN JSON -- */ 
       }
     } 
-    /* --end GET /reminder/{vat_reg_main_id}/users -- */
+    /* --end GET /reminder/users -- */
 
     public function sendreminderemail(Request $request)
     { 
@@ -388,13 +388,13 @@ class ReminderController extends Controller
       {
         if($request->send_test_reminder == 'send_test_reminder')
         {
-          $schedule_value = $request->schedule_value;
-          $datetime_value = $request->datetime_value;
+          $schedule_value = ($request->schedule_value) ? $request->schedule_value : 'Does not repeat';         
+          $datetime_value = ($request->datetime_value) ? $request->datetime_value : Carbon::now()->format('Y-m-d H:i:s');
         }
         else
         {
-          $schedule_value = $request->schedule;
-          $datetime_value = $request->reminder_datetime;
+          $schedule_value = ($request->schedule) ? $request->schedule : 'Does not repeat';
+          $datetime_value = ($request->reminder_datetime) ? $request->reminder_datetime : Carbon::now()->format('Y-m-d H:i:s');
         }
 
         $reminderID = $request->reminder_id;
@@ -503,19 +503,22 @@ class ReminderController extends Controller
             /* --end DELETE REMINDER USER CLIENT -- */
 
             /* -- CREATE REMINDER USER CLIENT -- */
-            foreach($request->send_to_client[$user->id] as $send_to_client)
+            if (array_key_exists($user->id, $request->send_to_client)) 
             {
-              $reminder_user_client = ReminderUserClient::updateOrCreate(                     
-                [
-                  'reminder_user_id' => $reminder_user->id,    
-                  'client_id' => $send_to_client          
-                ]
-              );
+              foreach($request->send_to_client[$user->id] as $send_to_client)
+              {
+                $reminder_user_client = ReminderUserClient::updateOrCreate(                     
+                  [
+                    'reminder_user_id' => $reminder_user->id,    
+                    'client_id' => $send_to_client          
+                  ]
+                );
+              }
             }
             /* --end CREATE REMINDER USER CLIENT-- */
           } /* --end for SEND_TO -- */
         } /* --end if SEND_TO -- */
-         else
+        else
         {          
           if($request->edit_sent_to != null)
           {
@@ -548,22 +551,26 @@ class ReminderController extends Controller
               /* --end DELETE REMINDER USER CLIENT -- */
 
               /* -- CREATE REMINDER USER CLIENT -- */
-              foreach($request->edit_send_to_client[$user->id] as $edit_send_to_client)
+              if (array_key_exists($user->id, $request->edit_send_to_client)) 
               {
-                $reminder_user_client = ReminderUserClient::updateOrCreate(                     
-                  [
-                    'reminder_user_id' => $reminder_user->id,    
-                    'client_id' => $edit_send_to_client          
-                  ]
-                );
+                foreach($request->edit_send_to_client[$user->id] as $edit_send_to_client)
+                {
+                  $reminder_user_client = ReminderUserClient::updateOrCreate(                     
+                    [
+                      'reminder_user_id' => $reminder_user->id,    
+                      'client_id' => $edit_send_to_client          
+                    ]
+                  );
+                }
               }
               /* --end CREATE REMINDER USER CLIENT-- */
             }
           }
         } /* --end else SEND_TO -- */
 
-        /* Send email after saving the reminder */        
-        $result = $this->commonClass->scheduleReminderEmail($this->authUser, $request, $reminder_id);    
+        /* Send email after saving the reminder */ 
+        if($request->which_btn == 'send_reminder' || $request->which_btn == 'send_test_reminder')       
+          $result = $this->commonClass->scheduleReminderEmail($this->authUser, $request, $reminder_id);    
         /*End Send email after saving the reminder  */
 
         /* -- GET REMINDERS -- */

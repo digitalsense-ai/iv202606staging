@@ -223,6 +223,12 @@ class InsertInvoices implements ShouldQueue
                       if(isset($invoice->invoiceNumber))
                         $invoice_no = $invoice->invoiceNumber;
                     }
+
+                    if($invoice_no == '')
+                    {
+                      if(isset($invoice->supplierInvoiceNumber))
+                        $invoice_no = $invoice->supplierInvoiceNumber;
+                    }
                     
                     if($invoice_no == '')
                     {
@@ -232,7 +238,7 @@ class InsertInvoices implements ShouldQueue
 
                     if($invoice_no == '')
                     {
-                      $_invoice_text = $invoice->text;
+                      $_invoice_text = isset($invoice->text) ? $invoice->text : '';
                       if(stripos($_invoice_text, ";") !== false) 
                       {
                         $_arr_invoice_text = explode(';', $_invoice_text);
@@ -257,11 +263,50 @@ class InsertInvoices implements ShouldQueue
                         }
                       }
                     }
-                   
+//    if($invoice_no == '50066616')
+// {                    
+                    /*
+                    $baseCurrency = $this->vatreg->vatregmain->clientapi->currency_code;
+                    $actualCurrency = '';
+                    $actualAmount = 0;
+                    if($baseCurrency == $invoice->currency)
+                    { 
+                      $actualCurrency = $invoice->currency;
+                      $actualAmount = $invoice->amount;
+                    }
+                    else  
+                    { 
+                      if($invoice->amountInBaseCurrency)
+                      { 
+                        $actualCurrency = $baseCurrency;               
+                        $actualAmount = $invoice->amountInBaseCurrency;
+                      }
+                      else
+                      {
+                        $actualCurrency = $invoice->currency;
+                        $actualAmount = $invoice->amount;
+                      }
+                    }
+                    */
+
+                    $baseCurrency = $this->vatreg->vatregmain->clientapi->currency_code;                                    
+                    $actualAmount = $invoice->amount;
+                    $actualCurrency = $invoice->currency;
+
+                    $useBaseCurrencyAmount = $this->vatreg->vatregmain->clientapi->use_base_currency_amount;
+
+                    // Special case: base currency is NOK or DKK → use amountInBaseCurrency if available
+                    //if (in_array($baseCurrency, ['NOK', 'DKK']) && !empty($invoice->amountInBaseCurrency)) {
+                    if ($useBaseCurrencyAmount && !empty($invoice->amountInBaseCurrency)) {
+                      $actualAmount = $invoice->amountInBaseCurrency;
+                      $actualCurrency = $baseCurrency;
+                    }
+
                     $exists_invoice = Invoices::where('vat_reg_id', $this->vat_reg_id)                                    
                                       ->where('invoice_no', $invoice_no)  
                                       ->where('vat_rate', $_vat_percentage)    
-                                      ->where('currency_code', $invoice->currency)                             
+                                      //->where('currency_code', $invoice->currency)                             
+                                      ->where('currency_code', $actualCurrency)                             
                                       ->first();  
 
                     $acc_nos = $invoice->account->accountNumber;
@@ -290,13 +335,15 @@ class InsertInvoices implements ShouldQueue
                     $acc_reverse = 1;
                     $net_or_vat = 'net';
                     $invoice_type = 'sale';
+                    $allow = false;
                     $accountnos = $this->vatreg->vatregmain->accnos;
                     if(count($accountnos) > 0)
                     {         
                       foreach ($accountnos as $accountno) 
                       {
-                        if(($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) && 
-                          ($invoice->account->accountNumber == $accountno->acc_no))
+                        // if(($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) && 
+                        //   ($invoice->account->accountNumber == $accountno->acc_no))
+                        if($invoice->account->accountNumber == $accountno->acc_no)
                         {
                           if($accountno->is_reverse)  
                             $acc_reverse = -1;
@@ -304,7 +351,7 @@ class InsertInvoices implements ShouldQueue
                           if($accountno->map_column == 'net_sales')
                           {        
                             $invoice_type = 'sale';                    
-                            $net_or_vat = 'net';                              
+                            $net_or_vat = 'net';                             
                           }
                           else if($accountno->map_column == 'vat_sales')
                           {    
@@ -321,6 +368,8 @@ class InsertInvoices implements ShouldQueue
                             $invoice_type = 'purchase';
                             $net_or_vat = 'vat';                              
                           }
+
+                          $allow = ($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) ? true : false;
                         }
                       }
                     }
@@ -328,9 +377,10 @@ class InsertInvoices implements ShouldQueue
                     if($invoice_type == 'sale')
                       $_tax_code = "DSGS";
                     else if($invoice_type == 'purchase')
-                      $_tax_code = "DPGS";
+                      $_tax_code = "DPGS";                    
 
-                    if(stripos((($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net), "-") !== false)
+                    // if(stripos((($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net), "-") !== false)
+                    if(stripos((($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $actualAmount)) : $exists_total_net), "-") !== false)
                     {
                       if($invoice_type == 'sale')
                         $_tax_code = "DSGS_CN";
@@ -343,13 +393,15 @@ class InsertInvoices implements ShouldQueue
                     {
                       if($net_or_vat == 'net')
                       {
-                        $net_amount = $exists_total_net + ($acc_reverse * $invoice->amount);
+                        //$net_amount = $exists_total_net + ($acc_reverse * $invoice->amount);
+                        $net_amount = $exists_total_net + ($acc_reverse * $actualAmount);
                         
                         $exists_total_vat = (($net_amount * $_vat_percentage) / 100);
                       }
                       else if($net_or_vat == 'vat')
                       {    
-                        $vat_amount = $acc_reverse * $invoice->amount; 
+                        //$vat_amount = $acc_reverse * $invoice->amount; 
+                        $vat_amount = $acc_reverse * $actualAmount; 
                                              
                         //if (round((float)$vat_amount, 2) <= round((float)$exists_total_vat, 2))
                         if (round((float)$vat_amount, 2) == round((float)$exists_total_vat, 2))
@@ -360,90 +412,131 @@ class InsertInvoices implements ShouldQueue
                     
                     try
                     {
-                      $insert_invoices = Invoices::updateOrCreate(
-                        [
-                          'vat_reg_id' => $this->vat_reg_id,
-                          'invoice_no' => $invoice_no,
-                          'vat_rate' => $_vat_percentage,
-                          'currency_code' => $invoice->currency,
-                        ],
-                        [                
-                            'vat_reg_id' => $this->vat_reg_id,
-                            'invoice_type' => $invoice_type,
-                            'invoice_id' => NULL,
-                            'tax_code' => $_tax_code,
-                            'invoice_date' => Carbon::parse($invoice->date)->format('Y-m-d'),
-                            'acc_no' => ($acc_nos == '') ? NULL : $acc_nos,
-                            'invoice_no' => $invoice_no,
-                            'currency_code' => $invoice->currency,
-
-                            'total_net' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net),                          
-                            'vat_rate' => $_vat_percentage,
-                            'total_vat' => ($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $exists_total_vat)) : $exists_total_vat),
-                            'total_gross' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net) + (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $exists_total_vat)) : $exists_total_vat)), 
-                            // 'total_gross' => ($update_vat_amount) ? ($exists_total_net + $exists_total_vat + ($acc_reverse * $invoice->amount)) : ($exists_total_net + ($acc_reverse * $invoice->amount)),    
-                            //'total_vat' => (($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $vat_amount),                          
-                            // 'total_gross' => ($exists_total_net + (($net_or_vat == 'vat') ? $exists_total_vat : $vat_amount) + ($acc_reverse * $invoice->amount)),
-                            
-                            'local_currency_code' => NULL,
-                            'exchange_rate' => NULL,
-                            'local_total_net' => NULL,
-                            'local_total_vat' => NULL,
-                            'local_total_gross' => NULL,
-
-                            'n' => NULL,
-                            'o' => NULL,
-                            'p' => NULL,
-                            'q' => NULL,
-
-                            'c_name' => NULL,
-                            'c_vat_no' => NULL,
-                            'c_street' => NULL,
-                            'c_house_no' => NULL,
-                            'c_city' => NULL,
-                            'c_postcode' => NULL,           
-                            'c_country' => NULL,
-
-                            'created_by' => $this->authUser->user_id
-                        ]
-                      );
-
-if($invoice_type == 'purchase')
-  Log::info('E-conomic : ' . $invoice_no . ' -- ' . $_vat_percentage . '% ' . ' ID: ' . $insert_invoices->id);
-
-                      $check_invoice = Invoices::where('vat_reg_id', $this->vat_reg_id)                                    
-                                      ->where('invoice_no', $invoice_no)  
-                                      ->where('vat_rate', $_vat_percentage)    
-                                      ->where('currency_code', $invoice->currency)                             
-                                      ->first();
-if($invoice_type == 'purchase')
-  Log::info('NET AMOUNT : ' . $check_invoice->total_net . ' VAT AMOUNT: ' . $check_invoice->total_vat);
-                      if($check_invoice)
+                      if($allow)
                       {
-                        if($check_invoice->total_net == 0)
-                        {                          
-                          if($_vat_percentage == 0)
-                            $check_invoice->delete();
-                          else
-                          {
-                            $sales_net_amount = ($check_invoice->total_vat * 100) /$_vat_percentage;
-if($invoice_type == 'purchase')
-  Log::info('CALCULATED NET AMOUNT : ' . $sales_net_amount);
-                            if($sales_net_amount == 0)              
-                              $check_invoice->delete();
+                        if($invoice_type == 'purchase')
+                        {
+    Log::info('VAT amount : ' . (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)));
+
+    Log::info('for purchase VAT amount : ' . (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat));
+  }
+
+                        $insert_invoices = Invoices::updateOrCreate(
+                          [
+                            'vat_reg_id' => $this->vat_reg_id,
+                            'invoice_no' => $invoice_no,
+                            'vat_rate' => $_vat_percentage,
+                            //'currency_code' => $invoice->currency,
+                            'currency_code' => $actualCurrency,
+                          ],
+                          [                
+                              'vat_reg_id' => $this->vat_reg_id,
+                              'invoice_type' => $invoice_type,
+                              'invoice_id' => NULL,
+                              'tax_code' => $_tax_code,
+                              'invoice_date' => Carbon::parse($invoice->date)->format('Y-m-d'),
+                              'acc_no' => ($acc_nos == '') ? NULL : $acc_nos,
+                              'invoice_no' => $invoice_no,
+                              //'currency_code' => $invoice->currency,
+                              'currency_code' => $actualCurrency,
+
+                              // 'total_net' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net),                          
+                              'total_net' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $actualAmount)) : $exists_total_net),  
+
+                              'vat_rate' => $_vat_percentage,
+
+                              // 'total_vat' => ($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $exists_total_vat)) : $exists_total_vat),
+                              'total_vat' => (($invoice_type == 'sales') ?
+                              (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)) :
+                              (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)),
+
+                              // 'total_gross' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net) + (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $exists_total_vat)) : $exists_total_vat)), 
+                              // 'total_gross' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $actualAmount)) : $exists_total_net) + (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)), 
+
+                              'total_gross' => (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $actualAmount)) : $exists_total_net) + (($invoice_type == 'sales') ?
+                              (($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)) :
+                              (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $actualAmount)) : $exists_total_vat)) : $exists_total_vat)), 
+
+                              // 'total_gross' => ($update_vat_amount) ? ($exists_total_net + $exists_total_vat + ($acc_reverse * $invoice->amount)) : ($exists_total_net + ($acc_reverse * $invoice->amount)),    
+                              //'total_vat' => (($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $vat_amount),                          
+                              // 'total_gross' => ($exists_total_net + (($net_or_vat == 'vat') ? $exists_total_vat : $vat_amount) + ($acc_reverse * $invoice->amount)),
+                              
+                              'local_currency_code' => NULL,
+                              'exchange_rate' => NULL,
+                              'local_total_net' => NULL,
+                              'local_total_vat' => NULL,
+                              'local_total_gross' => NULL,
+
+                              'n' => NULL,
+                              'o' => NULL,
+                              'p' => NULL,
+                              'q' => NULL,
+
+                              'c_name' => NULL,
+                              'c_vat_no' => NULL,
+                              'c_street' => NULL,
+                              'c_house_no' => NULL,
+                              'c_city' => NULL,
+                              'c_postcode' => NULL,           
+                              'c_country' => NULL,
+
+                              'created_by' => $this->authUser->user_id
+                          ]
+                        );
+
+  if($invoice_type == 'purchase')
+    Log::info('E-conomic : ' . $invoice_no . ' -- ' . $_vat_percentage . '% ' . ' ID: ' . $insert_invoices->id);
+
+                        $check_invoice = Invoices::where('vat_reg_id', $this->vat_reg_id)                                    
+                                        ->where('invoice_no', $invoice_no)  
+                                        ->where('vat_rate', $_vat_percentage)    
+                                        //->where('currency_code', $invoice->currency)
+                                        ->where('currency_code', $actualCurrency)
+                                        ->first();
+  if($invoice_type == 'purchase')
+    Log::info('NET AMOUNT : ' . $check_invoice->total_net . ' VAT AMOUNT: ' . $check_invoice->total_vat);
+                        if($check_invoice)
+                        {
+                          if($check_invoice->total_net == 0)
+                          {                          
+                            if($_vat_percentage == 0)
+                            {
+                              if($check_invoice->total_vat != 0)
+                              {
+                                // $sales_net_amount = ($check_invoice->total_vat * 100) / 100;
+
+                                // if($sales_net_amount == 0)              
+                                //   $check_invoice->delete();
+                                // else
+                                // {                                  
+                                  $check_invoice->total_net = 0;
+                                  $check_invoice->save();
+                                //}
+                              }
+                              else
+                                $check_invoice->delete();
+                            }
                             else
                             {
-                              $check_invoice->total_net = $sales_net_amount;
-                              $check_invoice->save();
+                              $sales_net_amount = ($check_invoice->total_vat * 100) /$_vat_percentage;
+  if($invoice_type == 'purchase')
+    Log::info('CALCULATED NET AMOUNT : ' . $sales_net_amount);
+                              if($sales_net_amount == 0)              
+                                $check_invoice->delete();
+                              else
+                              {
+                                $check_invoice->total_net = $sales_net_amount;
+                                $check_invoice->save();
+                              }
                             }
                           }
-                        }
-                      } //delete if the NET amount is 0
+                        } //delete if the NET amount is 0
+                      }//allow
                     }
                     catch (\Exception $e) {
                       Log::info($e->getMessage());
                     }
-
+//}
                       // Log::info('E-conomic : ' . $invoice_no . ' -- ' . $_vat_percentage . '% ' . $invoice_type);
                       // Log::info('net amount: ' .  (($net_or_vat == 'net') ? ($exists_total_net + ($acc_reverse * $invoice->amount)) : $exists_total_net) . ' vat amount: ' . ($_vat_percentage == 0) ? 0 : (($update_vat_amount) ? ((($net_or_vat == 'vat') ? ($exists_total_vat + ($acc_reverse * $invoice->amount)) : $exists_total_vat)) : $exists_total_vat));
                     
@@ -452,7 +545,7 @@ if($invoice_type == 'purchase')
                   {
                     $_tax_code = "DSGS";                      
                     if(stripos($invoice->netAmount, "-") !== false)                        
-                      $_tax_code = "DSGS_CN";                                    
+                      $_tax_code = "DSGS_CN";                                                        
 
                     $_vat_percentage = ($invoice->vatAmount == 0) ? 0 : round((($invoice->vatAmount/$invoice->netAmount) * 100)); 
 

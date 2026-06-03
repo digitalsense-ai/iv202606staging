@@ -339,136 +339,147 @@ class VATRegistrationController extends Controller
           $vatRegHeading = Carbon::parse($vatreg->service_start)->format('M Y') . ' ' . $vatreg->country . ' ' . $vatreg->general_periods;
 
           if ($vat_reg_id) 
-          {        
-            if($vatreg->country == 'GB')    
-            { 
-              $submittingFields = SubmittingFields::updateOrCreate(
-                ['vat_reg_id' => $vat_reg_id],
-                [                           
-                  'box_1' => $request->input('submittingfields_box_1'),
-                  'box_2' => $request->input('submittingfields_box_2'),
-                  'box_3' => $request->input('submittingfields_box_3'),
-                  'box_4' => $request->input('submittingfields_box_4'),
-                  'box_5' => $request->input('submittingfields_box_5'),
-                  'box_6' => $request->input('submittingfields_box_6'),
-                  'box_7' => $request->input('submittingfields_box_7'),
-                  'box_8' => $request->input('submittingfields_box_8'),
-                  'box_9' => $request->input('submittingfields_box_9')
-                ]
-              ); 
-             
-              $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-add', 
-                [
-                  'Client Name' => $vatreg->client->client_name,
-                  'VAT Reg' => $vatRegHeading
-                ]
-              ); 
-            } //GB
-            else if($vatreg->country == 'NO')    
+          {   
+            if($vatreg->status != 6)    
+            {     
+              if($vatreg->country == 'GB')    
+              { 
+                $submittingFields = SubmittingFields::updateOrCreate(
+                  ['vat_reg_id' => $vat_reg_id],
+                  [                           
+                    'box_1' => $request->input('submittingfields_box_1'),
+                    'box_2' => $request->input('submittingfields_box_2'),
+                    'box_3' => $request->input('submittingfields_box_3'),
+                    'box_4' => $request->input('submittingfields_box_4'),
+                    'box_5' => $request->input('submittingfields_box_5'),
+                    'box_6' => $request->input('submittingfields_box_6'),
+                    'box_7' => $request->input('submittingfields_box_7'),
+                    'box_8' => $request->input('submittingfields_box_8'),
+                    'box_9' => $request->input('submittingfields_box_9')
+                  ]
+                ); 
+               
+                $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-add', 
+                  [
+                    'Client Name' => $vatreg->client->client_name,
+                    'VAT Reg' => $vatRegHeading
+                  ]
+                ); 
+              } //GB
+              else if($vatreg->country == 'NO')    
+              {
+                $submittingFields = SubmittingFieldsNO::updateOrCreate(
+                  ['vat_reg_id' => $vat_reg_id],
+                  [                                           
+                    'box_3' => $request->input('submittingfields_box_3'),
+                    'box_31' => $request->input('submittingfields_box_31'),
+                    'box_33' => $request->input('submittingfields_box_33'),
+                    'box_5' => $request->input('submittingfields_box_5'),
+                    'box_6' => $request->input('submittingfields_box_6'),
+
+                    'box_52' => $request->input('submittingfields_box_52'),
+
+                    'box_1' => $request->input('submittingfields_box_1'),
+                    'box_11' => $request->input('submittingfields_box_11'),
+                    'box_13' => $request->input('submittingfields_box_13'),
+
+                    'box_32' => $request->input('submittingfields_box_32'),
+                    'box_12' => $request->input('submittingfields_box_12'),
+
+                    'box_51' => $request->input('submittingfields_box_51'),
+                    'box_91' => $request->input('submittingfields_box_91'),
+                    'box_92' => $request->input('submittingfields_box_92'),
+                    
+                    'box_86' => $request->input('submittingfields_box_86'),
+                    'box_87' => $request->input('submittingfields_box_87'),
+                    'box_88' => $request->input('submittingfields_box_88'),
+                    'box_89' => $request->input('submittingfields_box_89'),
+
+                    'box_81' => $request->input('submittingfields_box_81'),                
+                    'box_14' => $request->input('submittingfields_box_14'),                
+                    'box_82' => $request->input('submittingfields_box_82'),
+                    'box_15' => $request->input('submittingfields_box_15'),
+                    'box_83' => $request->input('submittingfields_box_83'),
+                    'box_84' => $request->input('submittingfields_box_84'),
+                    'box_85' => $request->input('submittingfields_box_85')
+                  ]
+                ); 
+               
+                $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-NO-add', 
+                  [
+                    'Client Name' => $vatreg->client->client_name,
+                    'VAT Reg' => $vatRegHeading
+                  ]
+                ); 
+              } //NO
+              else if($vatreg->country == 'CH')    
+              {
+                $submittingFields = SubmittingFieldsCH::updateOrCreate(
+                  ['vat_reg_id' => $vat_reg_id],
+                  [                                           
+                    'box_200' => $request->input('submittingfields_box_200'),
+                    'box_205' => $request->input('submittingfields_box_205'),
+
+                    'box_220' => $request->input('submittingfields_box_220'),
+                    'box_221' => $request->input('submittingfields_box_221'),
+                    'box_225' => $request->input('submittingfields_box_225'),
+                    'box_230' => $request->input('submittingfields_box_230'),
+                    'box_235' => $request->input('submittingfields_box_235'),
+                    'box_280' => $request->input('submittingfields_box_280'),
+                    'box_289' => $request->input('submittingfields_box_289'),
+
+                    'box_299' => $request->input('submittingfields_box_299'),
+
+                    'box_303' => $request->input('submittingfields_box_303'),
+                    'box_303_1' => $request->input('submittingfields_box_303_1'),
+                    'box_313' => $request->input('submittingfields_box_313'),
+                    'box_313_1' => $request->input('submittingfields_box_313_1'),
+                    'box_343' => $request->input('submittingfields_box_343'),
+                    'box_343_1' => $request->input('submittingfields_box_343_1'),
+
+                    'box_379' => $request->input('submittingfields_box_379'),
+                    
+                    'box_383' => $request->input('submittingfields_box_383'),
+                    'box_383_1' => $request->input('submittingfields_box_383_1'),
+
+                    'box_399' => $request->input('submittingfields_box_399'),
+
+                    'box_400' => $request->input('submittingfields_box_400'),
+                    'box_405' => $request->input('submittingfields_box_405'),
+                    'box_410' => $request->input('submittingfields_box_410'),
+                    'box_415' => $request->input('submittingfields_box_415'),
+                    
+                    'box_420' => $request->input('submittingfields_box_420'),
+                    'box_479' => $request->input('submittingfields_box_479'),
+                    
+                    'box_500' => $request->input('submittingfields_box_500'),                
+                    'box_510' => $request->input('submittingfields_box_510')               
+                  ]
+                ); 
+               
+                $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-CH-add', 
+                  [
+                    'Client Name' => $vatreg->client->client_name,
+                    'VAT Reg' => $vatRegHeading
+                  ]
+                ); 
+              } //CH
+
+              return response()->json([
+                'status'          => 200,
+                'message'          => "Submitting fields saved",
+                'vat_reg_id' => $vat_reg_id,
+                'data' => $submittingFields
+              ]);
+            }
+            else
             {
-              $submittingFields = SubmittingFieldsNO::updateOrCreate(
-                ['vat_reg_id' => $vat_reg_id],
-                [                                           
-                  'box_3' => $request->input('submittingfields_box_3'),
-                  'box_31' => $request->input('submittingfields_box_31'),
-                  'box_33' => $request->input('submittingfields_box_33'),
-                  'box_5' => $request->input('submittingfields_box_5'),
-                  'box_6' => $request->input('submittingfields_box_6'),
-
-                  'box_52' => $request->input('submittingfields_box_52'),
-
-                  'box_1' => $request->input('submittingfields_box_1'),
-                  'box_11' => $request->input('submittingfields_box_11'),
-                  'box_13' => $request->input('submittingfields_box_13'),
-
-                  'box_32' => $request->input('submittingfields_box_32'),
-                  'box_12' => $request->input('submittingfields_box_12'),
-
-                  'box_51' => $request->input('submittingfields_box_51'),
-                  'box_91' => $request->input('submittingfields_box_91'),
-                  'box_92' => $request->input('submittingfields_box_92'),
-                  
-                  'box_86' => $request->input('submittingfields_box_86'),
-                  'box_87' => $request->input('submittingfields_box_87'),
-                  'box_88' => $request->input('submittingfields_box_88'),
-                  'box_89' => $request->input('submittingfields_box_89'),
-
-                  'box_81' => $request->input('submittingfields_box_81'),                
-                  'box_14' => $request->input('submittingfields_box_14'),                
-                  'box_82' => $request->input('submittingfields_box_82'),
-                  'box_15' => $request->input('submittingfields_box_15'),
-                  'box_83' => $request->input('submittingfields_box_83'),
-                  'box_84' => $request->input('submittingfields_box_84'),
-                  'box_85' => $request->input('submittingfields_box_85')
-                ]
-              ); 
-             
-              $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-NO-add', 
-                [
-                  'Client Name' => $vatreg->client->client_name,
-                  'VAT Reg' => $vatRegHeading
-                ]
-              ); 
-            } //NO
-            else if($vatreg->country == 'CH')    
-            {
-              $submittingFields = SubmittingFieldsCH::updateOrCreate(
-                ['vat_reg_id' => $vat_reg_id],
-                [                                           
-                  'box_200' => $request->input('submittingfields_box_200'),
-                  'box_205' => $request->input('submittingfields_box_205'),
-
-                  'box_220' => $request->input('submittingfields_box_220'),
-                  'box_221' => $request->input('submittingfields_box_221'),
-                  'box_225' => $request->input('submittingfields_box_225'),
-                  'box_230' => $request->input('submittingfields_box_230'),
-                  'box_235' => $request->input('submittingfields_box_235'),
-                  'box_280' => $request->input('submittingfields_box_280'),
-                  'box_289' => $request->input('submittingfields_box_289'),
-
-                  'box_299' => $request->input('submittingfields_box_299'),
-
-                  'box_303' => $request->input('submittingfields_box_303'),
-                  'box_303_1' => $request->input('submittingfields_box_303_1'),
-                  'box_313' => $request->input('submittingfields_box_313'),
-                  'box_313_1' => $request->input('submittingfields_box_313_1'),
-                  'box_343' => $request->input('submittingfields_box_343'),
-                  'box_343_1' => $request->input('submittingfields_box_343_1'),
-
-                  'box_379' => $request->input('submittingfields_box_379'),
-                  
-                  'box_383' => $request->input('submittingfields_box_383'),
-                  'box_383_1' => $request->input('submittingfields_box_383_1'),
-
-                  'box_399' => $request->input('submittingfields_box_399'),
-
-                  'box_400' => $request->input('submittingfields_box_400'),
-                  'box_405' => $request->input('submittingfields_box_405'),
-                  'box_410' => $request->input('submittingfields_box_410'),
-                  'box_415' => $request->input('submittingfields_box_415'),
-                  
-                  'box_420' => $request->input('submittingfields_box_420'),
-                  'box_479' => $request->input('submittingfields_box_479'),
-                  
-                  'box_500' => $request->input('submittingfields_box_500'),                
-                  'box_510' => $request->input('submittingfields_box_510')               
-                ]
-              ); 
-             
-              $this->commonClass->addLog($this->authUser, 'vatreturn-submitting-fields-CH-add', 
-                [
-                  'Client Name' => $vatreg->client->client_name,
-                  'VAT Reg' => $vatRegHeading
-                ]
-              ); 
-            } //CH
-
-            return response()->json([
-              'status'          => 200,
-              'message'          => "Submitting fields saved",
-              'vat_reg_id' => $vat_reg_id,
-              'data' => $submittingFields
-            ]); 
+              return response()->json([
+                'status'          => 400,
+                'message'          => "Update not allowed: VAT Reg. is locked.",
+                'vat_reg_id' => $vat_reg_id            
+              ]); 
+            } 
           }   
           else
           {
@@ -1684,200 +1695,242 @@ class VATRegistrationController extends Controller
      
         if(count($vatregs) > 0)
         {                        
-            $system = $this->commonClass->getSystemInfoLazy(); 
-            $systemapi = $system->systemapi->first();     
+          $system = $this->commonClass->getSystemInfoLazy(); 
+          $systemapi = $system->systemapi->first();     
 
-            $client_name = '';  
-            $team_user_firstname = '';        
-            $team_user_designation = '';  
-            $vatno = '';
-            $service_start = '';
-            $country = '';
-            $general_periods = '';           
-            $vatRegHeading = '';
-            $files = [];
-            $specific_file_id = '';
+          $client_name = '';  
+          $team_user_firstname = '';        
+          $team_user_designation = '';  
+          $vatno = '';
+          $service_start = '';
+          $country = '';
+          $general_periods = '';           
+          $vatRegHeading = '';
+          $files = [];
+          $specific_file_id = '';
+          $cas_account_no = '';
 
-            //for Draft
-            $sales = [];
-            $purchase = [];
-            foreach($vatregs as $key=>$vatreg)
-            { 
-              if($key == 0)
+          //for Draft
+          $sales = [];
+          $purchase = [];
+          foreach($vatregs as $key=>$vatreg)
+          { 
+            if($key == 0)
+            {
+              $client_name = $vatreg->client_name;
+              $team_user_firstname = $vatreg->team_user_firstname;   
+              $team_user_designation = $vatreg->team_user_designation;            
+              $vatno = $vatreg->vatno;
+
+              $service_start = $vatreg->service_start;
+              $country = $vatreg->country;
+              $general_periods = $vatreg->general_periods;
+              $currency_code = $vatreg->currency_code;
+                     
+              if($file_type == 'draft' || $file_type == 'lock')    
+              {            
+                $vatRegHeading = $country . ' ' . Carbon::parse($service_start)->format('M y') . '-' . 
+                                  Carbon::parse($service_start)->addMonth(($vatreg->frequency)-1)->format('M y');
+
+                if($file_type == 'draft')    
+                {                  
+                  if($vatreg->invoice_type == 'sale')
+                      $sales[] = [                          
+                          "net_amount" => $this->decryptValue($vatreg->net_amount),
+                          "vat_percentage" => ($vatreg->vat_percentage == 0) ? '0%' : (round($vatreg->vat_percentage) . '%'),
+                          "vat_amount" => $this->decryptValue($vatreg->vat_amount),
+                          "currency_code" => $currency_code
+                      ];
+
+                  if($vatreg->invoice_type == 'purchase')
+                      $purchase[] = [                          
+                          "net_amount" => $this->decryptValue($vatreg->net_amount),
+                          "vat_percentage" => ($vatreg->vat_percentage == 0) ? '0%' : (round($vatreg->vat_percentage) . '%'),
+                          "vat_amount" => $this->decryptValue($vatreg->vat_amount),
+                          "currency_code" => $currency_code
+                      ];
+                }
+
+                if($file_type == 'lock') 
+                  $payment_info = $this->commonClass->getPaymentInfo($country);
+              }
+              else
               {
-                $client_name = $vatreg->client_name;
-                $team_user_firstname = $vatreg->team_user_firstname;   
-                $team_user_designation = $vatreg->team_user_designation;            
-                $vatno = $vatreg->vatno;
-
-                $service_start = $vatreg->service_start;
-                $country = $vatreg->country;
-                $general_periods = $vatreg->general_periods;
-                $currency_code = $vatreg->currency_code;
-                       
-                if($file_type == 'draft' || $file_type == 'lock')    
-                {            
-                  $vatRegHeading = $country . ' ' . Carbon::parse($service_start)->format('M y') . '-' . 
-                                    Carbon::parse($service_start)->addMonth(($vatreg->frequency)-1)->format('M y');
-
-                  if($file_type == 'draft')    
-                  {                  
-                    if($vatreg->invoice_type == 'sale')
-                        $sales[] = [                          
-                            "net_amount" => $this->decryptValue($vatreg->net_amount),
-                            "vat_percentage" => ($vatreg->vat_percentage == 0) ? '0%' : (round($vatreg->vat_percentage) . '%'),
-                            "vat_amount" => $this->decryptValue($vatreg->vat_amount),
-                            "currency_code" => $currency_code
-                        ];
-
-                    if($vatreg->invoice_type == 'purchase')
-                        $purchase[] = [                          
-                            "net_amount" => $this->decryptValue($vatreg->net_amount),
-                            "vat_percentage" => ($vatreg->vat_percentage == 0) ? '0%' : (round($vatreg->vat_percentage) . '%'),
-                            "vat_amount" => $this->decryptValue($vatreg->vat_amount),
-                            "currency_code" => $currency_code
-                        ];
-                  }
-
-                  if($file_type == 'lock') 
-                    $payment_info = $this->commonClass->getPaymentInfo($country);
+                if($file_type == 'dda') 
+                  $vatRegHeading = Carbon::parse('01-'.$month_year)->format('M Y');
+                else if($file_type == 'cas') 
+                {
+                  $cas_account_no = $vatreg->vatregmain->cash_account_no;
+                  $vatRegHeading = $country . ' ' . Carbon::parse('01-'.$month_year)->format('M Y');
                 }
                 else
+                  $vatRegHeading = $country . ' ' . Carbon::parse('01-'.$month_year)->format('M Y');
+              }
+
+              $specific_file_id = $vatreg->specific_file_id;
+            }
+             
+            if($file_type != 'draft')
+            {
+              if($vatreg->folder_id != null)   
+              {                   
+                $downloadUrl = $this->apiClass->loadFromOneDriveLazy($vatreg, $systemapi);
+
+                if(isset($downloadUrl->error))   
                 {
-                  if($file_type == 'dda') 
-                    $vatRegHeading = Carbon::parse('01-'.$month_year)->format('M Y');
+                  if($file_type == 'documents')           
+                    $files[$key] = ['text' => $file_type_title . " for " . $vatreg->doc_type,'url' => '']; 
+                  else if($file_type == 'lock')           
+                    $files[$key] = ['text' => "Receipt for " . $vatRegHeading ,'url' => '']; 
                   else
-                    $vatRegHeading = $country . ' ' . Carbon::parse('01-'.$month_year)->format('M Y');
-                }
-
-                $specific_file_id = $vatreg->specific_file_id;
-              }
-             
-              if($file_type != 'draft')
-              {
-                if($vatreg->folder_id != null)   
-                {                   
-                  $downloadUrl = $this->apiClass->loadFromOneDriveLazy($vatreg, $systemapi);
-
-                  if(isset($downloadUrl->error))   
-                  {
-                    if($file_type == 'documents')           
-                      $files[$key] = ['text' => $file_type_title . " for " . $vatreg->doc_type,'url' => '']; 
-                    else if($file_type == 'lock')           
-                      $files[$key] = ['text' => "Receipt for " . $vatRegHeading ,'url' => '']; 
-                    else
-                      $files[$key] = ['text' => $file_type_title . " for " . Carbon::parse('01-'.$month_year)->format('M Y'),'url' => ''];
-                  } 
-                  else  
-                  {
-                    if($file_type == 'documents')           
-                      $files[$key] = ['text' => $file_type_title . " for " . $vatreg->doc_type,'url' => $downloadUrl]; 
-                    else if($file_type == 'lock')  
-                      $files[$key] = ['text' => "Receipt for " . $vatRegHeading,'url' => $downloadUrl];  
-                    else
-                      $files[$key] = ['text' => $file_type_title . " for " . Carbon::parse('01-'.$month_year)->format('M Y'),'url' => $downloadUrl];
-                  } 
-                }
-                else
+                    $files[$key] = ['text' => $file_type_title . " for " . Carbon::parse('01-'.$month_year)->format('M Y'),'url' => ''];
+                } 
+                else  
                 {
-                  if($file_type != 'documents')                
-                    $files[$key] = ['text' => "No doc uploaded for " . Carbon::parse('01-'.$month_year)->format('M Y'), 'url' =>''];
-                }
+                  if($file_type == 'documents')           
+                    $files[$key] = ['text' => $file_type_title . " for " . $vatreg->doc_type,'url' => $downloadUrl]; 
+                  else if($file_type == 'lock')  
+                    $files[$key] = ['text' => "Receipt for " . $vatRegHeading,'url' => $downloadUrl];  
+                  else
+                    $files[$key] = ['text' => $file_type_title . " for " . Carbon::parse('01-'.$month_year)->format('M Y'),'url' => $downloadUrl];
+                } 
+              }
+              else
+              {
+                if($file_type != 'documents')                
+                  $files[$key] = ['text' => "No doc uploaded for " . Carbon::parse('01-'.$month_year)->format('M Y'), 'url' =>''];
               }
             }
+          }
 
-            //Get send_to client names
-            $client_user = $this->commonClass->getUserNameBasedOnEmail($send_to);
+          //Get send_to client names
+          $client_user = $this->commonClass->getUserNameBasedOnEmail($send_to);
 
-            $data = [                           
-              'subject' => $vatRegHeading,  
-              'lang' => $client_user->lang,
-              'app_name' => config('app.name'),
-              'client' => [
-                'client_name' => $client_name,
-                'client_firstname' => $client_user->firstname,
-                'client_lastname' => $client_user->lastname,
-                'team_user_firstname' => $team_user_firstname,
-                'team_user_designation' => $team_user_designation
-              ],                 
-              'message' => $email_message,
-              'attachment' => $files, 
-              'align' => 'left'
-            ];
+          $data = [                           
+            'subject' => $vatRegHeading,  
+            'lang' => $client_user->lang,
+            'app_name' => config('app.name'),
+            'client' => [
+              'client_name' => $client_name,
+              'client_firstname' => $client_user->firstname,
+              'client_lastname' => $client_user->lastname,
+              'team_user_firstname' => $team_user_firstname,
+              'team_user_designation' => $team_user_designation
+            ],                 
+            'message' => $email_message,
+            'attachment' => $files, 
+            'align' => 'left'
+          ];
             
-            if($file_type == 'draft')
-            {
-              $data['client']['currency_code'] = $currency_code;
-              $data['client']['sale'] = $sales;
-              $data['client']['purchase'] = $purchase;   
-             
-              $data['url'] = URL::temporarySignedRoute('client.vat.email.confirm', now()->addWeeks(2), ['vat_reg_id' => $vat_reg_id]);
-            }
-            else if($file_type == 'lock')
-            {    
-              if($country == 'NO')          
-                $data['subject'] = __('Copy of recipt and paymentinformation for Norwegian MVA '.$request->payment_date, [], $data['lang']); 
-              else
-                $data['subject'] = __('Reported today - Payable amount to be registered on authorities Account:'.$request->payment_date, [], $data['lang']); 
+          if($file_type == 'draft')
+          {
+            $data['client']['currency_code'] = $currency_code;
+            $data['client']['sale'] = $sales;
+            $data['client']['purchase'] = $purchase;   
+           
+            $data['url'] = URL::temporarySignedRoute('client.vat.email.confirm', now()->addWeeks(2), ['vat_reg_id' => $vat_reg_id]);
+          }
+          else if($file_type == 'lock')
+          {    
+            if($country == 'NO')          
+              $data['subject'] = __('Copy of recipt and paymentinformation for Norwegian MVA '.$request->payment_date, [], $data['lang']); 
+            else
+              $data['subject'] = __('Reported today - Payable amount to be registered on authorities Account:'.$request->payment_date, [], $data['lang']); 
 
-              $data['country'] = $country;
-              $data['vat_heading'] = $vatRegHeading;
-              $data['payment_date'] = $request->payment_date;
+            $data['country'] = $country;
+            $data['vat_heading'] = $vatRegHeading;
+            $data['payment_date'] = $request->payment_date;
 
-              $data['payment_info'] = [               
-                'bankname' => $payment_info->bankname,
-                'address' => $payment_info->address,
-                'city' => $payment_info->city,
-                'country' => $payment_info->country,
-                'postcode' => $payment_info->postcode,
-                'sortcode' => $payment_info->sortcode,
-                'accountno' => $payment_info->accountno,
-                'accountname' => $payment_info->accountname,
-                'paymentref' => $payment_info->paymentref,
-                'bic' => $payment_info->bic,
-                'iban' => $payment_info->iban
-              ]; 
-            }            
+            $data['payment_info'] = [               
+              'bankname' => $payment_info->bankname,
+              'address' => $payment_info->address,
+              'city' => $payment_info->city,
+              'country' => $payment_info->country,
+              'postcode' => $payment_info->postcode,
+              'sortcode' => $payment_info->sortcode,
+              'accountno' => $payment_info->accountno,
+              'accountname' => $payment_info->accountname,
+              'paymentref' => $payment_info->paymentref,
+              'bic' => $payment_info->bic,
+              'iban' => $payment_info->iban
+            ]; 
+          }
+          else if($file_type == 'cas')  
+            $data['account_number'] = $cas_account_no; 
 
-            //Store email_note in table for timeline
-            if($email_message != "")
-            {              
-              $email_note = FilesEmailNote::updateOrCreate(                          
-                            [     
-                              'vat_reg_id' => $vat_reg_id,
-                              'file_type' => $file_type,
-                              'file_id' => $specific_file_id,
-                              'email_note' => $email_message,                                       
-                              'created_by' => $this->authUser->user_id,
-                            ]); 
-            }
+          //Store email_note in table for timeline
+          if($email_message != "")
+          {              
+            $email_note = FilesEmailNote::updateOrCreate(                          
+                          [     
+                            'vat_reg_id' => $vat_reg_id,
+                            'file_type' => $file_type,
+                            'file_id' => $specific_file_id,
+                            'email_note' => $email_message,                                       
+                            'created_by' => $this->authUser->user_id,
+                          ]); 
+          }
 
-            if($file_type == 'pivs')  
-              $email_data = new PivsEmail($data);
-            else if($file_type == 'documents')
-              $email_data = new DocumentsEmail($data);
-            else if($file_type == 'c79')
-              $email_data = new C79Email($data);
-            else if($file_type == 'cas')
-              $email_data = new CashAccountStatementEmail($data);
-            else if($file_type == 'dda')
-              $email_data = new DutyDefermentAccountEmail($data);
-            else if($file_type == 'ivf')
-              $email_data = new ImportVatFileEmail($data);
-            else if($file_type == 'draft')
-              $email_data = new DraftEmail($data);
-            else if($file_type == 'lock')
-            {
-              if($country == 'GB')
-                $email_data = new LockGBEmail($data);
-              else
-                $email_data = new LockNOEmail($data);
-            }
+          if($file_type == 'pivs')  
+            $email_data = new PivsEmail($data);
+          else if($file_type == 'documents')
+            $email_data = new DocumentsEmail($data);
+          else if($file_type == 'c79')
+            $email_data = new C79Email($data);
+          else if($file_type == 'cas')
+            $email_data = new CashAccountStatementEmail($data);
+          else if($file_type == 'dda')
+            $email_data = new DutyDefermentAccountEmail($data);
+          else if($file_type == 'ivf')
+            $email_data = new ImportVatFileEmail($data);
+          else if($file_type == 'draft')
+            $email_data = new DraftEmail($data);
+          else if($file_type == 'lock')
+          {
+            if($country == 'GB')
+              $email_data = new LockGBEmail($data);
+            else
+              $email_data = new LockNOEmail($data);
+          }
 
+          // Render the markdown email content and estimte the email size with attchment          
+          if($file_type == 'cas')
+            $file_type_name = 'cashaccountstatement';
+          else if($file_type == 'dda')
+            $file_type_name = 'dutydefermentaccount';
+          else if($file_type == 'ivf')
+            $file_type_name = 'importvatfile';          
+          else if($file_type == 'lock')
+          {
+            if($country == 'GB')
+              $file_type_name = 'lockgb';
+            else
+              $file_type_name = 'lockno';
+          }
+          else
+            $file_type_name = $file_type;
+          $markdown = new Markdown(view(), config('mail.markdown'));
+          $emailHtml = $markdown->render('emails.'. (($client_user->lang) ? (($client_user->lang == 'en') ? '' : ($client_user->lang.'-'))  : '') . $file_type_name, compact('data'))->toHtml();
+          
+          $estimatedSize = $this->commonClass->getEmailSizeEstimate($emailHtml, $data['attachment']);
+          
+          $allow_email = true;
+          if ($estimatedSize > 10485760)    
+          {     
+            $allow_email = false;   
+           
+            return response()->json([
+              'success' => false,
+              'message' => "Email too large. Consider reducing attachment size."
+            ]);              
+          }
+
+          if($allow_email)
+          {
             $mailsent = Mail::to($send_to)
               //->cc($chk_cc)
               ->send($email_data);
-            
+              
             if($mailsent)
             {                
               $email_headers = $mailsent->getOriginalMessage()->getHeaders();
@@ -1958,7 +2011,7 @@ class VATRegistrationController extends Controller
                     } // if email sent
                   }//for CC  
                 }//if CC                 
-              }
+              } //message_id
 
               if(!$send_test)              
               {
@@ -2039,13 +2092,14 @@ class VATRegistrationController extends Controller
                 'success' => true,
                 'message' => "Email sent"               
               ]);  
-          }
-          else{
-            return response()->json([
-              'success' => false,
-              'message' => "Error in sending Email"
-            ]);
-          }                        
+            } //mailsent
+            else{
+              return response()->json([
+                'success' => false,
+                'message' => "Error in sending Email"
+              ]);
+            } 
+          } //allow_email email size with attachment
         } 
         else
           return response()->json([
@@ -2588,7 +2642,7 @@ class VATRegistrationController extends Controller
       
       $file_type_name = 'importvatfiles';
       
-      $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+      $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
       $_where = []; 
       $_whereHas = [];         
       $_orderBy = [
@@ -2651,7 +2705,7 @@ class VATRegistrationController extends Controller
                 {                   
                   $file_type_name = 'importvatfiles';
 
-                  $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+                  $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
                   $_where = []; 
                   $_whereHas = [];         
                   $_orderBy = [
@@ -2693,7 +2747,7 @@ class VATRegistrationController extends Controller
                   {                                     
                     $file_type_name = 'importvatfiles';
             
-                    $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+                    $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
                     $_where = []; 
                     $_whereHas = [];         
                     $_orderBy = [
@@ -2733,7 +2787,7 @@ class VATRegistrationController extends Controller
                        
                         $file_type_name = 'importvatfiles';
                       
-                        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+                        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
                         $_where = []; 
                         $_whereHas = [];         
                         $_orderBy = [
@@ -2751,7 +2805,7 @@ class VATRegistrationController extends Controller
                       else
                       {
                         $file_type_name = 'importvatfiles';                        
-                        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+                        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
                         $_where = []; 
                         $_whereHas = [];         
                         $_orderBy = [
@@ -2782,7 +2836,7 @@ class VATRegistrationController extends Controller
       {        
         $file_type_name = 'importvatfiles';
       
-        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
         $_where = []; 
         $_whereHas = [];         
         $_orderBy = [
@@ -3035,7 +3089,7 @@ class VATRegistrationController extends Controller
         }//SELECTED ROWS   
 
         $file_type_name = 'importvatfiles';      
-        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.dvuser', $file_type_name];      
+        $_with = ['client', 'client.userclient', 'client.userclient.user', 'client.userclient.user.notificationsettings', 'client.userclient.user.dvuser', $file_type_name];      
         $_where = []; 
         $_whereHas = [];         
         $_orderBy = [

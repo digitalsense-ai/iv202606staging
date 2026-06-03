@@ -5,7 +5,7 @@
 <tr>
 <td class="content-cell" align="center">
 
-<a href="{{ $url }}" style="display: inline-block;">
+<a href="https://intravat.com" style="display: inline-block;">
 <img src="https://app.intravat.cloud/assets/img/logo/intravat-logo-white.png" class="logo" alt="Logo">
 </a><br>
 {{--{{ trans('Questions tel.', [], $lang) }}--}} +45 88 63 22 99<br>

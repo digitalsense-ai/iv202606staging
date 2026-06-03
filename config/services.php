@@ -38,5 +38,23 @@ return [
         'key' => env('AZURE_FORM_KEY'),
     ],
 
+    'azure_cu' => [
+        'endpoint' => env('AZURE_CU_ENDPOINT'),
+        'key' => env('AZURE_CU_KEY'),
+        'version' => env('AZURE_CU_API_VERSION'),
+    ],
 
+    'azure_di' => [
+        'endpoint' => env('AZURE_DI_ENDPOINT'),
+        'key' => env('AZURE_DI_KEY'),
+        'version' => env('AZURE_DI_API_VERSION'),
+    ],
+
+    'ms' => [
+        'client_id' => env('MS_CLIENT_ID'),
+        'tenant_id' => env('MS_TENANT_ID'),
+        'redirect_uri' => env('MS_REDIRECT_URI'),
+        'client_secret' => env('MS_CLIENT_SECRET'),
+        'mailbox' => env('MS_MAILBOX'),
+    ],
 ];

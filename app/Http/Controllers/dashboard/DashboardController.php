@@ -70,6 +70,51 @@ class DashboardController extends Controller
 	{	
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);
    
+        // if($this->authUser->role == 'super-admin') 
+        // {
+        //     // $auser = Auth::user();
+
+        //     // // Check if user already has a token (optional)
+        //     // $existingToken = $auser->tokens()->where('name', 'OCR API Token')->first();
+        //     // if (!$existingToken) {
+        //     //     $token = $auser->createToken('OCR API Token')->plainTextToken;
+
+        //     //     // You can store it in session or display in dashboard for copying
+        //     //     session(['ocr_api_token' => $token]);
+        //     // }
+
+        //     $user = Auth::user();
+
+        //     // Check if user already has a valid OCR token
+        //     $existingToken = $user->tokens()
+        //         ->where('name', 'OCR API Token')
+        //         ->where(function($q) {
+        //             $q->whereNull('expires_at')
+        //               ->orWhere('expires_at', '>', now());
+        //         })
+        //         ->first();
+
+        //     if (!$existingToken) {
+        //         // Create a new token valid for 12 hours
+        //         $token = $user->createToken(
+        //             'OCR API Token',
+        //             ['ocr-read'],            // abilities
+        //             now()->addHours(12)     // expiration
+        //         )->plainTextToken;
+
+        //         // return response()->json([
+        //         //     'message' => 'OCR token created',
+        //         //     'token' => $token,
+        //         //     'expires_at' => now()->addHours(12)->toDateTimeString()
+        //         // ]);
+        //     }
+
+        //     // return response()->json([
+        //     //     'message' => 'OCR token already exists',
+        //     //     'expires_at' => $existingToken->expires_at,
+        //     // ]);
+        // }
+
         if($this->authUser->role == 'client-user') 
         {
             // GET COMPANIES OF THE LOGGED IN USER
@@ -453,6 +498,8 @@ class DashboardController extends Controller
             {
                 try
                 {
+                    $api_use_base_currency_amount = $request->api_use_base_currency_amount;
+
                     $api_client_id = $request->api_client_id;
                     $api_secret_key = "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1";
 
@@ -501,7 +548,8 @@ class DashboardController extends Controller
                                     //'is_reverse' => $request->api_reverse ? 1 : 0,
                                     'connection_name' => $request->connection_name,  
                                     'connection_status' => 1, 
-                                    'connection_remarks' => "Established Connection",              
+                                    'connection_remarks' => "Established Connection", 
+                                    'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,             
                                 ]
                             );
                             //End  Insert new connection success connection
@@ -565,7 +613,8 @@ class DashboardController extends Controller
                                 'status' => 0 ,                             
                                 'connection_name' => $request->connection_name,  
                                 'connection_status' => 0, 
-                                'connection_remarks' => $errorMessage->errorCode . '-' . $errorMessage->message,              
+                                'connection_remarks' => $errorMessage->errorCode . '-' . $errorMessage->message,
+                                'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,               
                             ]
                         );
                         // End Insert New connection with failure reason

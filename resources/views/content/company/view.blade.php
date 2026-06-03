@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/formvalidation/dist/css/formValidation.min.css')}}" />
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/bootstrap-datepicker/bootstrap-datepicker.css')}}" />
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/spinkit/spinkit.css')}}" />
+<link rel="stylesheet" href="{{asset('assets/vendor/libs/bootstrap-select/bootstrap-select.css')}}" />
 
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/dropzone/dropzone.css')}}" />
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/bs-stepper/bs-stepper.css')}}" />
@@ -42,6 +43,7 @@
 <script src="{{asset('assets/vendor/libs/formvalidation/dist/js/FormValidation.min.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/formvalidation/dist/js/plugins/Bootstrap5.min.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/formvalidation/dist/js/plugins/AutoFocus.min.js')}}"></script>
+<script src="{{asset('assets/vendor/libs/bootstrap-select/bootstrap-select.js')}}"></script>
 
 <script src="{{asset('assets/vendor/libs/dropzone/dropzone.min.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/bs-stepper/bs-stepper.js')}}"></script>
@@ -196,7 +198,7 @@ $(function () {
     $team_user_flag = '';
     foreach ($overall_team_users_flag[$overall_team_user] as $overall_team_user_flag)
     {
-      $team_user_flag .= '<img src="' . asset('assets/img/flags/'. $overall_team_user_flag .'.png') . '" class="country-flag me-2">';
+      $team_user_flag .= '<img src="' . asset('assets/img/flags/'. $overall_team_user_flag .'.png') . '" data-flag="'.$overall_team_user_flag.'" class="country-flag me-2">';
     }
 
     //if($team_contacts == '')

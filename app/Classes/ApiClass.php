@@ -1451,7 +1451,7 @@ class ApiClass
             }  
             else if($file_type == 'swiss_import_reconciliation')   
             {
-              if($file_extension == 'pdf')
+              if(strtolower($file_extension) == 'pdf')
               {
                 $swissImportReconciliationClass = new SwissImportReconciliationClass();
                 $readswissfiles = $swissImportReconciliationClass->readSwissFile($fileValue);                  

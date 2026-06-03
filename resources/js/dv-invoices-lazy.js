@@ -244,6 +244,15 @@ $(function () {
                 target: 2,
                 visible: false
             },
+            {
+                targets: 4,
+                render: function (data, type, row) {
+                    if (type === 'sort') {
+                        return moment(data, 'DD-MM-YYYY').format('YYYYMMDD');
+                    }
+                    return data;
+                }
+            },
     //         {
     //             target: 7,
     //             render: function (data, type, full, meta) {
@@ -499,6 +508,7 @@ $(function () {
       ],
       initComplete: function (settings, json) {   
        
+        /*
         // Enable TFOOT scoll bars
         $('#navs-invoice-correct .dataTables_scrollBody').css('overflow', 'auto');
         
@@ -525,6 +535,56 @@ $(function () {
               $('#navs-invoice-correct .dataTables_scrollBody').scrollLeft($(this).scrollLeft());
             //}
         });
+        */        
+
+        const api = this.api(); // ✅ DataTable instance
+
+        const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
+        const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
+        const $topScroll    = $('#top-scroll-navs-invoice-correct');
+        const $topInner     = $topScroll.find('.dt-top-scroll-inner');
+
+        let isSyncing = false;
+
+        // Match widths
+        function syncWidth() {
+            if ($scrollBody.length) {
+                $topInner.width($scrollBody.get(0).scrollWidth);
+            }
+        }
+
+        // Remove previous handlers to avoid duplicates
+        $scrollBody.off('scroll.dtTop');
+        $topScroll.off('scroll.dtTop');
+
+        // Sync scrolling
+        $scrollBody.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $topScroll.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        $topScroll.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $scrollBody.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        // Initial sync
+        syncWidth();
+
+        // Re-sync on redraw
+        api.on('draw.dtTop', syncWidth);
+
+        // Re-sync on resize
+        $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
+
+        // Re-sync on tab show
+        $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
+            .on('shown.bs.tab.dtTop', syncWidth);
+
 
         this.api()       
         .columns(2)
@@ -815,6 +875,7 @@ $(function () {
         }            
       ],
       initComplete: function (settings, json) {   
+        /*
         // Enable TFOOT scoll bars
         $('#navs-invoice-wrong .dataTables_scrollBody').css('overflow', 'auto');
         
@@ -841,6 +902,55 @@ $(function () {
               $('#navs-invoice-wrong .dataTables_scrollBody').scrollLeft($(this).scrollLeft());
             //}
         });
+        */
+
+        const api = this.api(); // ✅ DataTable instance
+
+        const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
+        const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
+        const $topScroll    = $('#top-scroll-navs-invoice-wrong');
+        const $topInner     = $topScroll.find('.dt-top-scroll-inner');
+
+        let isSyncing = false;
+
+        // Match widths
+        function syncWidth() {
+            if ($scrollBody.length) {
+                $topInner.width($scrollBody.get(0).scrollWidth);
+            }
+        }
+
+        // Remove previous handlers to avoid duplicates
+        $scrollBody.off('scroll.dtTop');
+        $topScroll.off('scroll.dtTop');
+
+        // Sync scrolling
+        $scrollBody.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $topScroll.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        $topScroll.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $scrollBody.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        // Initial sync
+        syncWidth();
+
+        // Re-sync on redraw
+        api.on('draw.dtTop', syncWidth);
+
+        // Re-sync on resize
+        $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
+
+        // Re-sync on tab show
+        $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
+            .on('shown.bs.tab.dtTop', syncWidth);
 
         this.api()       
         .columns(2)
@@ -1104,7 +1214,8 @@ $(function () {
           ]
         }            
       ],
-      initComplete: function (settings, json) {   
+      initComplete: function (settings, json) {
+        /*   
         // Enable TFOOT scoll bars
         $('#navs-invoice-managed .dataTables_scrollBody').css('overflow', 'auto');
         
@@ -1118,6 +1229,70 @@ $(function () {
         $('#navs-invoice-managed .dataTables_scrollHead').on('scroll', function () {          
           $('#navs-invoice-managed .dataTables_scrollBody').scrollLeft($(this).scrollLeft());          
         });
+        */
+
+        // const $tableContainer = $('#navs-invoice-managed');
+        // const $scrollBody = $tableContainer.find('.dataTables_scrollBody');
+        // const $scrollHead = $tableContainer.find('.dataTables_scrollHead');
+
+        // // Ensure proper overflow
+        // $scrollBody.css('overflow', 'auto');
+        // //$scrollHead.css('overflow', 'hidden'); // header scroll handled by body
+        // $scrollHead.css('overflow-x', 'auto'); // allow horizontal scroll
+        // $scrollHead.css('overflow-y', 'hidden'); // vertical hidden
+
+        // // Sync header with body scroll
+        // $scrollBody.on('scroll', function() {
+        //     $scrollHead.scrollLeft($(this).scrollLeft());
+        // });
+
+        const api = this.api(); // ✅ DataTable instance
+
+        const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
+        const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
+        const $topScroll    = $('#top-scroll-navs-invoice-managed');
+        const $topInner     = $topScroll.find('.dt-top-scroll-inner');
+
+        let isSyncing = false;
+
+        // Match widths
+        function syncWidth() {
+            if ($scrollBody.length) {
+                $topInner.width($scrollBody.get(0).scrollWidth);
+            }
+        }
+
+        // Remove previous handlers to avoid duplicates
+        $scrollBody.off('scroll.dtTop');
+        $topScroll.off('scroll.dtTop');
+
+        // Sync scrolling
+        $scrollBody.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $topScroll.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        $topScroll.on('scroll.dtTop', function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            $scrollBody.scrollLeft(this.scrollLeft);
+            isSyncing = false;
+        });
+
+        // Initial sync
+        syncWidth();
+
+        // Re-sync on redraw
+        api.on('draw.dtTop', syncWidth);
+
+        // Re-sync on resize
+        $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
+
+        // Re-sync on tab show
+        $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
+            .on('shown.bs.tab.dtTop', syncWidth);
 
         this.api()       
         .columns(2)
@@ -1229,6 +1404,14 @@ $(function () {
 
   //   checkSelectAll(dt);
   // });
+
+  $(document).on('change', 'th.dt-checkboxes-select-all input.form-check-input', function () {console.log("checkbox change");
+      var parentdiv = $(this).closest("div.dataTables_scroll");
+      
+      var dt = parentdiv.find('div.dataTables_scrollBody .table.dataTable');
+      
+      checkSelectAll(dt);
+  });
 
   $(document).on('click', '.table.dataTable tbody tr:not(".disabled") td:first-child', function (e) {
     const $td = $(this);

@@ -207,8 +207,9 @@ $(function () {
           render: function (data, type, full, meta) {
             var $users = full['users'];
 
+            
             var $row_output = "";  
-            $.each($users, function (idx, user) {   
+            /*$.each($users, function (idx, user) {   
               var $name = user['name'],
                   $email = user['email'];
               
@@ -226,6 +227,41 @@ $(function () {
                 '</div>' +
                 '</div>';
             });
+            */
+
+            if ($users.length === 0)
+                return $row_output;
+
+            // helper to render a user
+            function renderUser(user) {
+                return (
+                    '<div class="d-flex justify-content-start align-items-center user-name">' +
+                    '<div class="d-flex flex-column">' +
+                    '<a href="#" class="text-body text-truncate">' +
+                    '<span class="fw-semibold">' + user.name + '</span>' +
+                    '</a>' +
+                    '<small class="text-muted">' + user.email + '</small>' +
+                    '</div>' +
+                    '</div>'
+                );
+            }
+
+            if ($users.length === 1) {
+                // only one user
+                $row_output += renderUser($users[0]);
+            } else {
+                // first user
+                $row_output += renderUser($users[0]);
+
+                if ($users.length > 2) {
+                    // ellipsis in between
+                    $row_output += '<div class="text-muted px-2">...</div>';
+                }
+
+                // last user
+                $row_output += renderUser($users[$users.length - 1]);
+            }
+
             return $row_output;
           }
         },
@@ -970,6 +1006,8 @@ $(function () {
       $('#country').val(country);
       $('#country').removeAttr("disabled");
 
+      loadReminderPeriods(country);
+
       /*-- Load Reminder Action based on user role*/
         var user_role_selected = $('#user_role').find('option:selected');
         var user_role_value = user_role_selected.val();               
@@ -1004,7 +1042,7 @@ $(function () {
       
       $('#year').val(reminder.year);
       $('#year').removeAttr("disabled");
-
+     
       $('#period').val(reminder.period);
       $('#period').removeAttr("disabled");
 
@@ -1562,10 +1600,13 @@ $(document).on('change', '#schedule', function () {
           $('#company').append(options);
 
           if(options_active != "")
-            $('#company').append(option_active_group + options_active + optgroup_end);
+            //$('#company').append(option_active_group + options_active + optgroup_end);
+            $('#company').append(options_active);
 
-          if(options_inactive != "")
-            $('#company').append(option_inactive_group + options_inactive + optgroup_end);
+          /*DON'T DELETE THIS*/
+          //if(options_inactive != "")
+            //$('#company').append(option_inactive_group + options_inactive + optgroup_end);
+          /*DON'T DELETE THIS*/  
          
          // console.log($('#company').val());
          //  console.log($('#company :selected'));
@@ -1674,20 +1715,79 @@ $(document).on('change', '#schedule', function () {
   
   function loadReminderPeriods(country)
   {    
+    $('#period').val('');
     if(country == "")
       $('#period optgroup').removeClass('d-none');    
     else
     {
-      if(country == "NO")
-      {
+      $('#period optgroup[label="AT"]').addClass('d-none');
+      $('#period optgroup[label="BE"]').addClass('d-none');
+      $('#period optgroup[label="CZ"]').addClass('d-none');
+      $('#period optgroup[label="FI"]').addClass('d-none');
+      $('#period optgroup[label="DE"]').addClass('d-none');
+      $('#period optgroup[label="DK"]').addClass('d-none');
+      $('#period optgroup[label="FR"]').addClass('d-none');
+      $('#period optgroup[label="IE"]').addClass('d-none');
+      $('#period optgroup[label="IT"]').addClass('d-none');
+      $('#period optgroup[label="LU"]').addClass('d-none');
+      $('#period optgroup[label="NL"]').addClass('d-none');
+      $('#period optgroup[label="NO"]').addClass('d-none');
+      $('#period optgroup[label="PL"]').addClass('d-none');
+      $('#period optgroup[label="PT"]').addClass('d-none');
+      $('#period optgroup[label="ES"]').addClass('d-none');
+      $('#period optgroup[label="SE"]').addClass('d-none');
+      $('#period optgroup[label="CH"]').addClass('d-none');
+      $('#period optgroup[label="UK"]').addClass('d-none');
+      $('#period optgroup[label="US"]').addClass('d-none');
+      
+      // if(country == "NO")
+      // {
+      //   $('#period optgroup[label="NO"]').removeClass('d-none');
+      //   $('#period optgroup[label="UK"]').addClass('d-none');
+      // }
+      // else if(country == "GB")
+      // {
+      //   $('#period optgroup[label="UK"]').removeClass('d-none');
+      //   $('#period optgroup[label="NO"]').addClass('d-none');
+      // }
+      if(country == "AT")      
+        $('#period optgroup[label="AT"]').removeClass('d-none');
+      else if(country == "BE")      
+        $('#period optgroup[label="BE"]').removeClass('d-none');
+      else if(country == "CZ")      
+        $('#period optgroup[label="CZ"]').removeClass('d-none');
+      else if(country == "FI")      
+        $('#period optgroup[label="FI"]').removeClass('d-none');
+      else if(country == "DE")      
+        $('#period optgroup[label="DE"]').removeClass('d-none');
+      else if(country == "DK")      
+        $('#period optgroup[label="DK"]').removeClass('d-none');
+      else if(country == "FR")      
+        $('#period optgroup[label="FR"]').removeClass('d-none');
+      else if(country == "IE")      
+        $('#period optgroup[label="IE"]').removeClass('d-none');
+      else if(country == "IT")      
+        $('#period optgroup[label="IT"]').removeClass('d-none');
+      else if(country == "LU")      
+        $('#period optgroup[label="LU"]').removeClass('d-none');
+      else if(country == "NL")      
+        $('#period optgroup[label="NL"]').removeClass('d-none');
+      else if(country == "NO")      
         $('#period optgroup[label="NO"]').removeClass('d-none');
-        $('#period optgroup[label="UK"]').addClass('d-none');
-      }
-      else if(country == "GB")
-      {
+      else if(country == "PL")      
+        $('#period optgroup[label="PL"]').removeClass('d-none');
+      else if(country == "PT")      
+        $('#period optgroup[label="PT"]').removeClass('d-none');
+      else if(country == "ES")      
+        $('#period optgroup[label="ES"]').removeClass('d-none');
+      else if(country == "SE")      
+        $('#period optgroup[label="SE"]').removeClass('d-none');
+      else if(country == "CH")      
+        $('#period optgroup[label="CH"]').removeClass('d-none');
+      else if(country == "GB")     
         $('#period optgroup[label="UK"]').removeClass('d-none');
-        $('#period optgroup[label="NO"]').addClass('d-none');
-      }
+      else if(country == "US")     
+        $('#period optgroup[label="US"]').removeClass('d-none');
       else
         $('#period optgroup').removeClass('d-none');
     }
@@ -1699,7 +1799,7 @@ $(document).on('change', '#schedule', function () {
     $.each(reminderusers, function(key,value) { 
       reminder_send_to +=  value['user']['email'] + ',';
     });
-    
+    //console.log(reminderusers);
     $("input[name=reminder_send_to]").val(reminder_send_to.replace(/,$/, ''));    
 
     var loadertext = '<div class="sk-bounce sk-primary sk-center">' +
@@ -1720,8 +1820,17 @@ $(document).on('change', '#schedule', function () {
       $.ajax({      
         //url: `${reminderUrl}${vat_reg_main_id}/users`,
         url: `${reminderUrl}users`,
-        data: {user_role: user_role_value,vat_reg_main_id: vat_reg_main_id, client_id: client_id, reminderusers: reminderusers, country: country_value}, 
-        type: 'POST',
+        // data: {user_role: user_role_value,vat_reg_main_id: vat_reg_main_id, client_id: client_id, country_value: country_value, reminderusers: reminderusers}, 
+        // type: 'POST',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          user_role: user_role_value,
+          vat_reg_main_id: vat_reg_main_id,
+          client_id: client_id,
+          country_value: country_value,
+          reminderusers: reminderusers
+        }),
         success: function (result) {//console.log(result); 
           $("#reminder_to_users").html(result.view); 
 
@@ -1846,6 +1955,15 @@ $(document).on('change', '#schedule', function () {
       });
       reminderQuill.enable($("#title").val() == "" ? false : true);
 
+      reminderQuill.clipboard.addMatcher(Node.ELEMENT_NODE, function(node, delta) {
+          delta.ops.forEach(op => {
+              if (op.attributes) {
+                  delete op.attributes.color;
+              }
+          });
+          return delta;
+      });
+
       //reminderQuill.root.contentEditable = $("#title").val() == "" ? false : true;
     }
 
@@ -1861,6 +1979,15 @@ $(document).on('change', '#schedule', function () {
         theme: 'snow',        
       });
       dkReminderQuill.enable($("#dk_title").val() == "" ? false : true);
+
+      dkReminderQuill.clipboard.addMatcher(Node.ELEMENT_NODE, function(node, delta) {
+          delta.ops.forEach(op => { 
+              if (op.attributes) {
+                  delete op.attributes.color;
+              }
+          });
+          return delta;
+      });
     }  
   }     
 
@@ -1871,6 +1998,7 @@ $(document).on('change', '#schedule', function () {
   //Send Test
   $(document).on('click', '.btn-send-test-reminder', function ()  
   {  
+    /*
     var btn_send_test_reminder = $('.btn-send-test-reminder');
     btn_send_test_reminder.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
     'Sending...');
@@ -1985,6 +2113,13 @@ $(document).on('change', '#schedule', function () {
         }
       });   
     } //null editor
+    */
+
+    var btn_send_test_reminder = $('.btn-send-test-reminder');
+    btn_send_test_reminder.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
+                    'Sending...');
+
+    SaveAndSend($(this),'send_test_reminder');
   });
   //End Send Test
 
@@ -2109,14 +2244,18 @@ $(document).on('change', '#schedule', function () {
 
   function SaveAndSend($_this,$which_btn)
   {
-    $("input[name=send_test_reminder]").val('');  
+    if($which_btn == 'send_test_reminder')
+      $("input[name=send_test_reminder]").val('send_test_reminder'); 
+    else
+      $("input[name=send_test_reminder]").val('');  
     var sel_action_name = $("#reminder_action").find('option:selected').html();   
     $("input[name=sel_action_name]").val(sel_action_name);  
 
     var formId = $_this.closest('.formReminder').attr('id');
     var modalId = $_this.closest('.modal-reminder').attr('id'); 
 
-    var btn_savesend_reminder = $_this;   
+    var btn_savesend_reminder = $_this; 
+    btn_savesend_reminder.attr('disabled', 'disabled');  
 
     var ql_editor = $("#"+formId).find(".reminder-editor .ql-editor");
     var dk_ql_editor = $("#"+formId).find(".dk-reminder-editor .ql-editor");
@@ -2146,10 +2285,10 @@ $(document).on('change', '#schedule', function () {
 
       Swal.fire({
         title: 'Are you sure?',       
-        text: "You want to save the reminder!",
+        text: "You want to "+ (($which_btn == 'send_reminder' || $which_btn == 'send_test_reminder') ? (($which_btn == 'send_reminder') ? 'send the' : 'send the test') : 'save the') +" reminder!",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes, Save reminder!',
+        confirmButtonText: 'Yes, '+ (($which_btn == 'send_reminder' || $which_btn == 'send_test_reminder') ? (($which_btn == 'send_reminder') ? 'Send the' : 'Send the test') : 'Save') +' reminder!',
         customClass: {
           confirmButton: 'btn btn-primary me-2',
           cancelButton: 'btn btn-label-secondary'
@@ -2165,20 +2304,26 @@ $(document).on('change', '#schedule', function () {
             type: 'POST',
             data: $('#' + formId).serialize() + '&schedule=' + schedule_value + 
             '&reminder_datetime=' + datetime_value +  '&action_name=' + sel_action_name + 
-            '&edit_sent_to=' + edit_sent_to + '&edit_sent_to_client=' + edit_sent_to_client,       
+            '&edit_sent_to=' + edit_sent_to + '&edit_sent_to_client=' + edit_sent_to_client+ '&which_btn=' + $which_btn,       
             success: function (result) {             
               if(result)    
               {  
                 if($which_btn == 'send_reminder')
                 {
-                  btn_savesend_reminder.html('Send Reminder (0)');                
+                  btn_savesend_reminder.html('Send Reminder (0)');                   
                   success_text = 'Reminder Email Sent !!';
+                }
+                if($which_btn == 'send_test_reminder')
+                {
+                  btn_savesend_reminder.html('Send Test');                   
+                  success_text = 'Test Reminder Email Sent !!';
                 }
                 else if($which_btn == 'create_reminder')
                 {
-                  btn_savesend_reminder.html('Save');                
+                  btn_savesend_reminder.html('Save');                  
                   success_text = 'Reminder Saved !!';
                 }
+                btn_savesend_reminder.removeAttr('disabled');
 
                 var status = result['message'];                                       
                 reminder_datas = drawDtTable(result, 'reminder');
@@ -2207,10 +2352,14 @@ $(document).on('change', '#schedule', function () {
         else if (result.dismiss === Swal.DismissReason.cancel) 
         {
           if($which_btn == 'send_reminder')          
-            btn_savesend_reminder.html('Send Reminder (0)');                              
+            btn_savesend_reminder.html('Send Reminder (0)'); 
+          else if($which_btn == 'send_test_reminder')          
+            btn_savesend_reminder.html('Send Test');                              
           else if($which_btn == 'create_reminder')         
             btn_savesend_reminder.html('Save');                             
        
+          btn_savesend_reminder.removeAttr('disabled');
+
           Swal.fire({
             title: 'Cancelled',
             text: 'Cancelled reminder :)',

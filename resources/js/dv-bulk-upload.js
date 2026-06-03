@@ -178,25 +178,34 @@ $(function () {
               $.each($users, function (idx, user) {   
                 var $user_id = user['id'],
                     $name = user['name'],
-                    $email = user['email'];
+                    $email = user['email'],
+                    notificationsettings = user['notificationsettings'];
 
-                // Creates full output for row
-                $row_output +=                  
-                  '<div class="form-check custom-option custom-option-basic my-2">' +
-                    '<label class="switch form-check-label custom-option-content text-end px-3 fs-big" for="cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0-'+ $user_id +'">' +
-                      '<input name="chk_cc[]" class="switch-input form-check-input chk_cc cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0" type="checkbox" data-id="'+ $user_id +'" data-vat_reg_id="'+ $vat_reg_id +'" value="'+ $email +'" id="cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0-'+ $user_id +'" />' +
-                      '<span class="switch-toggle-slider right-3">' +
-                        '<span class="switch-on"></span>' +
-                        '<span class="switch-off"></span>' +
-                      '</span>' +
-                      '<span class="custom-option-header switch-label px-0">' +
-                        '<span class="h6 mb-0">'+ $name +'</span>' +
-                      '</span>' +
-                      '<span class="custom-option-body switch-label text-start px-0 w-100">' +
-                        '<small>'+ $email +'</small>' +
-                      '</span>' +
-                    '</label>' +
-                  '</div>';                      
+                if(notificationsettings)
+                {
+                  $.each(notificationsettings, function (notifyidx, notificationsetting) { 
+                    if(notificationsetting['file_type'] == $file_type && notificationsetting['email_notification'] == 1)
+                    {  
+                      // Creates full output for row
+                      $row_output +=                  
+                        '<div class="form-check custom-option custom-option-basic my-2">' +
+                          '<label class="switch form-check-label custom-option-content text-end px-3 fs-big" for="cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0-'+ $user_id +'">' +
+                            '<input name="chk_cc[]" class="switch-input form-check-input chk_cc cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0" type="checkbox" data-id="'+ $user_id +'" data-vat_reg_id="'+ $vat_reg_id +'" value="'+ $email +'" id="cc-to-'+ $file_type +'-'+ $vat_reg_id +'-0-'+ $user_id +'" />' +
+                            '<span class="switch-toggle-slider right-3">' +
+                              '<span class="switch-on"></span>' +
+                              '<span class="switch-off"></span>' +
+                            '</span>' +
+                            '<span class="custom-option-header switch-label px-0">' +
+                              '<span class="h6 mb-0">'+ $name +'</span>' +
+                            '</span>' +
+                            '<span class="custom-option-body switch-label text-start px-0 w-100">' +
+                              '<small>'+ $email +'</small>' +
+                            '</span>' +
+                          '</label>' +
+                        '</div>';
+                    }  
+                  });     
+                }               
               });
 
               $row_output +=  '</div>' +

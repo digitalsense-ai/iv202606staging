@@ -564,10 +564,11 @@ class EmailBoxApiClass
       /** @var \Webklex\PHPIMAP\Support\FolderCollection $folders */
       $folders = $mailboxclient->getFolders();
       
+      $forwarded = 0;
       //Loop through every Mailbox
       /** @var \Webklex\PHPIMAP\Folder $folder */
       foreach($folders as $folder)
-      {
+      {        
         if(strtoupper($folder->name) == 'INBOX' || strtoupper($folder->name) == 'SPAM')//SPAM ARCHIVE      
         {
           //Get all Messages of the current Mailbox $folder
@@ -579,14 +580,15 @@ class EmailBoxApiClass
             $retryCount = 0;
             $maxRetries = 3;
             $chunk_size = 10;
-            $start_chunk = 1;
+            //$start_chunk = 1;
 
             do {
-              // echo "-------------------------------------" . $retryCount . "***". $start_chunk . "-------------------------------------<br>";
+              // echo "-------------------------------------" . $retryCount . "***". $start_chunk . "-------------------------------------<br>";               
+
                 try {
                   
                   /** @var \Webklex\PHPIMAP\Query\WhereQuery $query */              
-                  $query->unflagged()->fetchOrderAsc()->chunked(function($messages, $chunk) use ($emailAddress) {
+                  $query->unflagged()->fetchOrderAsc()->chunked(function($messages, $chunk) use ($emailAddress, &$forwarded) {
                       /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
                       Log::info("From email : " . $emailAddress);
                       if ($messages->isEmpty()) {
@@ -594,8 +596,8 @@ class EmailBoxApiClass
                           return;
                       }
                    
-                      $messages->each(function($message) use ($emailAddress) {
-                        $move_message = 0;
+                      $messages->each(function($message) use ($emailAddress, &$forwarded) {
+                        
                         /** @var \Webklex\PHPIMAP\Message $message */
                             
                         $subject = $message->getSubject();
@@ -610,7 +612,7 @@ class EmailBoxApiClass
                             stripos($decoded_subject, "autoreply") !== false ||
                             stripos($decoded_subject, "autosvar") !== false
                         ) {
-                            Log::info("FORWARDING AUTO-REPLY...");
+                            //Log::info("FORWARDING AUTO-REPLY...");
 
                             try {
                                 // Extract message body
@@ -624,27 +626,29 @@ class EmailBoxApiClass
                                     $htmlBody,
                                     $textBody
                                 ));
-
-                                Log::info("FORWARDED SUCCESSFULLY");
+                                $forwarded++;
+                                //Log::info("FORWARDED SUCCESSFULLY " . $forwarded);
 
                                 // OPTIONAL: Move the email to another folder
                                 // $message->move('Processed');
 
                                 // Delete the message
                                 $message->delete();
-                                Log::info("DELETED from mailbox");
+                                //Log::info("DELETED from mailbox");
 
                             } catch (\Exception $e) {
                                 Log::error("Auto-reply forward failed: " . $e->getMessage());
+                                return;
                             }
                         }// FORWARD ONLY AUTO RESPONSE EMAILS                        
                       });//chunck message                      
-                  }, $chunk_size, $start_chunk);
+                  //}, $chunk_size, $start_chunk);
+                  }, $chunk_size);
                   break;  // Exit loop if the query is successful
                 } catch (\Exception $e) {
                   Log::info($e->getMessage() . "<br>");                  
                     if (++$retryCount >= $maxRetries) {
-                        dd("Max retries reached. Giving up.");
+                        Log::info("Max retries reached. Giving up.");
                         break;
                     }
                     // Wait before retrying
@@ -653,30 +657,36 @@ class EmailBoxApiClass
             } while ($retryCount < $maxRetries);
           }
           catch (\Exception $e) 
-          {        
-            dd($e);
+          {                   
             $errorMessage = $e->getMessage(); 
-
+            Log::info("FORWARDED ERROR MESSAGE: " . $errorMessage);
             return $errorMessage;  
           }
         } //INBOX folder
       } //Loop through every Mailbox  
 
       // At the end of folder
-      //$folder->expunge();     
+      //$folder->expunge();  
+      Log::info("FORWARDED TOTAL MESSAGE: " . $forwarded);
+      if($forwarded > 0)
+        return true;  
+      else
+        return; 
     }
     catch (\Exception $e) 
-    {
-      dd($e);
+    {      
       if($e->getResponse())   
       {           
         $response = $e->getResponse();
         $response_data = $response->getBody()->getContents();
-
+        Log::info("FORWARDED ERROR MESSAGE 2: " . $response_data);
         return  $response_data;
       }
       else
+      {
+        Log::info("FORWARDED ERROR MESSAGE 3: " . $e->getMessage());
         return $e->getMessage();
+      }
     }
   }
   /* --end FORWARD EMAIL TO info@intravat.com -- */  

@@ -7,6 +7,7 @@
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <style>
+	body { color:#000 !important; }
 @media only screen and (max-width: 600px) {
 	.draft-email .content { width: 80% !important; }
 .inner-body {
@@ -39,7 +40,7 @@ width: 100% !important;
 						<table class="inner-body" align="center" width="570" cellpadding="0" cellspacing="0" role="presentation">
 						<!-- Body content -->
 						<tr>
-							<td class="content-cell">
+							<td class="content-cell" style="color: #000 !important;">
 							{{ Illuminate\Mail\Markdown::parse($slot) }}
 
 							{{ $subcopy ?? '' }}

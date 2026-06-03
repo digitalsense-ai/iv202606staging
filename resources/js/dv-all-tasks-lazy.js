@@ -1610,8 +1610,11 @@ console.log(modalId);
   }
 
   if(pagename != '')
-    var moretasks = moreTasks(pagename, morepage); 
+    //var moretasks = moreTasks(pagename, morepage); 
+    var moretasks = moreaTasks(pagename, morepage); 
 
+  /*DON'T DELETE FOR NOW*/
+  /*
   function moreTasks(pagename, page) {    
     return new Promise((resolve, reject) => {
       try {   
@@ -1633,7 +1636,9 @@ console.log(modalId);
               
               page++;
 
-              var moretasks = moreTasks(pagename, page);
+              //var moretasks = moreTasks(pagename, page);
+              // ✅ FIX: RETURN the recursive call so it runs sequentially
+              return resolve(moreTasks(pagename, page));
             } else {                                  
               $('#pivs_tasks_block').unblock();
               $('#cas_tasks_block').unblock();
@@ -1670,13 +1675,81 @@ console.log(modalId);
               noTasks('accordionStyleAllTasks');
             }
             else  
-              showAllTasks($('.switch-input.all-tasks')); 
+              showAllTasks($('.switch-input.all-tasks'));
+
+            // ✅ OPTIONAL SAFETY
+            return reject(err);   
           }
         });   
       } catch (ex) {
         return reject(new Error(ex));
       }
     });
+  }
+  */
+  /*DON'T DELETE FOR NOW*/
+
+  async function moreaTasks(pagename, page) {
+    try {
+      const data = await $.ajax({
+        url: '/all-tasks/more/' + page,
+        data: { pagename: pagename },
+        type: 'GET',
+        dataType: 'json'
+      });
+
+      if (data.result_count > 0) {
+
+        $('#pivs_tasks').append(data.upload_tasks_pivs);
+        $('#cas_tasks').append(data.upload_tasks_cas);
+        $('#dda_tasks').append(data.upload_tasks_dda);
+        $('#accordionStyleAllTasks').append(data.vatreturn_tasks);
+
+        pendingSingleTasksDropzone();
+        AllTasksDropzone();
+
+        // recursive call (sequential)
+        return await moreaTasks(pagename, page + 1);
+
+      } else {
+
+        // ✅ ELSE PART (same as your original code)
+        $('#pivs_tasks_block').unblock();
+        $('#cas_tasks_block').unblock();
+        $('#dda_tasks_block').unblock();
+        $('#vatreturn_tasks_block').unblock();
+
+        if ($('.switch-input.all-tasks').length == 0) {
+          noTasks('pivs_tasks');
+          noTasks('cas_tasks');
+          noTasks('dda_tasks');
+          noTasks('accordionStyleAllTasks');
+        } else {
+          showAllTasks($('.switch-input.all-tasks'));
+        }
+
+        return page;
+      }
+
+    } catch (err) {
+
+      // error handling (same behavior as original error callback)
+      $('#pivs_tasks_block').unblock();
+      $('#cas_tasks_block').unblock();
+      $('#dda_tasks_block').unblock();
+      $('#vatreturn_tasks_block').unblock();
+
+      if ($('.switch-input.all-tasks').length == 0) {
+        noTasks('pivs_tasks');
+        noTasks('cas_tasks');
+        noTasks('dda_tasks');
+        noTasks('accordionStyleAllTasks');
+      } else {
+        showAllTasks($('.switch-input.all-tasks'));
+      }
+
+      throw err;
+    }
   }
 
   window.noTasks = function noTasks(id)
@@ -2062,4 +2135,65 @@ console.log("after DOMContentLoaded");
   $(".accordion-item .email-editor").each(function () {    
     commentEmailEditor($(this).data());   
   }); 
+
+  // Country Flag click
+  $(document).on('click', '.country-flag', function () {
+    const countryCode = $(this).data('flag');
+    const $tabBtn = $('#btn-vatreturns');
+    const isActive = $(this).hasClass('active');
+
+    if (isActive) {
+      // If flag is already active → revert: show all items
+      $(this).removeClass('active');
+      $('.accordion-item').show();
+      return;
+    }
+
+    // Otherwise → activate this flag
+    $('.country-flag').removeClass('active');
+    $(this).addClass('active');
+
+    // Ensure tab is active
+    $tabBtn.one('shown.bs.tab', function () {
+      $('.accordion-item').hide();
+      $('.accordion-item[data-country="' + countryCode + '"]').show();
+    });
+
+    if (!$tabBtn.hasClass('active')) {
+      $tabBtn.trigger('click');
+    } else {
+      // Tab already active → filter immediately
+      $('.accordion-item').hide();
+      $('.accordion-item[data-country="' + countryCode + '"]').show();
+    }
+  });
+
+  // $(document).on('click', '.country-flag', function () { 
+  //   var countryCode = $(this).data('flag');
+  //   const tabSelector = $("#btn-vatreturns");
+
+  //   if (!countryCode) {
+  //     $('.accordion-item').show();
+  //     return;
+  //   }
+
+  //   $('.country-flag').removeClass('active');
+  //   $(this).addClass('active');
+
+  //   // wait for tab to be visible before filtering
+  //   tabSelector.one('shown.bs.tab', function () {
+  //     $('.accordion-item').hide();
+  //     $('.accordion-item[data-country="' + countryCode + '"]').show();
+  //   });
+
+  //   // Activate tab if not active
+  //   if (!$(tabSelector).hasClass('active')) {
+  //     $(tabSelector).trigger('click');
+  //   }
+  //   else
+  //   {
+  //     $(".accordion-item").hide();
+  //     $(".accordion-item[data-country='"+ countryCode +"']").show();
+  //   }
+  // });
 });

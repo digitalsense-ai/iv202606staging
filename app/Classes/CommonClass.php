@@ -13,6 +13,9 @@ use App\Models\ClientQAFiles;
 use App\Models\ClientComment;
 use App\Models\CommercialInvoiceFiles;
 use App\Models\CompanyTeamUser;
+use App\Models\CRMLead;
+use App\Models\CRMQuote;
+use App\Models\CRMReminder;
 use App\Models\Documents;
 use App\Models\DutyDefermentAccount;
 use App\Models\DVUser;
@@ -28,9 +31,11 @@ use App\Models\ImportReconciliationControlFiles;
 use App\Models\ImportReconciliationControlOFiles;
 use App\Models\ImportReconciliationNotes;
 use App\Models\ImportReconciliationSalesInvoices;
+use App\Models\ImportReconciliationSalesInvoicesData;
 use App\Models\ImportVatComments;
 use App\Models\ImportVatFiles;
 use App\Models\Invoices;
+use App\Models\InvoiceOcrPdf;
 use App\Models\MailBoxFiles;
 use App\Models\NotificationSettings;
 use App\Models\PaymentInfo;
@@ -64,6 +69,9 @@ use App\Models\VATReturns;
 use App\Jobs\InsertInvoices;
 use App\Jobs\InsertComSalesInvoices;
 use App\Events\ImportReconciliationComSalesInvoicesJobProgressEvent;
+use App\Events\OcrInvoicesSyncEvent;
+use App\Jobs\InsertComSalesInvoicesFromOcr;
+use App\Jobs\ProcessReminderEmailJob;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -96,6 +104,7 @@ use App\Mail\ReminderNoDataInFolder as ReminderNoDataInFolderEmail;
 use App\Mail\ReminderPivsNotUploaded as ReminderPivsNotUploadedEmail;
 use App\Mail\ReminderUploadMissed as ReminderUploadMissedEmail;
 use App\Mail\ReminderGeneral as ReminderGeneral;
+use App\Mail\CRMNoQuoteReminder;
 
 use OpenAI\Laravel\Facades\OpenAI;
 use HelgeSverre\ReceiptScanner\Facades\ReceiptScanner;
@@ -111,7 +120,7 @@ class CommonClass
     /* -- PAGE CONFIG -- */
     public function getPageConfig($authUser, $page = NULL)
     {      
-      if($page === 'invoice' || $page === 'declaration')
+      if($page === 'invoice' || $page === 'declaration' || $page === 'analyzepdf-search')
         $pageConfigs = ['myLayout' => 'horizontal', 'myTheme' => 'theme-default', 'menuShow' => false, 'footerShow' => false, 'contentLayout' => 'wide'];   
       else
       {       
@@ -2144,7 +2153,7 @@ class CommonClass
 
               if($invoice_no == '')
               {
-                $_invoice_text = $salepurchase->text;
+                $_invoice_text = isset($salepurchase->text) ? $salepurchase->text : '';
                 if(stripos($_invoice_text, ";") !== false) 
                 {
                   $_arr_invoice_text = explode(';', $_invoice_text);
@@ -2182,12 +2191,14 @@ class CommonClass
               $net_or_vat = 'net';
               $accountnos = $vatreg->vatregmain->accnos;
               $acc_invoice_type = 'sale';
+              $allow = false;
               if(count($accountnos) > 0)
               {         
                 foreach ($accountnos as $accountno) 
                 {
-                  if(($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) && 
-                          ($salepurchase->account->accountNumber == $accountno->acc_no))
+                  // if(($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) && 
+                  //         ($salepurchase->account->accountNumber == $accountno->acc_no))
+                  if($salepurchase->account->accountNumber == $accountno->acc_no)
                   {
                     if($accountno->is_reverse)
                       $acc_reverse = -1;
@@ -2212,16 +2223,57 @@ class CommonClass
                       $acc_invoice_type = 'purchase';                    
                       $net_or_vat = 'vat';                              
                     }
+
+                    $allow = ($accountno->is_auto_vat_check == 0 || $accountno->is_auto_vat_check == 2) ? true : false;
                   }
                 }
               }                       
               /*end Account No. - MAP COLUMN*/
-             
+              
+              if($allow)
+              {
+                /*
+              $baseCurrency = $vatreg->vatregmain->clientapi->currency_code;
+              $actualCurrency = '';
+              $actualAmount = 0;
+              if($baseCurrency == $currencyCode)
+              { 
+                $actualCurrency = $currencyCode;
+                $actualAmount = $salepurchase->amount;
+              }
+              else  
+              { 
+                if($salepurchase->amountInBaseCurrency)
+                { 
+                  $actualCurrency = $baseCurrency;               
+                  $actualAmount = $salepurchase->amountInBaseCurrency;
+                }
+                else
+                {
+                  $actualCurrency = $currencyCode;
+                  $actualAmount = $salepurchase->amount;
+                }
+              }
+              */
+              $baseCurrency = $vatreg->vatregmain->clientapi->currency_code;                                    
+              $actualAmount = $salepurchase->amount;
+              $actualCurrency = $salepurchase->currency;
+              
+              $useBaseCurrencyAmount = $vatreg->vatregmain->clientapi->use_base_currency_amount;
+              // Special case: base currency is NOK or DKK → use amountInBaseCurrency if available
+              //if (in_array($baseCurrency, ['NOK']) && !empty($salepurchase->amountInBaseCurrency)) {
+              if ($useBaseCurrencyAmount && !empty($salepurchase->amountInBaseCurrency)) {
+                $actualAmount = $salepurchase->amountInBaseCurrency;
+                $actualCurrency = $baseCurrency;
+              }
+
               if($acc_invoice_type == 'purchase')
               {                               
-                if(array_key_exists($currencyCode, $purchase))
+                //if(array_key_exists($currencyCode, $purchase))
+                if(array_key_exists($actualCurrency, $purchase))
                 {                                    
-                  if(array_key_exists($tax_percentage, $purchase[$currencyCode]))
+                  //if(array_key_exists($tax_percentage, $purchase[$currencyCode]))
+                  if(array_key_exists($tax_percentage, $purchase[$actualCurrency]))
                   {                                     
                     $update_vat_amount = true;
                     $is_current_vat_amount = false;
@@ -2230,7 +2282,8 @@ class CommonClass
                     {
                       if($net_or_vat == 'net')
                       {
-                        $net_amount = $acc_reverse * $salepurchase->amount;
+                        //$net_amount = $acc_reverse * $salepurchase->amount;
+                        $net_amount = $acc_reverse * $actualAmount;
                         
                         $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2246,44 +2299,56 @@ class CommonClass
                       }
                       else if($net_or_vat == 'vat')
                       {                          
-                        $vat_amount = $acc_reverse * $salepurchase->amount;                        
+                        //$vat_amount = $acc_reverse * $salepurchase->amount;                        
+                        $vat_amount = $acc_reverse * $actualAmount;                        
+
                         //if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                         if (round((float)$vat_amount, 2) == round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                           $update_vat_amount = false;
                       }          
                     }   
 
-                    $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($purchase[$currencyCode][$tax_percentage]['netamount'] + ($acc_reverse * $salepurchase->amount)), 2) : round($purchase[$currencyCode][$tax_percentage]['netamount'], 2);
+                    // $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($purchase[$currencyCode][$tax_percentage]['netamount'] + ($acc_reverse * $salepurchase->amount)), 2) : round($purchase[$currencyCode][$tax_percentage]['netamount'], 2);
+                    $purchase[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($purchase[$actualCurrency][$tax_percentage]['netamount'] + ($acc_reverse * $actualAmount)), 2) : round($purchase[$actualCurrency][$tax_percentage]['netamount'], 2);
 
-                    if($tax_percentage == 0)                  
-                      $purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
-                    else
-                    {
+                    // if($tax_percentage == 0)                  
+                    //   //$purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                    //   $purchase[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
+                    // else
+                    // {
                       if($net_or_vat == 'vat')
                       {  
                         if($update_vat_amount)                      
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + ($acc_reverse * $salepurchase->amount)), 2);
+                          // $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + ($acc_reverse * $salepurchase->amount)), 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round((($purchase[$actualCurrency][$tax_percentage]['totalvat'] ?? 0) + ($acc_reverse * $actualAmount)), 2);
                         else
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          // $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round(($purchase[$actualCurrency][$tax_percentage]['totalvat'] ?? 0), 2);
                       }
                       else
                       {
                         if(!$is_current_vat_amount)
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
+                          // $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round((($purchase[$actualCurrency][$tax_percentage]['totalvat'] ?? 0) + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
                         else
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $current_vat_amount),2);
+                          // $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $current_vat_amount),2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round((($purchase[$actualCurrency][$tax_percentage]['totalvat'] ?? 0) + $current_vat_amount),2);
                       }
-                    }
+                    //}
 
                     // $purchase[$currencyCode][$tax_percentage]['totalvat'] = ($tax_percentage == 0) ? 0 : (($net_or_vat == 'vat') ? (($update_vat_amount) ? round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + ($acc_reverse * $salepurchase->amount)), 2) : round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2)) : ((!$is_current_vat_amount) ? round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2) : round(($purchase[$currencyCode][$tax_percentage]['totalvat'] + $current_vat_amount),2) ));
 
                     if(!in_array($invoice_no, $purchase_unique_invoiceno, true)) 
                     {                  
                       array_push($purchase_unique_invoiceno, $invoice_no);
-                      if(isset($purchase[$currencyCode][$tax_percentage]['invoiceCount']))
-                        $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = $purchase[$currencyCode][$tax_percentage]['invoiceCount'] + 1; 
+                      // if(isset($purchase[$currencyCode][$tax_percentage]['invoiceCount']))
+                      //   $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = $purchase[$currencyCode][$tax_percentage]['invoiceCount'] + 1; 
+                      // else
+                      //   $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      if(isset($purchase[$actualCurrency][$tax_percentage]['invoiceCount']))
+                        $purchase[$actualCurrency][$tax_percentage]['invoiceCount'] = $purchase[$actualCurrency][$tax_percentage]['invoiceCount'] + 1; 
                       else
-                        $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                        $purchase[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                     }
                   }
                   else
@@ -2295,7 +2360,8 @@ class CommonClass
                     {
                       if($net_or_vat == 'net')
                       {
-                        $net_amount = $acc_reverse * $salepurchase->amount;
+                        //$net_amount = $acc_reverse * $salepurchase->amount;
+                        $net_amount = $acc_reverse * $actualAmount;
                         
                         $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2311,43 +2377,55 @@ class CommonClass
                       } 
                       else if($net_or_vat == 'vat')
                       {  
-                        $vat_amount = $acc_reverse * $salepurchase->amount;
+                        //$vat_amount = $acc_reverse * $salepurchase->amount;
+                        $vat_amount = $acc_reverse * $actualAmount;
                        
                         if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                           $update_vat_amount = false;
                       }                      
                     }   
 
-                    $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                    // $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                    $purchase[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $actualAmount), 2) : 0;
 
-                    if($tax_percentage == 0)                  
-                      $purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
-                    else
-                    {
+                    // if($tax_percentage == 0)                  
+                    //   //$purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                    //   $purchase[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
+                    // else
+                    // {
                       if($net_or_vat == 'vat')
                       {  
                         if($update_vat_amount)                      
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                          //$purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round(($acc_reverse * $actualAmount),2);
                         else
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          // $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round($purchase[$actualCurrency][$tax_percentage]['totalvat'], 2);
                       }
                       else
                       {
+                        // if(!$is_current_vat_amount)
+                        //   $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                        // else
+                        //   $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                         if(!$is_current_vat_amount)
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
                         else
-                          $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
+                          $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                       }
-                    }
+                    //}
 
                     // $purchase[$currencyCode][$tax_percentage]['totalvat'] = ($tax_percentage == 0) ? 0 : (($net_or_vat == 'vat') ? (($update_vat_amount) ? round(($acc_reverse * $salepurchase->amount), 2) : round($purchase[$currencyCode][$tax_percentage]['totalvat'], 2)) : ((!$is_current_vat_amount) ? round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2) : round($current_vat_amount,2) ));
                     
-                    $purchase[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
-                    $purchase[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                    // $purchase[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                    // $purchase[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                    $purchase[$actualCurrency][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                    $purchase[$actualCurrency][$tax_percentage]['currencyCode'] = $actualCurrency;
                     if(!in_array($invoice_no, $purchase_unique_invoiceno, true)) 
                     {                  
                       array_push($purchase_unique_invoiceno, $invoice_no);
-                      $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      //$purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      $purchase[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                     }                   
                   }  
                 }//currencyCode
@@ -2360,7 +2438,8 @@ class CommonClass
                   {
                     if($net_or_vat == 'net')
                     {
-                      $net_amount = $acc_reverse * $salepurchase->amount;
+                      //$net_amount = $acc_reverse * $salepurchase->amount;
+                      $net_amount = $acc_reverse * $actualAmount;
                       
                       $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2376,7 +2455,8 @@ class CommonClass
                     } 
                     else if($net_or_vat == 'vat')
                     {  
-                      $vat_amount = $acc_reverse * $salepurchase->amount;
+                      //$vat_amount = $acc_reverse * $salepurchase->amount;
+                      $vat_amount = $acc_reverse * $actualAmount;
                      
                       //if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                       if (round((float)$vat_amount, 2) == round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
@@ -2384,43 +2464,56 @@ class CommonClass
                     }                     
                   }
 
-                  $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                  // $purchase[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                  $purchase[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $actualAmount), 2) : 0;
+
                   // $purchase[$currencyCode][$tax_percentage]['totalvat'] = ($net_or_vat == 'vat') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
-                  if($tax_percentage == 0)                  
-                    $purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
-                  else
-                  {
+                  // if($tax_percentage == 0)                  
+                  //   //$purchase[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                  //   $purchase[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
+                  // else
+                  // {
                     if($net_or_vat == 'vat')
                     {  
                       if($update_vat_amount)                      
-                        $purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                        //$purchase[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                        $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round(($acc_reverse * $actualAmount),2);
                     }
                     else
                     {
+                      // if(!$is_current_vat_amount)
+                      //   $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                      // else
+                      //   $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                       if(!$is_current_vat_amount)
-                        $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                        $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
                       else
-                        $purchase[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
+                        $purchase[$actualCurrency][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                     }
-                  }
+                  //}
 
                   // $purchase[$currencyCode][$tax_percentage]['totalvat'] = ($tax_percentage == 0) ? 0 : (($net_or_vat == 'vat') ? round((($update_vat_amount) ? ($acc_reverse * $salepurchase->amount) : $purchase[$currencyCode][$tax_percentage]['totalvat']), 2) : ((!$is_current_vat_amount) ? round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2) : round($current_vat_amount, 2)));
                  
-                  $purchase[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
-                  $purchase[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                  // $purchase[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                  // $purchase[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                  $purchase[$actualCurrency][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                  $purchase[$actualCurrency][$tax_percentage]['currencyCode'] = $actualCurrency;
                   if(!in_array($invoice_no, $purchase_unique_invoiceno, true)) 
                   {                  
                     array_push($purchase_unique_invoiceno, $invoice_no);
-                    $purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                    //$purchase[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                    $purchase[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                   }                     
                 }//currencyCode
                 
               }//purchase
               else
               {               
-                if(array_key_exists($currencyCode, $sales))
+                //if(array_key_exists($currencyCode, $sales))
+                if(array_key_exists($actualCurrency, $sales))
                 {
-                  if(array_key_exists($tax_percentage, $sales[$currencyCode]))
+                  //if(array_key_exists($tax_percentage, $sales[$currencyCode]))
+                  if(array_key_exists($tax_percentage, $sales[$actualCurrency]))
                   {                    
                     $update_vat_amount = true;
                     $is_current_vat_amount = false;
@@ -2429,7 +2522,8 @@ class CommonClass
                     {
                       if($net_or_vat == 'net')
                       {
-                        $net_amount = $acc_reverse * $salepurchase->amount;
+                        //$net_amount = $acc_reverse * $salepurchase->amount;
+                        $net_amount = $acc_reverse * $actualAmount;
                         
                         $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2445,32 +2539,41 @@ class CommonClass
                       }
                       else if($net_or_vat == 'vat')
                       {
-                        $vat_amount = $acc_reverse * $salepurchase->amount;       
+                        //$vat_amount = $acc_reverse * $salepurchase->amount;       
+                        $vat_amount = $acc_reverse * $actualAmount;       
 
                         if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                           $update_vat_amount = false;
                       }                      
                     }  
                    
-                    $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($sales[$currencyCode][$tax_percentage]['netamount'] + ($acc_reverse * $salepurchase->amount)), 2) : round($sales[$currencyCode][$tax_percentage]['netamount'], 2);
+                    // $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($sales[$currencyCode][$tax_percentage]['netamount'] + ($acc_reverse * $salepurchase->amount)), 2) : round($sales[$currencyCode][$tax_percentage]['netamount'], 2);
+                    $sales[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($sales[$actualCurrency][$tax_percentage]['netamount'] + ($acc_reverse * $actualAmount)), 2) : round($sales[$actualCurrency][$tax_percentage]['netamount'], 2);
 
                     if($tax_percentage == 0)                  
-                      $sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                      //$sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                      $sales[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
                     else
                     {
                       if($net_or_vat == 'vat')
                       {  
                         if($update_vat_amount)                      
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + ($acc_reverse * $salepurchase->amount)), 2);
+                          // $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + ($acc_reverse * $salepurchase->amount)), 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round(($sales[$actualCurrency][$tax_percentage]['totalvat'] + ($acc_reverse * $actualAmount)), 2);
                         else
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round($sales[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          // $sales[$currencyCode][$tax_percentage]['totalvat'] = round($sales[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($sales[$actualCurrency][$tax_percentage]['totalvat'], 2);
                       }
                       else
                       {
+                        // if(!$is_current_vat_amount)
+                        //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
+                        // else
+                        //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + $current_vat_amount),2);
                         if(!$is_current_vat_amount)
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round(($sales[$actualCurrency][$tax_percentage]['totalvat'] + $exists_invoice_vatamount[$invoice_no]['vat_amount']), 2);
                         else
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($sales[$currencyCode][$tax_percentage]['totalvat'] + $current_vat_amount),2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round(($sales[$actualCurrency][$tax_percentage]['totalvat'] + $current_vat_amount),2);
                       }
                     }
 
@@ -2479,10 +2582,14 @@ class CommonClass
                     if(!in_array($invoice_no, $sale_unique_invoiceno, true)) 
                     {                  
                       array_push($sale_unique_invoiceno, $invoice_no);
-                      if(isset($sales[$currencyCode][$tax_percentage]['invoiceCount']))
-                        $sales[$currencyCode][$tax_percentage]['invoiceCount'] = $sales[$currencyCode][$tax_percentage]['invoiceCount'] + 1; 
+                      // if(isset($sales[$currencyCode][$tax_percentage]['invoiceCount']))
+                      //   $sales[$currencyCode][$tax_percentage]['invoiceCount'] = $sales[$currencyCode][$tax_percentage]['invoiceCount'] + 1; 
+                      // else
+                      //   $sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      if(isset($sales[$actualCurrency][$tax_percentage]['invoiceCount']))
+                        $sales[$actualCurrency][$tax_percentage]['invoiceCount'] = $sales[$actualCurrency][$tax_percentage]['invoiceCount'] + 1; 
                       else
-                        $sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                        $sales[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                     }                    
                   }
                   else
@@ -2494,7 +2601,8 @@ class CommonClass
                     {
                       if($net_or_vat == 'net')
                       {
-                        $net_amount = $acc_reverse * $salepurchase->amount;
+                        //$net_amount = $acc_reverse * $salepurchase->amount;
+                        $net_amount = $acc_reverse * $actualAmount;
                         
                         $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2510,43 +2618,55 @@ class CommonClass
                       }
                       else if($net_or_vat == 'vat')
                       {  
-                        $vat_amount = $acc_reverse * $salepurchase->amount;
+                        //$vat_amount = $acc_reverse * $salepurchase->amount;
+                        $vat_amount = $acc_reverse * $actualAmount;
                        
                         if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                           $update_vat_amount = false;
                       }                      
                     }  
 
-                    $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                    // $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                    $sales[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $actualAmount), 2) : 0;
 
                     if($tax_percentage == 0)                  
-                      $sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                      //$sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                      $sales[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
                     else
                     {
                       if($net_or_vat == 'vat')
                       {  
                         if($update_vat_amount)                      
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                          //$sales[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round(($acc_reverse * $actualAmount),2);
                         else
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round($sales[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          // $sales[$currencyCode][$tax_percentage]['totalvat'] = round($sales[$currencyCode][$tax_percentage]['totalvat'], 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($sales[$actualCurrency][$tax_percentage]['totalvat'], 2);
                       }
                       else
                       {
+                        // if(!$is_current_vat_amount)
+                        //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                        // else
+                        //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                         if(!$is_current_vat_amount)
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
                         else
-                          $sales[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
+                          $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                       }
                     }
 
                     // $sales[$currencyCode][$tax_percentage]['totalvat'] = ($tax_percentage == 0) ? 0 : (($net_or_vat == 'vat') ? round((($update_vat_amount) ? ($acc_reverse * $salepurchase->amount) : $sales[$currencyCode][$tax_percentage]['totalvat']), 2) : ((!$is_current_vat_amount) ? round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2) : round($current_vat_amount, 2)));
                     
-                    $sales[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
-                    $sales[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                    // $sales[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                    // $sales[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                    $sales[$actualCurrency][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                    $sales[$actualCurrency][$tax_percentage]['currencyCode'] = $actualCurrency;
                     if(!in_array($invoice_no, $sale_unique_invoiceno, true)) 
                     {                  
                       array_push($sale_unique_invoiceno, $invoice_no);
-                      $sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      //$sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                      $sales[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                     }
                   }  
                 }//currencyCode
@@ -2559,7 +2679,8 @@ class CommonClass
                   {
                     if($net_or_vat == 'net')
                     {
-                      $net_amount = $acc_reverse * $salepurchase->amount;
+                      //$net_amount = $acc_reverse * $salepurchase->amount;
+                      $net_amount = $acc_reverse * $actualAmount;
                       
                       $vat_amount = (($net_amount * $tax_percentage) / 100);
 
@@ -2575,7 +2696,8 @@ class CommonClass
                     }
                     else if($net_or_vat == 'vat')
                     {  
-                      $vat_amount = $acc_reverse * $salepurchase->amount;
+                      //$vat_amount = $acc_reverse * $salepurchase->amount;
+                      $vat_amount = $acc_reverse * $actualAmount;
                      
                       //if (round((float)$vat_amount, 2) <= round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
                       if (round((float)$vat_amount, 2) == round((float)$exists_invoice_vatamount[$invoice_no]['vat_amount'], 2))
@@ -2583,39 +2705,50 @@ class CommonClass
                     }                      
                   }  
 
-                  $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                  // $sales[$currencyCode][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
+                  $sales[$actualCurrency][$tax_percentage]['netamount'] = ($net_or_vat == 'net') ? round(($acc_reverse * $actualAmount), 2) : 0;
+
                   // $sales[$currencyCode][$tax_percentage]['totalvat'] = ($net_or_vat == 'vat') ? round(($acc_reverse * $salepurchase->amount), 2) : 0;
 
                   if($tax_percentage == 0)                  
-                    $sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                    //$sales[$currencyCode][$tax_percentage]['totalvat'] = 0;                  
+                    $sales[$actualCurrency][$tax_percentage]['totalvat'] = 0;                  
                   else
                   {
                     if($net_or_vat == 'vat')
                     {  
                       if($update_vat_amount)                      
-                        $sales[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                        //$sales[$currencyCode][$tax_percentage]['totalvat'] = round(($acc_reverse * $salepurchase->amount),2);
+                        $sales[$actualCurrency][$tax_percentage]['totalvat'] = round(($acc_reverse * $actualAmount),2);
                     }
                     else
                     {
+                      // if(!$is_current_vat_amount)
+                      //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                      // else
+                      //   $sales[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                       if(!$is_current_vat_amount)
-                        $sales[$currencyCode][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
+                        $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2);
                       else
-                        $sales[$currencyCode][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
+                        $sales[$actualCurrency][$tax_percentage]['totalvat'] = round($current_vat_amount, 2);
                     }
                   }
 
                   // $sales[$currencyCode][$tax_percentage]['totalvat'] = ($tax_percentage == 0) ? 0 : (($net_or_vat == 'vat') ? round((($update_vat_amount) ? ($acc_reverse * $salepurchase->amount) : $sales[$currencyCode][$tax_percentage]['totalvat']), 2) : ((!$is_current_vat_amount) ? round($exists_invoice_vatamount[$invoice_no]['vat_amount'], 2) : round($current_vat_amount, 2)));
                  
-                  $sales[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
-                  $sales[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                  // $sales[$currencyCode][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                  // $sales[$currencyCode][$tax_percentage]['currencyCode'] = $salepurchase->currency;
+                  $sales[$actualCurrency][$tax_percentage]['vatpercentage'] = $tax_percentage . '%';  
+                  $sales[$actualCurrency][$tax_percentage]['currencyCode'] = $actualCurrency;
                   if(!in_array($invoice_no, $sale_unique_invoiceno, true)) 
                   {                  
                     array_push($sale_unique_invoiceno, $invoice_no);
-                    $sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                    //$sales[$currencyCode][$tax_percentage]['invoiceCount'] = 1; 
+                    $sales[$actualCurrency][$tax_percentage]['invoiceCount'] = 1; 
                   }                
                 }//currencyCode
               }//sales
-              //}//allow  
+              }//allow  
             }//Account Invoices
             else
             {
@@ -3475,7 +3608,23 @@ class CommonClass
               {
                 $purchase_vat_rate = str_replace('%', '', $purchase_total['vatpercentage']);
                 if($purchase_vat_rate == 0)
-                  $purchase_vatreturns->delete();
+                {
+                  if($purchase_vatreturns->vat_amount != 0)
+                  {
+                    // $purchase_net_amount = ($purchase_vatreturns->vat_amount * 100) / 100;
+
+                    // if($purchase_net_amount == 0)              
+                    //   $purchase_vatreturns->delete();
+                    // else
+                    // {
+                      //$purchase_vatreturns->net_amount = $purchase_net_amount;
+                      $purchase_vatreturns->net_amount = 0;
+                      $purchase_vatreturns->save();
+                    //}
+                  }
+                  else
+                    $purchase_vatreturns->delete();
+                }
                 else
                 {
                   $purchase_net_amount = ($purchase_vatreturns->vat_amount * 100) /$purchase_vat_rate;
@@ -4411,7 +4560,7 @@ class CommonClass
             Log::info($authUserName . " viewed reminder histories.");
             break; 
           case "reminder-forwared-auto-reply":
-            Log::info("Forwarded reminder auto-reply email to info@intravat.com.");
+            Log::info("Forwarded reminder auto-reply email to info@intravat.com.", $extras);
             break;                      
           /*end REMINDER TASKS*/
 
@@ -4490,9 +4639,54 @@ class CommonClass
             break;        
           /*end ANY EXCEL TEMPLATES*/
 
+          /*ANALYZE PDF*/          
+          case "analyzepdf-delete":
+            Log::info($authUserName . " deleted analyse pdf.", $extras);
+            break;
+          case "analyzepdf-sync":            
+            Log::info($authUserName . " synchronized OCR for " . $extras['Client Name']);
+            break;               
+          /*end ANALYZE PDF*/
+
+          /*OCR PDF*/
+          case "importreconcilation-ocr-search-refresh":
+            Log::info($authUserName . " refreshed OCR search.", $extras);
+            break;
+          /*end OCR PDF*/
+
+          /*CRM REMINDER*/
+          case "crm-reminder-list":
+            Log::info($authUserName . " viewed CRM reminders.");
+            break;
+          case "crm-reminder-add":
+            Log::info($authUserName . " added CRM reminder.", $extras);
+            break; 
+          case "crm-reminder-edit":
+            Log::info($authUserName . " edited CRM reminder.", $extras);
+            break; 
+          case "crm-reminder-delete":
+            Log::info($authUserName . " deleted CRM reminder.", $extras);
+            break;
+          case "crm-reminder-email":
+            Log::info("CRM Reminder email sent to recipient.", $extras);
+            break; 
+          case "crm-reminder-scheduled-email":
+            Log::info("Scheduled CRM Reminder email.", $extras);
+            break; 
+          case "crm-reminder-no-schedule-email":
+            Log::info("No email Scheduled for CRM Reminder.", $extras);
+            break;
+          // case "crm-reminder-history":
+          //   Log::info($authUserName . " viewed reminder histories.");
+          //   break; 
+          // case "crm-reminder-forwared-auto-reply":
+          //   Log::info("Forwarded reminder auto-reply email to info@intravat.com.", $extras);
+          //   break;
+          /*end CRM REMINDER*/
+             
           /*ERROR CATCH*/
           case "error-log":
-            Log::error("Error in functionlaity", $extras);
+            Log::error("Error in functionality", $extras);
             break;
           /*end ERROR CATCH*/
 
@@ -5363,7 +5557,7 @@ class CommonClass
                     'vatregmain' => function ($query) {
                         $query->select(['id',//foreign_key -DON'T REMOVE
                           'id AS vat_reg_main_id',//foreign_key -DON'T REMOVE
-                          'status',
+                          'status', 'is_deleted',
                           'vat_reg_type', 'product_type', 'cash_acc_stmt', 'duty_defer_acc', 'account_nos', 'org_no'
                           , 'uk_gateway_userid', 'uk_gateway_password', 'cds_gateway_userid', 'cds_gateway_password'
                         ]);                        
@@ -5379,7 +5573,7 @@ class CommonClass
                           'vat_reg_main_id',//foreign_key -DON'T REMOVE
                           'api_name', 'api_env', 'api_base_url', 'api_tenant_id', 'api_client_id', 
                           'api_secret_key', 'api_company_id', 'api_token', 'api_token_expire',
-                          'currency_code', 'status'
+                          'currency_code', 'status', 'use_base_currency_amount'
                         ]);            
                     },
                     'vatregmain.accnos',
@@ -5555,7 +5749,7 @@ class CommonClass
                   'vatregmain' => function ($query) {
                       $query->select(['id',//foreign_key -DON'T REMOVE
                         'id AS vat_reg_main_id',//foreign_key -DON'T REMOVE
-                        'status', 'vat_reg_type', 'product_type', 'cash_acc_stmt', 'duty_defer_acc', 'account_nos'
+                        'status', 'is_deleted', 'vat_reg_type', 'product_type', 'cash_acc_stmt', 'duty_defer_acc', 'account_nos'
                         , 'org_no', 'vat_no', 'country', 'uk_gateway_userid', 'uk_gateway_password', 'cds_gateway_userid', 'cds_gateway_password'
                       ]); 
                       //$query->where('status', '=', 1);                         
@@ -5574,7 +5768,7 @@ class CommonClass
                         'api_name', 'api_env', 'api_base_url', 'sales_invoice_url', 'purchase_invoice_url', 
                         'api_tenant_id', 'api_client_id', 
                         'api_secret_key', 'api_company_id', 'api_token', 'api_token_expire',
-                        'currency_code', 'status'
+                        'currency_code', 'status', 'use_base_currency_amount'
                       ]);
 
                       $query->where('status', '=', 1);                     
@@ -5639,12 +5833,12 @@ class CommonClass
                         'vat_reg_main_id',//foreign_key -DON'T REMOVE
                         'api_name', 'api_env', 'api_base_url', 'api_tenant_id', 'api_client_id', 
                         'api_secret_key', 'api_company_id', 'api_token', 'api_token_expire',
-                        'currency_code', 'status'
+                        'currency_code', 'status', 'use_base_currency_amount'
                       ]);
 
                       $query->where('status', '=', 1);                     
                   },
-                  'vatregmain.clientapi',
+                  //'vatregmain.clientapi',
                   'vatregmain.accnos',
                   'vatreturns'
               ];        
@@ -6338,7 +6532,7 @@ class CommonClass
         ]
       ); 
 
-      $vatreg = VATRegistration::where('id', $vat_reg_id)->first();   
+      $vatreg = VATRegistration::with(['vatregmain', 'vatregmain.clientapi'])->where('id', $vat_reg_id)->first();   
 
       try
       {                           
@@ -7675,10 +7869,67 @@ class CommonClass
       return $batchId;      
     }
 
+    public function OrgNoForOcr()
+    {      
+      $org_no = [
+        '928729605', //Adag
+        '932337274', //Aid
+        '831160462', //Almuegaarden
+        '988440965', //Aubo
+        '377642755', //Beck - GB
+        '928996212', //Beck - NO
+        '983799620', //Berend        
+        '292640361', //Berg - CH
+        '379603560', //Berg - GB
+        '934286723', //Berg - NO
+        '981353986', //Bessie
+        '916483988', //Bianco
+        '977545455', //Calida
+        '922905886', //Committee
+        '391411117', //Committee - GB
+        '933137740', //Dan
+        '887858152', //DFI
+        '923791957', //Einhell
+        '986211195', //Engel
+
+        '913538366', //Guardian
+        '994268341', //Halo
+        '917406138', //Hjort
+        '992659823', //Horn
+        '136731107', //Kite - CH
+        '917413452', //Kite - NO
+        '369530275', //Kite - UK
+        '932155141', //Lost
+        '913077679', //Lyng Rainwear
+        '925000353', //Millarco
+        '923791957', //Nordic
+        '915704573', //Noscomed
+        '158341364', //Our Units - CH
+        '819662452', //Our Units - NO
+        '913873572', //Qnuz
+        '995167352', //Rexholm
+        '980827682', //Rieker
+        '332375380', //Samsøe
+        '914821924', //Sebra
+        '454158271', //Second female - CH
+        '914733057', //Second female - NO
+        '997015606', //SGI
+        '91644842', //Sindico
+        '912676331', //Sports - NO
+        '980188744', //Stof
+        '814079112', //Tannermedico
+        '915527167', //Vernon
+        '913597877', //Villy
+        '235759090' //Woden
+      ];
+
+      return $org_no;
+    }
+
     public function loadImportReconciliationDatasFromAzureDb($authUser, $vatreg, $from = 'azure', $full_refresh = false, $invoice_name = null, $invoice_no = null)
     {
       try
-      {
+      {              
         $apiClass = new ApiClass();     
 
         $client_id = $vatreg->client_id;
@@ -7691,42 +7942,938 @@ class CommonClass
           $org_no = $vatregmain->org_no;        
         else
           $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
+                
+        $check_org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
 
-        $service_start = $vatreg->service_start;
-        $end_date = $apiClass->getEndDateLazy($vatreg);          
+        
+        $omit_org_no = $this->OrgNoForOcr();
+        if ($check_org_no && in_array($check_org_no, $omit_org_no))
+        {
+          //dd($org_no, $check_org_no, "omit");
+          //return "ocr";
 
-        $_fetch_new_data = "";
-        $_specific_invoice_data = "";
-        if(!$full_refresh)
-        {               
-          if($invoice_name)
-          {
-            if($invoice_name == 'com')            
-              $_specific_invoice_data = " AND (S.Field17 = '". $invoice_no ."') ";
-            else if($invoice_name == 'sales')
-              $_specific_invoice_data = " AND (S1.Field5 = '". $invoice_no ."' OR M.Field15 = '". $invoice_no ."') ";
+          //sync from OCR extraction
+          $from = str_replace('global', 'ocr', $from);
+
+          $insert_invoices = 0;
+          //$insert_invoices = $this->loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from, $full_refresh);
+          $insert_invoices = $this->loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from, $full_refresh, $invoice_name, $invoice_no);
+
+          return $insert_invoices;
+          // if($full_refresh && $from == 'ocr-search-refresh')
+          // {
+          //   if(count($insert_invoices['result']) > 0)
+          //     return $insert_invoices;
+          //   else  
+          //     return $insert_invoices['insert_invoices'];  
+          // }
+          // else  
+          //   return $insert_invoices;    
+
+          // return 0;      
+        } //OCR
+        else
+        {
+          $service_start = $vatreg->service_start;
+          $end_date = $apiClass->getEndDateLazy($vatreg);          
+
+          $_fetch_new_data = "";
+          $_specific_invoice_data = "";
+          if(!$full_refresh)
+          {               
+            if($invoice_name)
+            {
+              if($invoice_name == 'com')            
+                $_specific_invoice_data = " AND (S.Field17 = '". $invoice_no ."') ";
+              else if($invoice_name == 'sales')
+                $_specific_invoice_data = " AND (S1.Field5 = '". $invoice_no ."' OR M.Field15 = '". $invoice_no ."') ";
+            }
+            else
+            {
+              $importreconciliationcominvoices = $vatreg->importreconciliationcominvoices; 
+              if($importreconciliationcominvoices)
+              {
+                if(count($importreconciliationcominvoices) > 0)
+                {                           
+                  $com_invoice_last_modified_at = Carbon::parse($importreconciliationcominvoices->first()->last_modified_at)->format('Y-m-d'); 
+
+                  if($com_invoice_last_modified_at)
+                    $_fetch_new_data = " AND (S.Field30 > '". $com_invoice_last_modified_at ."' OR S1.Field30 > '". $com_invoice_last_modified_at ."') "; 
+                  else
+                    $_fetch_new_data = " AND (S.Field30 IS NOT NULL OR S1.Field30 IS NOT NULL) ";        
+                }
+              }
+            } 
           }
+
+          if($_specific_invoice_data)        
+            $vatregs = $vatreg;       
           else
           {
-            $importreconciliationcominvoices = $vatreg->importreconciliationcominvoices; 
-            if($importreconciliationcominvoices)
-            {
-              if(count($importreconciliationcominvoices) > 0)
-              {                           
-                $com_invoice_last_modified_at = Carbon::parse($importreconciliationcominvoices->first()->last_modified_at)->format('Y-m-d'); 
+            //GET All VATreg. based on vat_reg_main_id
+            $_with = ['client'];
+            $_where = [
+              'vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]
+            ];
+            $_whereHas = [];      
+            $_orderBy = [
+              'id' => 'DESC'
+            ];  
+            $_final = 'get';        
+            $vatregs = $this->getLazy('vatreg', $_with, $_where, $_whereHas, $_orderBy, $_final); 
+            //GET All VATreg. based on vat_reg_main_id  
+          }  
 
-                if($com_invoice_last_modified_at)
-                  $_fetch_new_data = " AND (S.Field30 > '". $com_invoice_last_modified_at ."' OR S1.Field30 > '". $com_invoice_last_modified_at ."') "; 
-                else
-                  $_fetch_new_data = " AND (S.Field30 IS NOT NULL OR S1.Field30 IS NOT NULL) ";        
-              }
-            }
+          $query = "SELECT " .
+                    
+                    "S.Field20 AS client_name, " . 
+                    "S.Field27 AS client_number, " .
+                  
+                    "S.Field17 AS commercial_invoice_no, " . 
+                    "S.Field18 AS commercial_invoice_date, " .                  
+
+                    "S.Field8 AS document_status, " . 
+                    "S.Field10 AS swiss_declaration_sub_type, " . 
+                    "S.Field13 AS country, " . 
+
+                    "S.Field7 AS currency, " .
+                    "S.Field25 AS net_amount, " . 
+                    "S.Field12 AS vat_amount, " . 
+                    "S.Field29 AS total_amount, " .                
+                    "S.Field3 AS shipping, " . 
+                    "S.Field4 AS saved_at, " .
+                    
+                    "M.DocID AS doc_id," .
+                    "M.Field15 AS relation_match_no, " .
+                    "M.Field1 AS relation_declaration_match_no, " .
+                   
+                    "S1.Field5 AS invoice_no, " .
+                    "S1.Field18 AS invoice_date, " .
+                    "S1.Field8 AS invoice_document_status, " . 
+                    "S1.Field10 AS invoice_swiss_declaration_sub_type, " . 
+                    "S1.Field13 AS invoice_country, " . 
+
+                    "S1.Field7 AS invoice_currency, " . 
+                    "S1.Field25 AS invoice_net_amount, " . 
+                    "S1.Field12 AS invoice_vat_amount, " . 
+                    "S1.Field29 AS invoice_total_amount, " .
+                    "S1.Field26 AS invoice_credit_note, " .                                     
+                    "S1.Field3 AS invoice_shipping, " .
+                    "S1.Field14 AS invoice_variance, " .
+                    "S1.Field6 AS invoice_saved_at, " .
+
+                    "S.Field30 AS last_modified_at " .
+
+                    "FROM ssFields S " .
+                    "LEFT JOIN ssMVFields M ON S.DocID = M.DocID " . 
+                    "LEFT JOIN ssFields S1 ON (S1.Field5 = M.Field15 AND S1.Field27 = '". $org_no ."') " .  
+
+                    "WHERE S.Field27 IS NOT NULL " .                  
+                    "AND S.Field27 = '". $org_no ."' " .                 
+                                    
+                    (($_fetch_new_data) ? $_fetch_new_data :
+
+                    (($_specific_invoice_data) ? $_specific_invoice_data :
+                    "AND (TRY_CAST(S.Field18 AS date) BETWEEN '". $service_start ."' AND '". $end_date ."') " )).                    
+
+                    //$_fetch_new_data .                   
+
+                    "AND S.Field17 IS NOT NULL " .  
+                    
+                    "ORDER BY S.Field17"
+                    ;
+
+
+          try
+          {
+            $result = DB::connection('azure_sql')->select($query);               
+          }
+          catch (\Exception $e) 
+          {        dd($e);
+            $errorMessage = $e->getMessage(); 
+
+            return $errorMessage;  
           } 
-        }
+         
+          $insert_invoices = 0;
+          if($result)  
+            $insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
+          
+          if($full_refresh && $from == 'global-search-refresh')
+            return [
+              'insert_invoices' => $insert_invoices,
+              'result' => $result,
+            ];
+          else  
+            return $insert_invoices;
+        } //azure
+      }
+      catch (\Exception $e) 
+      {        
+        $errorMessage = $e->getMessage(); 
 
-        if($_specific_invoice_data)        
-          $vatregs = $vatreg;       
+        return $errorMessage;  
+      } 
+    }
+
+    public function parseRelatedInvoices($relatedRaw): \Illuminate\Support\Collection {
+      $invoiceValues = collect();
+
+      if (!$relatedRaw) {
+          return $invoiceValues;
+      }
+
+      // Ensure $relatedRaw is an array
+      if (!is_array($relatedRaw)) {
+          $relatedRaw = preg_split('/[\r\n,]+/', (string) $relatedRaw);
+      }
+
+      foreach ($relatedRaw as $val) {
+          $val = trim($val);
+          if (!$val) continue;
+
+          // Split by commas first (already split sometimes)
+          $parts = preg_split('/,/', $val);
+
+          foreach ($parts as $part) {
+              $part = trim($part);
+              if (!$part) continue;
+
+              // Match ranges like INV100-INV105
+              if (preg_match('/^([A-Za-z]*)(\d+)\s*-\s*([A-Za-z]*)(\d+)$/', $part, $matches)) {
+                  [$full, $prefixStart, $startNum, $prefixEnd, $endNum] = $matches;
+                  $startNum = (int)$startNum;
+                  $endNum = (int)$endNum;
+
+                  if ($prefixStart === $prefixEnd && $startNum <= $endNum) {
+                      $len = strlen((string)$matches[2]);
+                      for ($i = $startNum; $i <= $endNum; $i++) {
+                          $invoiceValues->push($prefixStart . str_pad($i, $len, '0', STR_PAD_LEFT));
+                      }
+                  }
+              } else {
+                  // Not a range: split by spaces (e.g., "123 124 125" or "NO123 NO124")
+                  foreach (preg_split('/\s+/', $part) as $p) {
+                      $p = trim($p, ".,;"); // remove trailing punctuation
+                      if ($p) $invoiceValues->push($p);
+                  }
+              }
+          }
+      }
+
+      // Remove duplicates and sort
+      return $invoiceValues->unique()->sort()->values();
+  }
+
+  public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $full_refresh = false, $invoice_name = null, $invoice_no = null)
+    {
+        try {
+
+            $client_id = $vatreg->client_id;
+            $client_name = $vatreg->client->client_name;
+            $vat_reg_main_id = $vatreg->vat_reg_main_id;
+
+            $vatregmain = $vatreg->vatregmain;
+
+            $org_no = ($vatregmain->country == 'NO')
+                ? $vatregmain->org_no
+                : str_replace(['.', '-'], '', $vatregmain->vat_no);
+
+            $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
+
+            $totalProcessed = 0;
+
+            // Fetch VAT regs once (lightweight)
+            $vatregs = $this->getLazy(
+                'vatreg',
+                ['client'],
+                ['vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]],
+                [],
+                ['id' => 'DESC'],
+                'get'
+            );
+// Log::info("BEFORE dooooooooooooooooooooo");                
+// Log::info($org_no);
+
+            //$hasDispatchedAnyJobs = false;
+
+            InvoiceOcrPdf::where('sync_status', 0)
+              ->where('is_locked', 1)
+              ->update(['is_locked' => 0]);
+
+            InvoiceOcrPdf::where('invoice_type', 'com')              
+              ->where('is_locked', 1)
+              ->update(['is_locked' => 0]);  
+
+            do {
+//Log::info("start dooooooooooooooooooooo1111111");
+                /**
+                 * STEP 1: FETCH + LOCK 100 COM INVOICES
+                 */
+                //$com_ids = DB::transaction(function () use ($org_no, $client_id, $invoice_no) {
+                $com_ids = DB::transaction(function () use ($org_no, $invoice_no) {
+                  if($invoice_no)
+                  {
+                    $rows = DB::select("
+                        SELECT id
+                        FROM dv_invoice_ocr_pdfs
+                        WHERE invoice_type = 'com'
+                          AND is_locked = 0
+                          AND is_deleted = 0
+                          AND status = 'completed'
+                          AND (
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+                            OR
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+                            OR
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+                          )
+                          AND (                            
+                            JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')) = ?
+                          )                        
+                        FOR UPDATE SKIP LOCKED
+                    ", [$org_no, $org_no, $org_no, $invoice_no]);                    
+                  }
+                  else
+                  {
+                    $rows = DB::select("
+                        SELECT id
+                        FROM dv_invoice_ocr_pdfs
+                        WHERE invoice_type = 'com'
+                          AND is_locked = 0
+                          AND is_deleted = 0
+                          AND status = 'completed'
+                          AND (
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+                            OR
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+                            OR
+                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+                          )
+                        LIMIT 100
+                        FOR UPDATE SKIP LOCKED
+                    ", [$org_no, $org_no, $org_no]);
+                  }
+                    
+                    $ids = collect($rows)->pluck('id');
+
+                    if ($ids->isNotEmpty()) {
+
+                        // Lock COM invoices
+                        DB::table('dv_invoice_ocr_pdfs')
+                            ->whereIn('id', $ids)
+                            ->update([
+                                'is_locked' => 1,
+                                //'client_id' => $client_id,
+                                'updated_at' => now()
+                            ]);
+                    }
+
+                    return $ids;
+                });
+// Log::info("Com IDs: ");                
+// Log::info($com_ids);
+                if ($com_ids->isEmpty()) {
+                    break;
+                }
+
+                /**
+                 * STEP 2: LOAD COM (ONLY REQUIRED FIELDS)
+                 */
+                $comInvoices = InvoiceOcrPdf::whereIn('id', $com_ids)
+                    ->select('id', 'extracted_data')
+                    ->get();
+
+                /**
+                 * STEP 3: PARSE RELATED NUMBERS
+                 */
+                $comParsedMap = [];
+                $allRelatedNumbers = collect();
+
+                foreach ($comInvoices as $com) {
+
+                    $data = is_string($com->extracted_data)
+                        ? json_decode($com->extracted_data, true)
+                        : $com->extracted_data;
+
+                    $related = $this->parseRelatedInvoices($data['related_sales_invoices'] ?? '');
+
+                    $related = collect($related)
+                        ->filter()
+                        ->map(fn($v) => ltrim($v, '#'));
+
+                    $comParsedMap[$com->id] = $related;
+
+                    $allRelatedNumbers = $allRelatedNumbers->merge($related);
+                }
+
+                $allRelatedNumbers = $allRelatedNumbers->unique()->values();
+// Log::info("Related sales invoices: ");                
+// Log::info($allRelatedNumbers);s
+                // if ($allRelatedNumbers->isEmpty()) {
+                //     // nothing to match → continue next batch
+                //     continue;
+                // }
+
+                /**
+                 * STEP 4: FETCH MATCHING SALES (UNLOCKED ONLY)
+                 */
+                $salesInvoices = collect();
+
+                if ($allRelatedNumbers->isNotEmpty()) {
+
+                  if ($client_name && (
+                      stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+                      stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+                      stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+                    )
+                  ) 
+                  {
+                    $salesInvoices = ImportReconciliationSalesInvoicesData::select('id', 'invoice_no')
+                                        ->whereIn('invoice_no', $allRelatedNumbers)
+                                        ->get();                    
+                  } //in sales invoice data table
+                  else
+                  {
+                    if($invoice_no)
+                    {
+                      $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])                           
+                          ->where('sync_status', 1)                         
+                          ->where('is_deleted', 0)
+                          ->where('status', 'completed')
+                          ->select('id', 'extracted_data')
+                          ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+
+                              foreach ($allRelatedNumbers->chunk(500) as $chunk) {
+
+                                  $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+                                  if(str_contains(strtolower($client_name), 'stof'))
+                                    $q->orWhereRaw("
+                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
+                                        IN ($placeholders)
+                                    ", $chunk->toArray());
+                                  else if(str_contains(strtolower($client_name), 'horn bord'))
+                                    $q->orWhereRaw("
+                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
+                                        IN ($placeholders)
+                                    ", $chunk->toArray());
+                                  else  
+                                    $q->orWhereRaw("
+                                        REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
+                                    ", $chunk->toArray());
+
+                                  $q->orWhereRaw("
+                                      REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
+                                  ", $chunk->toArray());
+                              }
+                          })
+                          ->get();
+                    }
+                    else
+                    {
+                      $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])
+                          ->where('is_locked', 0)
+                          ->where('sync_status', 0)
+                          ->where('is_deleted', 0)
+                          ->where('status', 'completed')
+                          ->select('id', 'extracted_data')
+                          ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+
+                              foreach ($allRelatedNumbers->chunk(500) as $chunk) {
+
+                                  $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+                                  if(str_contains(strtolower($client_name), 'stof'))
+                                    $q->orWhereRaw("
+                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
+                                        IN ($placeholders)
+                                    ", $chunk->toArray());
+                                  else if(str_contains(strtolower($client_name), 'horn bord'))
+                                    $q->orWhereRaw("
+                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
+                                        IN ($placeholders)
+                                    ", $chunk->toArray());
+                                  else  
+                                    $q->orWhereRaw("
+                                        REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
+                                    ", $chunk->toArray());
+
+                                  $q->orWhereRaw("
+                                      REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
+                                  ", $chunk->toArray());
+                              }
+                          })
+                          ->get();
+                      }
+                  }//else in OCR table
+                }
+
+                /**
+                 * STEP 5: INDEX SALES
+                 */
+                $salesMap = [];
+
+                foreach ($salesInvoices as $sale) {
+
+                  if ($client_name && (
+                    stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+                    stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+                    stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+                    )
+                  ) 
+                  {
+                    $inv = ltrim($sale->invoice_no ?? '', '#');
+
+                    $noInv = null;
+
+                    if ($inv) $salesMap[$inv][] = $sale->id;
+                    if ($noInv) $salesMap[$noInv][] = $sale->id;
+                  } //in sales invoice data table
+                  else
+                  {
+                    $data = is_string($sale->extracted_data)
+                        ? json_decode($sale->extracted_data, true)
+                        : $sale->extracted_data;
+
+                    if(str_contains(strtolower($client_name), 'stof'))
+                      $inv = preg_replace('/-/', '', $data['invoice_number']);
+                    else if(str_contains(strtolower($client_name), 'horn bord'))
+                      $inv = preg_replace('/-/', '', $data['order_number']);
+                    else
+                      $inv = ltrim($data['invoice_number'] ?? '', '#');
+                    
+                    $noInv = ltrim($data['no_invoice_number'] ?? '', '#');
+
+                    if ($inv) $salesMap[$inv][] = $sale->id;
+                    if ($noInv) $salesMap[$noInv][] = $sale->id;
+                  }//else from OCR table extracted_data
+                }
+
+                /**
+                 * STEP 6: BUILD FINAL (LIGHTWEIGHT)
+                 */
+                $final = [];
+
+                foreach ($comParsedMap as $comId => $numbers) {
+
+                    $matchedSales = [];
+
+                    foreach ($numbers as $num) {
+                        if (isset($salesMap[$num])) {
+                            $matchedSales = array_merge($matchedSales, $salesMap[$num]);
+                        }
+                    }
+
+                    // $matchedSales = array_unique($matchedSales);
+
+                    // if (!empty($matchedSales)) {
+                    //     $final[] = [
+                    //         'com_id' => $comId,
+                    //         'sales_ids' => $matchedSales
+                    //     ];
+                    // }
+
+                    $final[] = [
+                        'com_id' => $comId,
+                        'sales_ids' => array_values(array_unique($matchedSales))
+                    ];
+                }
+// Log::info("BEFORE INSERT");                
+// Log::info($final);
+                
+                if (!empty($final)) {
+                  //$hasDispatchedAnyJobs = true;
+
+                    /**
+                     * STEP 7: LOCK SALES (PREVENT DUPLICATES)
+                     */
+                    $allSalesIds = collect($final)->pluck('sales_ids')->flatten()->unique();
+
+                    if ($client_name && (
+                      stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+                    stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+                    stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+                      )
+                    ) 
+                    {
+                      
+                    } //in sales invoice data table
+                    else
+                    {
+                      DB::table('dv_invoice_ocr_pdfs')
+                          ->whereIn('id', $allSalesIds)
+                          ->update([
+                            'is_locked' => 1,
+                            //'client_id' => $client_id,
+                            'updated_at' => now()
+                          ]);
+                    }//else from OCR table extracted_data
+// Log::info($vatregs);                        
+// Log::info("FINALLLLLLLLLLLLLLLLLLLL");
+// Log::info($final);
+                   
+                    /**
+                     * STEP 8: DISPATCH JOBS IMMEDIATELY
+                     */
+                    foreach (array_chunk($final, 10) as $chunk) {
+                        Bus::dispatch(
+                            (new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from))
+                                ->onQueue('ocrpdfsyncinvoices')
+                        );
+                    }
+
+                    $totalProcessed += count($final);
+                }                
+
+                /**
+                 * STEP 9: FREE MEMORY
+                 */
+                unset(
+                    $comInvoices,
+                    $salesInvoices,
+                    $salesMap,
+                    $comParsedMap,
+                    $allRelatedNumbers,
+                    $final
+                );
+
+                gc_collect_cycles();
+
+            } while (true);
+
+            // if ($hasDispatchedAnyJobs) {
+
+            //     $logType = match($from) {
+            //         'ocr-search-refresh', 'specific-ocr-search-refresh'
+            //             => 'importreconcilation-ocr-search-refresh',
+            //         default
+            //             => 'importreconcilation-control-refresh',
+            //     };
+
+            //     $this->addLog($authUser, $logType, [
+            //         'status' => 'OCR sync completed',
+            //         'client' => $client_name,
+            //         'processed' => $totalProcessed
+            //     ]);
+
+            //     event(new OcrInvoicesSyncEvent(
+            //         $client_id,
+            //         'Synced the OCR invoices'
+            //     ));
+            // }
+
+            return [
+                'processed' => $totalProcessed
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('OCR Load Failed: ' . $e->getMessage());
+            return $e->getMessage();
+        }
+    }
+
+//   public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $full_refresh = false, $invoice_name = null, $invoice_no = null)
+//     {
+//         try 
+//         {
+//           $client_id = $vatreg->client_id;
+//           $client_name = $vatreg->client->client_name;
+//           $vat_reg_main_id = $vatreg->vat_reg_main_id;
+
+//           $vatregmain = $vatreg->vatregmain;
+
+//           $org_no = ($vatregmain->country == 'NO')
+//               ? $vatregmain->org_no
+//               : str_replace(['.', '-'], '', $vatregmain->vat_no);
+
+//           $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
+
+//           /**
+//            * STEP 1: FETCH ONLY COM INVOICES (LIMIT 100)
+//            */
+//           $com_ids = DB::transaction(function () use ($org_no, $client_id) {
+//             $rows = DB::select("
+//                 SELECT id
+//                 FROM dv_invoice_ocr_pdfs
+//                 WHERE invoice_type = 'com'
+//                   AND is_locked = 0
+//                   AND (
+//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                     OR
+//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                     OR
+//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                   )
+//                 LIMIT 100
+//                 FOR UPDATE SKIP LOCKED
+//             ", [$org_no, $org_no, $org_no]);
+
+//             $ids = collect($rows)->pluck('id');
+
+//             if ($ids->isNotEmpty()) {
+//                 DB::table('dv_invoice_ocr_pdfs')
+//                     ->whereIn('id', $ids)
+//                     ->update(['is_locked' => 1]);
+
+//                 // update client_id correctly
+//                 InvoiceOcrPdf::whereIn('id', $ids)
+//                     ->whereNull('client_id')
+//                     ->update([
+//                         'client_id' => $client_id,
+//                         'updated_at' => now()
+//                     ]);   
+//             }
+
+//             return $ids;
+//           });
+
+//           if ($com_ids->isEmpty()) {
+//               return 0;
+//           }
+
+//           /**
+//            * STEP 2: FETCH COM INVOICES
+//            */
+//           $comInvoices = InvoiceOcrPdf::whereIn('id', $com_ids)
+//               ->orderBy('id', 'ASC')
+//               ->get();
+
+//           /**
+//            * STEP 3: COLLECT RELATED SALES NUMBERS
+//            */
+//           $allRelatedNumbers = collect();
+
+//           foreach ($comInvoices as $com) {
+//               $data = is_string($com->extracted_data)
+//                   ? json_decode($com->extracted_data, true)
+//                   : $com->extracted_data;
+
+//               $relatedRaw = $data['related_sales_invoices'] ?? '';
+//               $related = $this->parseRelatedInvoices($relatedRaw);
+
+//               $allRelatedNumbers = $allRelatedNumbers->merge($related);
+//           }
+
+//           $allRelatedNumbers = $allRelatedNumbers->unique()->values();
+
+//           /**
+//            * STEP 4: FETCH MATCHING SALES INVOICES
+//            */
+//           $salesInvoices = collect();
+
+//           if ($allRelatedNumbers->isNotEmpty()) {
+//               $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])
+//                   ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+
+//                       foreach ($allRelatedNumbers as $num) {
+
+//                           if (str_contains(strtolower($client_name), 'rainwear')) {
+//                               $q->orWhereRaw("
+//                                   JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')) = ?
+//                               ", [$num]);
+//                           } else {
+//                               $q->orWhereRaw("
+//                                   JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')) = ?
+//                               ", [$num]);
+//                           }
+//                       }
+//                   })
+//                   ->get();
+//           }
+
+//           /**
+//            * STEP 5: GROUP SALES BY INVOICE NUMBER (FAST LOOKUP)
+//            */
+//           $salesMap = [];
+
+//           foreach ($salesInvoices as $sale) {
+//               $data = is_string($sale->extracted_data)
+//                   ? json_decode($sale->extracted_data, true)
+//                   : $sale->extracted_data;
+
+//               $key = str_contains(strtolower($client_name), 'rainwear')
+//                   ? ltrim($data['no_invoice_number'] ?? '', '#')
+//                   : ltrim($data['invoice_number'] ?? '', '#');
+
+//               if ($key) {
+//                   $salesMap[$key][] = $sale;
+//               }
+//           }
+
+//           /**
+//            * STEP 6: BUILD FINAL STRUCTURE
+//            */
+//           $final = $comInvoices->map(function ($com) use ($salesMap) {
+
+//               $data = is_string($com->extracted_data)
+//                   ? json_decode($com->extracted_data, true)
+//                   : $com->extracted_data;
+
+//               $relatedNumbers = $this->parseRelatedInvoices($data['related_sales_invoices'] ?? '');
+
+//               $matchedSales = collect();
+
+//               foreach ($relatedNumbers as $num) {
+//                   if (isset($salesMap[$num])) {
+//                       $matchedSales = $matchedSales->merge($salesMap[$num]);
+//                   }
+//               }
+
+//               return [
+//                   'com_invoice' => $com,
+//                   'sales_invoices' => $matchedSales->values()
+//               ];
+//           })
+//           ->filter(fn($item) => $item['sales_invoices']->isNotEmpty())
+//           ->values();
+// dd($final);
+//           if ($final->isEmpty()) {
+//               return 0;
+//           }
+
+//           /**
+//            * STEP 7: FETCH VAT REGS
+//            */
+//           $vatregs = $this->getLazy(
+//               'vatreg',
+//               ['client'],
+//               ['vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]],
+//               [],
+//               ['id' => 'DESC'],
+//               'get'
+//           );
+
+//           /**
+//            * STEP 8: CHUNK + DISPATCH
+//            */
+//           $chunks = $final->chunk(100);
+
+//           $jobs = [];
+//           foreach ($chunks as $chunk) {
+//               $jobs[] = new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from);
+//           }
+
+//           $batch = Bus::batch($jobs)
+//               ->onQueue('ocrpdfsyncinvoices')
+//               ->catch(function ($batch, $e) {
+//                   Log::error('OCR SYNC batch failed: ' . $e->getMessage());
+//               })
+//               ->dispatch();
+
+//           return [
+//               'insert_invoices' => $batch->id,
+//               'result' => $final,
+//           ];
+
+//         } catch (\Exception $e) {
+//             Log::error('OCR Load Failed: ' . $e->getMessage());
+//             return $e->getMessage();
+//         }
+//     }
+
+  /*
+    public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $full_refresh = false, $invoice_name = null, $invoice_no = null)
+    {
+      try
+      {
+        $client_id = $vatreg->client_id;
+        $vat_reg_id = $vatreg->id;
+
+        $vatregmain = $vatreg->vatregmain; 
+        $vat_reg_main_id = $vatreg->vat_reg_main_id;
+
+        if($vatregmain->country == 'NO')
+          $org_no = $vatregmain->org_no;        
         else
+          $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
+
+        $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
+        
+        $result_ids = DB::transaction(function () use ($org_no) {
+            $rows = DB::select("
+                SELECT id
+                FROM dv_invoice_ocr_pdfs
+                WHERE ((invoice_type = 'com') OR (invoice_type != 'com' AND sync_status = 0 AND is_locked = 0))
+                  AND (
+                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+                    OR
+                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+                    OR
+                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+                  )" .
+                //LIMIT 100
+               " FOR UPDATE SKIP LOCKED
+            ", [$org_no, $org_no, $org_no]);
+
+            $ids = collect($rows)->pluck('id');
+
+            if ($ids->isNotEmpty()) {
+                DB::table('dv_invoice_ocr_pdfs')
+                    ->whereIn('id', $ids)
+                    ->update(['is_locked' => 1]);
+            }
+
+            return $ids;
+        });
+
+        // Update client_id for the results
+        $updateClientId = InvoiceOcrPdf::whereIn('id', $result_ids)
+                            ->whereNull('client_id')
+                            ->update([
+                              'client_id' => $client_id,
+                              'updated_at' => now()
+                            ]);
+
+        // Now fetch full models with relations
+        $result = InvoiceOcrPdf::with('client')
+                    ->whereIn('id', $result_ids)
+                    ->orderBy('id', 'ASC')
+                    ->get();
+
+        $grouped = $result->groupBy('invoice_type');
+
+        $comInvoices   = $grouped->get('com', collect());
+        $salesInvoices = $grouped->get('sales', collect())
+            ->merge($grouped->get('multi-invoices', collect()));
+
+        $final = $comInvoices->map(function ($com) use ($salesInvoices, $client_name) {
+
+            $extracted = $com->extracted_data;
+
+            // Convert JSON string → array if needed
+            if (is_string($extracted)) {
+                $extracted = json_decode($extracted, true);
+            }
+            
+            $relatedRaw = $extracted['related_sales_invoices'] ?? '';           
+
+            $relatedNumbers = $this->parseRelatedInvoices($relatedRaw);
+
+            // Match with sales invoices
+            $matchedSales = $salesInvoices->filter(function ($sale) use ($relatedNumbers, $client_name) {
+
+                $saleData = is_string($sale->extracted_data)
+                    ? json_decode($sale->extracted_data, true)
+                    : $sale->extracted_data;
+
+                if(str_contains(strtolower($client_name), 'rainwear'))
+                  return in_array(ltrim($saleData['no_invoice_number'] ?? '', '#'), $relatedNumbers->toArray());
+                else
+                  return in_array(ltrim($saleData['invoice_number'] ?? '', '#'), $relatedNumbers->toArray());
+            })->values();
+
+            return [
+                'com_invoice'   => $com,
+                'sales_invoices'=> $matchedSales
+            ];
+        })
+        ->filter(function ($item) {
+            return $item['sales_invoices']->isNotEmpty();
+        })
+        ->values(); // optional: reindex
+
+        if(count($final) > 0)
         {
           //GET All VATreg. based on vat_reg_main_id
           $_with = ['client'];
@@ -7740,98 +8887,50 @@ class CommonClass
           $_final = 'get';        
           $vatregs = $this->getLazy('vatreg', $_with, $_where, $_whereHas, $_orderBy, $_final); 
           //GET All VATreg. based on vat_reg_main_id  
-        }  
 
-        $query = "SELECT " .
-                  
-                  "S.Field20 AS client_name, " . 
-                  "S.Field27 AS client_number, " .
-                
-                  "S.Field17 AS commercial_invoice_no, " . 
-                  "S.Field18 AS commercial_invoice_date, " .                  
+          //$chunks = array_chunk($final, 100); // Divide your data array into chunks     
+          $chunks = $final->chunk(100);
 
-                  "S.Field8 AS document_status, " . 
-                  "S.Field10 AS swiss_declaration_sub_type, " . 
-                  "S.Field13 AS country, " . 
+          // Create a batch and add jobs to it.
+          $jobs = [];
+          foreach ($chunks as $chunk) {
+            $jobs[] = new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from);
+          }
 
-                  "S.Field7 AS currency, " .
-                  "S.Field25 AS net_amount, " . 
-                  "S.Field12 AS vat_amount, " . 
-                  "S.Field29 AS total_amount, " .                
-                  "S.Field3 AS shipping, " . 
-                  "S.Field4 AS saved_at, " .
-                  
-                  "M.DocID AS doc_id," .
-                  "M.Field15 AS relation_match_no, " .
-                  "M.Field1 AS relation_declaration_match_no, " .
-                 
-                  "S1.Field5 AS invoice_no, " .
-                  "S1.Field18 AS invoice_date, " .
-                  "S1.Field8 AS invoice_document_status, " . 
-                  "S1.Field10 AS invoice_swiss_declaration_sub_type, " . 
-                  "S1.Field13 AS invoice_country, " . 
+          // // Dispatch all jobs in the batch.    
+          $batch = Bus::batch($jobs)
+            ->onQueue('ocrpdfsyncinvoices')
+            ->then(function ($batch) {            
+              //\Log::info('All jobs completed successfully.');
+            })
+            ->catch(function ($batch, $e) {            
+              //\Log::error('Some jobs failed: ' . $e->getMessage());
+            })
+            ->finally(function ($batch) use($jobs) {
+              //\Log::info('Batch finished. Finally callback triggered.', ['batch' => $batch]);
+            })
+            ->dispatch();
 
-                  "S1.Field7 AS invoice_currency, " . 
-                  "S1.Field25 AS invoice_net_amount, " . 
-                  "S1.Field12 AS invoice_vat_amount, " . 
-                  "S1.Field29 AS invoice_total_amount, " .
-                  "S1.Field26 AS invoice_credit_note, " .                                     
-                  "S1.Field3 AS invoice_shipping, " .
-                  "S1.Field14 AS invoice_variance, " .
-                  "S1.Field6 AS invoice_saved_at, " .
+          // Get the batch ID
+          $batchId = $batch->id;    
 
-                  "S.Field30 AS last_modified_at " .
-
-                  "FROM ssFields S " .
-                  "LEFT JOIN ssMVFields M ON S.DocID = M.DocID " . 
-                  "LEFT JOIN ssFields S1 ON (S1.Field5 = M.Field15 AND S1.Field27 = '". $org_no ."') " .  
-
-                  "WHERE S.Field27 IS NOT NULL " .                  
-                  "AND S.Field27 = '". $org_no ."' " .                 
-                                  
-                  (($_fetch_new_data) ? $_fetch_new_data :
-
-                  (($_specific_invoice_data) ? $_specific_invoice_data :
-                  "AND (TRY_CAST(S.Field18 AS date) BETWEEN '". $service_start ."' AND '". $end_date ."') " )).                    
-
-                  //$_fetch_new_data .                   
-
-                  "AND S.Field17 IS NOT NULL " .  
-                  
-                  "ORDER BY S.Field17"
-                  ;
-
-
-        try
-        { 
-          $result = DB::connection('azure_sql')->select($query);               
-        }
-        catch (\Exception $e) 
-        {        dd($e);
-          $errorMessage = $e->getMessage(); 
-
-          return $errorMessage;  
-        } 
-       
-        $insert_invoices = 0;
-        if($result)  
-          $insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
-        
-        if($full_refresh && $from == 'global-search-refresh')
+          //return $batchId;
           return [
-            'insert_invoices' => $insert_invoices,
-            'result' => $result,
+            'insert_invoices' => $batchId,
+            'result' => $final,
           ];
-        else  
-          return $insert_invoices;        
+        }
+        else
+          return 0;  
       }
       catch (\Exception $e) 
-      {        
+      {    dd($e);    
         $errorMessage = $e->getMessage(); 
 
         return $errorMessage;  
-      } 
+      }
     }
+    */
 
     /*  DON'T USE THIS METHOD */
     public function loadImportReconciliationDatasFromFtp($authUser, $vatreg, $system = null, $refresh = false, $from = 'ftp', $which_folder = 'main')
@@ -8730,8 +9829,8 @@ class CommonClass
           $_start_at = Carbon::parse($reminder->start_at);
           $_schedule = $reminder->schedule;  
 
-          $send_test_text_yes = ($reminder->send_test_reminder)? $reminder->send_test_reminder: '';
-          $send_test_text_no = ($reminder->save_status) ? $reminder->save_status : '';
+          $send_test_text_yes = ($reminder_request->send_test_reminder)? $reminder_request->send_test_reminder: '';
+          $send_test_text_no = ($reminder_request->save_status) ? $reminder_request->save_status : '';
 
           if(!empty($reminder->reminderhistory))
           {           
@@ -8744,21 +9843,23 @@ class CommonClass
             if($_schedule == 'Does not repeat')
             {
               if($_start_at->format('Ymd') <= Carbon::now()->format('Ymd'))
-              {                
+              {
                 $_sent = $this->sendReminderEmail($reminder, $sender, $authUser, $send_test_text_yes, $send_test_text_no);
                
                 if($_sent == 'success')
                 {    
                   if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')  
-                  {              
+                  {
                     /* -- UPDATE REMINDER is_closed -- */
-                    $reminder->close_status = 1;
-                    $reminder->updated_by = $authUser->user_id;
-                    $reminder->save();
-                    /* --end UPDATE REMINDER is_closed -- */
+                    $getreminder = Reminder::where('id', $reminder->id)->first();
+
+                    $getreminder->close_status = 1;
+                    $getreminder->updated_by = $authUser->user_id;
+                    $getreminder->save();
+                    /* --end UPDATE REMINDER is_closed -- */                    
                   }
 
-                  $result[$key][$_start_at->format('Ymd')] = $reminder->title . ': email sent successfully';
+                  $result[$key][$_start_at->format('Ymd')] = $reminder->title . ': email sent successfully';                  
                 } /* --end if EMAIL SENT -- */                         
               } /* --end if START DATE MATCH -- */
             } /* --end if SCHEDULE-Does not repeat -- */
@@ -8834,7 +9935,7 @@ class CommonClass
         return $result;
       }
       catch (\Exception $e)        
-      {
+      {dd($e);
           return $e->getMessage();
       }            
     }
@@ -8842,6 +9943,27 @@ class CommonClass
 
     /* -- sendReminderEmail -- */
     public function sendReminderEmail($reminder, $sender, $authUser, $send_test_text_yes, $send_test_text_no, $_sent_at = '')
+    {
+        try {
+            ProcessReminderEmailJob::dispatch(
+                $reminder,
+                $sender,
+                $authUser,
+                $send_test_text_yes,
+                $send_test_text_no,
+                $_sent_at
+            )->onQueue('reminderemails');
+
+            return 'success'; // keep same behavior
+        } catch (\Exception $e) {
+            return $e->getMessage();
+        }
+    }
+    /* --end sendReminderEmail -- */
+
+    /* -- processReminderEmail -- */
+    //public function sendReminderEmail($reminder, $sender, $authUser, $send_test_text_yes, $send_test_text_no, $_sent_at = '')
+    public function processReminderEmail($reminder, $sender, $authUser, $send_test_text_yes, $send_test_text_no, $send_to_client, $_sent_at = '')
     {                  
       try 
       {
@@ -8959,55 +10081,59 @@ class CommonClass
           $sender_firstname = $sender_dvuser->firstname;
           $sender_designation = $sender_dvuser->designation;
           /* --end GET ADMIN USER -- */
-$x = ''; 
+
           /* Send reminder email based on condition */          
           if($send_test_text_yes == 'send_test_reminder' || $send_test_text_no == 'nosave')
           {            
             $send_to = $authUser->email;
             
             $emaillang = $authUser->lang;
-            $period_text = str_replace(
-              array(
-                "no_1",
-                "no_2",
-                "no_3",
-                "no_4",
-                "no_5",
-                "no_6",
-                "uk_1",
-                "uk_2",
-                "uk_3",
-                "uk_4",
-                "uk_5",
-                "uk_6",
-                "uk_7",
-                "uk_8",
-                "uk_9",
-                "uk_10",
-                "uk_11",
-                "uk_12"
-              ),
-              array(
-                __('january-february', [], $emaillang),
-                __('march-april', [], $emaillang),
-                __('may-june', [], $emaillang),
-                __('july-august', [], $emaillang),
-                __('september-october', [], $emaillang),
-                __('november-december', [], $emaillang),
-                __('january-february-march', [], $emaillang),
-                __('february-march-april', [], $emaillang),
-                __('march-april-may', [], $emaillang),
-                __('april-may-june', [], $emaillang),
-                __('may-june-july', [], $emaillang),
-                __('june-july-august', [], $emaillang),
-                __('july-august-september', [], $emaillang),
-                __('august-september-october', [], $emaillang),
-                __('september-october-november', [], $emaillang),
-                __('october-november-december', [], $emaillang),
-                __('november-december-january', [], $emaillang),
-                __('december-january-february', [], $emaillang)
-              ),           
-            $_period);
+           
+            $period_process = $this->periodProcessForm($_period, $_year, $emaillang);
+            $period_text = $period_process['period_label'];
+
+            // $period_text = str_replace(
+            //   array(
+            //     "no_1",
+            //     "no_2",
+            //     "no_3",
+            //     "no_4",
+            //     "no_5",
+            //     "no_6",
+            //     "uk_1",
+            //     "uk_2",
+            //     "uk_3",
+            //     "uk_4",
+            //     "uk_5",
+            //     "uk_6",
+            //     "uk_7",
+            //     "uk_8",
+            //     "uk_9",
+            //     "uk_10",
+            //     "uk_11",
+            //     "uk_12"
+            //   ),
+            //   array(
+            //     __('january-february', [], $emaillang),
+            //     __('march-april', [], $emaillang),
+            //     __('may-june', [], $emaillang),
+            //     __('july-august', [], $emaillang),
+            //     __('september-october', [], $emaillang),
+            //     __('november-december', [], $emaillang),
+            //     __('january-february-march', [], $emaillang),
+            //     __('february-march-april', [], $emaillang),
+            //     __('march-april-may', [], $emaillang),
+            //     __('april-may-june', [], $emaillang),
+            //     __('may-june-july', [], $emaillang),
+            //     __('june-july-august', [], $emaillang),
+            //     __('july-august-september', [], $emaillang),
+            //     __('august-september-october', [], $emaillang),
+            //     __('september-october-november', [], $emaillang),
+            //     __('october-november-december', [], $emaillang),
+            //     __('november-december-january', [], $emaillang),
+            //     __('december-january-february', [], $emaillang)
+            //   ),           
+            // $_period);
                     
             $final_title = str_replace(
               array(
@@ -9059,49 +10185,52 @@ $x = '';
               $_user_lang = $dvuser->lang;
 
               $send_to = $user->email;
+              
+              $period_process = $this->periodProcessForm($_period, $_year, $_user_lang);
+              $period_text = $period_process['period_label'];
 
-              $period_text = str_replace(
-                array(
-                  "no_1",
-                  "no_2",
-                  "no_3",
-                  "no_4",
-                  "no_5",
-                  "no_6",
-                  "uk_1",
-                  "uk_2",
-                  "uk_3",
-                  "uk_4",
-                  "uk_5",
-                  "uk_6",
-                  "uk_7",
-                  "uk_8",
-                  "uk_9",
-                  "uk_10",
-                  "uk_11",
-                  "uk_12"
-                ),
-                array(
-                  __('january-february', [], $_user_lang),
-                  __('march-april', [], $_user_lang),
-                  __('may-june', [], $_user_lang),
-                  __('july-august', [], $_user_lang),
-                  __('september-october', [], $_user_lang),
-                  __('november-december', [], $_user_lang),
-                  __('january-february-march', [], $_user_lang),
-                  __('february-march-april', [], $_user_lang),
-                  __('march-april-may', [], $_user_lang),
-                  __('april-may-june', [], $_user_lang),
-                  __('may-june-july', [], $_user_lang),
-                  __('june-july-august', [], $_user_lang),
-                  __('july-august-september', [], $_user_lang),
-                  __('august-september-october', [], $_user_lang),
-                  __('september-october-november', [], $_user_lang),
-                  __('october-november-december', [], $_user_lang),
-                  __('november-december-january', [], $_user_lang),
-                  __('december-january-february', [], $_user_lang)
-                ),           
-              $_period);
+              // $period_text = str_replace(
+              //   array(
+              //     "no_1",
+              //     "no_2",
+              //     "no_3",
+              //     "no_4",
+              //     "no_5",
+              //     "no_6",
+              //     "uk_1",
+              //     "uk_2",
+              //     "uk_3",
+              //     "uk_4",
+              //     "uk_5",
+              //     "uk_6",
+              //     "uk_7",
+              //     "uk_8",
+              //     "uk_9",
+              //     "uk_10",
+              //     "uk_11",
+              //     "uk_12"
+              //   ),
+              //   array(
+              //     __('january-february', [], $_user_lang),
+              //     __('march-april', [], $_user_lang),
+              //     __('may-june', [], $_user_lang),
+              //     __('july-august', [], $_user_lang),
+              //     __('september-october', [], $_user_lang),
+              //     __('november-december', [], $_user_lang),
+              //     __('january-february-march', [], $_user_lang),
+              //     __('february-march-april', [], $_user_lang),
+              //     __('march-april-may', [], $_user_lang),
+              //     __('april-may-june', [], $_user_lang),
+              //     __('may-june-july', [], $_user_lang),
+              //     __('june-july-august', [], $_user_lang),
+              //     __('july-august-september', [], $_user_lang),
+              //     __('august-september-october', [], $_user_lang),
+              //     __('september-october-november', [], $_user_lang),
+              //     __('october-november-december', [], $_user_lang),
+              //     __('november-december-january', [], $_user_lang),
+              //     __('december-january-february', [], $_user_lang)
+              //   ),           
+              // $_period);
                
               $final_title = str_replace(
                 array(
@@ -9141,118 +10270,140 @@ $x = '';
               $reminderuser_client_users = UserClient::with(['client'])->where('user_id', $reminderuser->user_id)->get();
               
               foreach($reminderuser_client_users as $reminderuser_client_user)
-              {                
-                if(in_array($reminderuser_client_user->client_id, $reminder->send_to_client[$reminderuser->user_id]))
-                {                  
-                  $clientname_final_title = str_replace(
-                    array(
-                      "[client_name]"
-                    ),
-                    array(
-                      $reminderuser_client_user->client->client_name
-                    ),           
-                  "[client_name] - " . $final_title);
-                  $data['subject'] = $clientname_final_title;
+              {   
+                if (array_key_exists($reminderuser->user_id, $send_to_client)) 
+                {             
+                  //if(in_array($reminderuser_client_user->client_id, $reminder->send_to_client[$reminderuser->user_id]))
+                  if(in_array($reminderuser_client_user->client_id, $send_to_client[$reminderuser->user_id]))
+                  {                  
+                    $clientname_final_title = str_replace(
+                      array(
+                        "[client_name]"
+                      ),
+                      array(
+                        $reminderuser_client_user->client->client_name
+                      ),           
+                    "[client_name] - " . $final_title);
+                    $data['subject'] = $clientname_final_title;
 
-                  $clientname_final_content = str_replace(
-                    array(
-                      "[client_name]"
-                    ),
-                    array(
-                      $reminderuser_client_user->client->client_name
-                    ),  
-                  $final_content);
-                  $data['message'] = (($_vatreg_folder == "general reminder") ? '' : ($_vatreg_folder . "<br>")) . $clientname_final_content;
+                    $clientname_final_content = str_replace(
+                      array(
+                        "[client_name]"
+                      ),
+                      array(
+                        $reminderuser_client_user->client->client_name
+                      ),  
+                    $final_content);
+                    $data['message'] = (($_vatreg_folder == "general reminder") ? '' : ($_vatreg_folder . "<br>")) . $clientname_final_content;
 
-                  $mailsent = $this->SendEmail($data,$send_to,$_action_name);
+                    $mailsent = $this->SendEmail($data,$send_to,$_action_name);
 
-                  if($mailsent)            
-                  {
-                    $return_msg++;
-
-                    $email_headers = $mailsent->getOriginalMessage()->getHeaders();
-                    $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
-                    if ($message_id)
+                    // if($mailsent == 'premtest')            
+                    // {
+                    //   \Log::info("Reminder email sent to : " . $send_to);          
+                    //   $return_msg++;
+                    // }
+                    // else 
+                    if($mailsent)            
                     {
-                      $email_sent_to = $email_headers->getHeaderBody('To');
-                      $email_sent_subject = $email_headers->getHeaderBody('Subject');
+                      $return_msg++;
 
-                      if($dvuser != "")             
-                        $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
-                      else             
-                        $uname = $authUser->firstname . ' ' . $authUser->lastname;
-                     
-                      if(empty($vat_reg_ids))
+                      $email_headers = $mailsent->getOriginalMessage()->getHeaders();
+                      $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
+                      if ($message_id)
                       {
-                        if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                        $email_sent_to = $email_headers->getHeaderBody('To');
+                        $email_sent_subject = $email_headers->getHeaderBody('Subject');
+
+                        if($dvuser != "")             
+                          $uname = $dvuser->firstname . ' ' . $dvuser->lastname;             
+                        else             
+                          $uname = $authUser->firstname . ' ' . $authUser->lastname;
+                       
+                        if(empty($vat_reg_ids))
                         {
-                          $period_month = str_replace(
-                            array(
-                              "no_1",
-                              "no_2",
-                              "no_3",
-                              "no_4",
-                              "no_5",
-                              "no_6",
-                              "uk_1",
-                              "uk_2",
-                              "uk_3",
-                              "uk_4",
-                              "uk_5",
-                              "uk_6",
-                              "uk_7",
-                              "uk_8",
-                              "uk_9",
-                              "uk_10",
-                              "uk_11",
-                              "uk_12"
-                            ),
-                            array(
-                              '01',
-                              '03',
-                              '05',
-                              '07',
-                              '09',
-                              '11',
-                              '01',
-                              '02',
-                              '03',
-                              '04',
-                              '05',
-                              '06',
-                              '07',
-                              '08',
-                              '09',
-                              '10',
-                              '11',
-                              '12'
-                            ),           
-                          $_period);
+                          if($send_test_text_yes != 'send_test_reminder' || $send_test_text_no != 'nosave')
+                          {
+                            $period_process = $this->periodProcessForm($_period, $_year, $_user_lang);
+                            
+                            // $period_month = str_replace(
+                            //   array(
+                            //     "no_1",
+                            //     "no_2",
+                            //     "no_3",
+                            //     "no_4",
+                            //     "no_5",
+                            //     "no_6",
+                            //     "uk_1",
+                            //     "uk_2",
+                            //     "uk_3",
+                            //     "uk_4",
+                            //     "uk_5",
+                            //     "uk_6",
+                            //     "uk_7",
+                            //     "uk_8",
+                            //     "uk_9",
+                            //     "uk_10",
+                            //     "uk_11",
+                            //     "uk_12"
+                            //   ),
+                            //   array(
+                            //     '01',
+                            //     '03',
+                            //     '05',
+                            //     '07',
+                            //     '09',
+                            //     '11',
+                            //     '01',
+                            //     '02',
+                            //     '03',
+                            //     '04',
+                            //     '05',
+                            //     '06',
+                            //     '07',
+                            //     '08',
+                            //     '09',
+                            //     '10',
+                            //     '11',
+                            //     '12'
+                            //   ),           
+                            // $_period);
 
-                          $vatreg = VATRegistration::with(['client'])
-                                      ->where('client_id', $reminderuser_client_user->client->id)
-                                      ->where('service_start', $_year . '-' . $period_month . '-01')
-                                      ->first();
+                            $vatreg = VATRegistration::with(['client'])
+                                        ->where('client_id', $reminderuser_client_user->client->id)
+                                        //->where('service_start', $_year . '-' . $period_month . '-01')
+                                        ->where('service_start', $period_process['service_start'])
+                                        ->first();
 
-                          $emailNotification = new EmailNotification;
-                          $emailNotification->vat_reg_id = ($vatreg) ? $vatreg->id : NULL; 
-                          $emailNotification->message_id = $message_id;   
-                          $emailNotification->subject = $email_sent_subject;                   
-                          $emailNotification->name = $uname;            
-                          $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
-                          $emailNotification->sent_by = $authUser->user_id;
-                          $emailNotification->reminder_action_id = $_action_id;
-                          
-                          $emailNotification->save();
+                            $emailNotification = new EmailNotification;
+                            $emailNotification->vat_reg_id = ($vatreg) ? $vatreg->id : NULL; 
+                            $emailNotification->message_id = $message_id;   
+                            $emailNotification->subject = $email_sent_subject;                   
+                            $emailNotification->name = $uname;            
+                            $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
+                            $emailNotification->sent_by = $authUser->user_id;
+                            $emailNotification->reminder_action_id = $_action_id;
+                            
+                            $emailNotification->save();
+                          }
                         }
-                      }
-                    }              
-                  }                  
-                } //only selected CLIENT
+                      }              
+                    }                  
+                  } //only selected CLIENT
+                } //if user id exists  as key  
+                // else
+                // {
+                //   \Log::info("user id not exists in sent_to_client: " . $reminderuser->user_id);
+                // }  
               } //for user clients
             } //for loop
           }
          
+          // if($mailsent == 'premtest')            
+          // {
+          //   $return_msg++;
+          // }
+          // else 
           if($mailsent)            
           {
             $return_msg++;
@@ -9327,10 +10478,131 @@ $x = '';
           return $e->getMessage();
       }            
     }
-    /* --end sendReminderEmail -- */
+    /* --end processReminderEmail -- */
+
+    // Example controller method
+    public function periodProcessForm($_period, $_year, $emaillang)
+    {
+        // $_period = $request->input('period'); // e.g., 'uk_3'
+        // $_year = $request->input('year');     // e.g., '2026'
+        // $emaillang = app()->getLocale();      // current language
+
+        // 1️⃣ Define period keys and their readable periods
+        $periodLabels = [
+            // single months
+            'jan' => __('January', [], $emaillang),
+            'feb' => __('February', [], $emaillang),
+            'mar' => __('March', [], $emaillang),
+            'apr' => __('April', [], $emaillang),
+            'may' => __('May', [], $emaillang),
+            'jun' => __('June', [], $emaillang),
+            'jul' => __('July', [], $emaillang),
+            'aug' => __('August', [], $emaillang),
+            'sep' => __('September', [], $emaillang),
+            'oct' => __('October', [], $emaillang),
+            'nov' => __('November', [], $emaillang),
+            'dec' => __('December', [], $emaillang),
+
+            // combined periods → use first month as start
+            'jan-feb' => __('January - February', [], $emaillang),
+            'mar-apr' => __('March - April', [], $emaillang),
+            'may-jun' => __('May - June', [], $emaillang),
+            'jul-aug' => __('July - August', [], $emaillang),
+            'sep-oct' => __('September - October', [], $emaillang),
+            'nov-dec' => __('November - December', [], $emaillang),
+            'jan-mar' => __('January - March', [], $emaillang),
+            'apr-jun' => __('April - June', [], $emaillang),
+            'jul-sep' => __('July - September', [], $emaillang),
+            'oct-dec' => __('October - December', [], $emaillang),
+            'jan-jun' => __('January - June', [], $emaillang),
+            'jul-dec' => __('July - December', [], $emaillang),
+            'jan-dec' => __('January - December', [], $emaillang),
+            'feb-apr' => __('February - April', [], $emaillang),
+            'mar-may' => __('March - May', [], $emaillang),
+            'may-jul' => __('May - July', [], $emaillang),
+            'jun-aug' => __('June - August', [], $emaillang),
+            'aug-oct' => __('August - October', [], $emaillang),
+            'sep-nov' => __('September - November', [], $emaillang),
+            'nov-jan' => __('November - January', [], $emaillang),
+            'dec-feb' => __('December - February', [], $emaillang),
+        ];
+
+        // 2️⃣ Map country-period keys to period labels
+        $countryPeriods = [
+            'at' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'be' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'cz' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'fi' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'de' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec','5'=>'jan-jun','6'=>'jul-dec','7'=>'jan-dec','8'=>'jan','9'=>'feb','10'=>'mar','11'=>'apr','12'=>'may','13'=>'jun','14'=>'jul','15'=>'aug','16'=>'sep','17'=>'oct','18'=>'nov','19'=>'dec'],
+            'dk' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec','5'=>'jan-jun','6'=>'jul-dec'],
+            'fr' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'ie' => ['1'=>'jan-feb','2'=>'mar-apr','3'=>'may-jun','4'=>'jul-aug','5'=>'sep-oct','6'=>'nov-dec'],
+            'it' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'lu' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'nl' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'no' => ['1'=>'jan-feb','2'=>'mar-apr','3'=>'may-jun','4'=>'jul-aug','5'=>'sep-oct','6'=>'nov-dec'],
+            'pl' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'pt' => ['1'=>'jan','2'=>'feb','3'=>'mar','4'=>'apr','5'=>'may','6'=>'jun','7'=>'jul','8'=>'aug','9'=>'sep','10'=>'oct','11'=>'nov','12'=>'dec'],
+            'es' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'se' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'ch' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+            'uk' => ['1'=>'jan-mar','2'=>'feb-apr','3'=>'mar-may','4'=>'apr-jun','5'=>'may-jul','6'=>'jun-aug','7'=>'jul-sep','8'=>'aug-oct','9'=>'sep-nov','10'=>'oct-dec','11'=>'nov-jan','12'=>'dec-feb'],
+            'us' => ['1'=>'jan-mar','2'=>'apr-jun','3'=>'jul-sep','4'=>'oct-dec'],
+        ];
+
+        // 3️⃣ Map period key to start month for DB
+        $periodStartMonth = [
+            'jan' => '01', 'feb' => '02', 'mar' => '03', 'apr' => '04', 'may' => '05', 'jun' => '06',
+            'jul' => '07', 'aug' => '08', 'sep' => '09', 'oct' => '10', 'nov' => '11', 'dec' => '12',
+            'jan-feb' => '01','mar-apr' => '03','may-jun' => '05','jul-aug' => '07','sep-oct' => '09','nov-dec' => '11',
+            'jan-mar' => '01','apr-jun' => '04','jul-sep' => '07','oct-dec' => '10','jan-jun' => '01','jul-dec' => '07',
+            'jan-dec' => '01','feb-apr' => '02','mar-may' => '03','may-jul' => '05','jun-aug' => '06','aug-oct' => '08',
+            'sep-nov' => '09','nov-jan' => '11','dec-feb' => '12',
+        ];        
+
+        // 5️⃣ Resolve the submitted period
+        $resolved = $this->resolvePeriod($_period, $countryPeriods, $periodLabels, $periodStartMonth);
+
+        if (!$resolved['month']) {
+            throw new \Exception("Invalid period key: $_period");
+        }
+
+        $serviceStart = $_year . '-' . $resolved['month'] . '-01';
+        
+        // 7️⃣ Return translated period for frontend + DB results
+        return //response()->json(
+          [
+            'period_label' => $resolved['label'],
+            'service_start' => $serviceStart            
+          ];
+        //);
+    }
+
+    // 4️⃣ Function to resolve period key
+    public function resolvePeriod($_period, $countryPeriods, $periodLabels, $periodStartMonth) 
+    {
+        if (preg_match('/^([a-z]{2})_(\d+)$/', $_period, $matches)) {
+            $country = $matches[1];
+            $num = $matches[2];
+
+            if (isset($countryPeriods[$country][$num])) {
+                $labelKey = $countryPeriods[$country][$num];
+                return [
+                    'label' => $periodLabels[$labelKey] ?? null,
+                    'month' => $periodStartMonth[$labelKey] ?? null,
+                ];
+            }
+        }
+        return ['label'=>null, 'month'=>null];
+    }
 
     public function SendEmail($data, $send_to, $_action_name)
     {
+      // if(strtolower($_action_name) == 'general reminder') 
+      // {                            
+      //   return "premtest";
+      // }
+
       if(strtolower($_action_name) == 'no data in folder')
         $email_data = new ReminderNoDataInFolderEmail($data);
       else if(strtolower($_action_name) == 'upload missed') 
@@ -9796,7 +11068,8 @@ dd($matches);
                         })                           
                         ->whereNull('rematch_com_invoice_id')                                                            
                         ->where('invoice_no', 'NOT LIKE', 'SPG-%-NO')                                                
-                        ->whereNot('data_from', 'ivf')                                             
+                        ->whereNot('data_from', 'ivf')
+                        ->whereNot('data_from', 'swiss')                                             
                         ->get();
       
         foreach($importreconciliationcominvoices as $importreconciliationcominvoice)       
@@ -9948,4 +11221,143 @@ dd($matches);
         return $totalSize;
     }
     /* -- Get Email Size -- */
+
+    /* -- GET Reminders schedule -- */
+    public function scheduleCRMReminder($authUser)
+    {
+        try 
+        {      
+            $now = now();
+            $check_date = $now->toDateString();
+            $check_time = $now->format('H:i:s');
+
+            $reminders = CRMReminder::whereDate('reminder_date', $check_date)
+                            ->whereTime('reminder_time','<=', $check_time)
+                            ->where('email_sent',0)                            
+                            ->get();
+            
+            // $sent_to = (strtolower(env('APP_URL')) === "http://localhost:8000" || strtolower(config('app.url')) === "http://localhost:8000") ? 'mail2oxygeninfotech@gmail.com' : 'info@intravat.com';
+            //$sent_to = env('MAIL_FROM_ADDRESS');            
+
+            $sent_email = 0;
+            foreach($reminders as $reminder)
+            {
+                $sent_to = $reminder->sent_to;
+
+                if($reminder->module_type == 'lead')
+                {
+                    $lead = CRMLead::with(['contact'])->where('id', $reminder->module_id)->first();
+                }
+                else if($reminder->module_type == 'quote')
+                {
+                    $quote = CRMQuote::with(['lead', 'lead.contact'])->where('id', $reminder->module_id)->first();                    
+                    $lead = $quote->lead;
+                }
+
+                $data = [                 
+                  'lang' => $lead->contact->lang,
+                  'app_name' => config('app.name'),                      
+                  'company_name' => $lead->company_name,
+                  'company_website' => $lead->company_website,
+                  'first_name' => $lead->contact->first_name,
+                  'last_name' => $lead->contact->last_name,
+                  'email' => $lead->contact->email,
+                  'phone' => $lead->contact->phone,
+                  'designation' => $lead->contact->designation,                 
+                  'message' => $reminder->notes,
+                  'attachment' => [], 
+                  'align' => 'left'
+                ];
+                $email_data = new CRMNoQuoteReminder($data);
+
+                $mailsent = Mail::to($sent_to)->send($email_data);                
+
+                if($mailsent)
+                {
+                  $reminderupdate = CRMReminder::where('id', $reminder->id)->first();
+                  if($reminderupdate)
+                  {
+                    $reminderupdate->email_sent = 1;
+                    $reminderupdate->save();
+                  }
+
+                    $email_headers = $mailsent->getOriginalMessage()->getHeaders();
+                    $message_id = $email_headers->getHeaderBody('X-SES-Message-ID');                     
+                    if ($message_id)
+                    {
+                        $email_sent_to = $email_headers->getHeaderBody('To');
+                        $email_sent_subject = $email_headers->getHeaderBody('Subject');
+                        
+                        $uname = 'Cron User';
+
+                        $emailNotification = new EmailNotification;
+                        $emailNotification->vat_reg_id = NULL; 
+                        $emailNotification->message_id = $message_id;   
+                        $emailNotification->subject = $email_sent_subject;                   
+                        $emailNotification->name = $uname;            
+                        $emailNotification->email = ($email_sent_to) ? $email_sent_to[0]->getAddress() : '';     
+                        $emailNotification->sent_by = $authUser->user_id;
+                        $emailNotification->send_type = "to";
+                        $emailNotification->reminder_action_id = NULL;
+
+                        $emailNotification->save();
+                    } 
+
+                    /* -- LOG -- */
+                    $this->addLog($authUser, 'crm-reminder-email',
+                        [
+                            'Company Name' =>  $data['company_name'],
+                            'Contact Person' =>  $data['first_name'] . ' ' . $data['last_name'],
+                            'Recipient' =>  $sent_to
+                        ]
+                    );
+                    /* --end LOG -- */
+
+                    $sent_email++;
+                }
+            } //for
+
+            if($sent_email > 0)
+            {
+                /* -- LOG -- */
+                $this->addLog($authUser, 'crm-reminder-scheduled-email',
+                    [
+                        'Date' =>  $check_date,
+                        'Time' =>  $check_time,
+                        'Total' =>  $sent_email                        
+                    ]
+                );
+                /* --end LOG -- */
+            }
+            else
+            {
+                /* -- LOG -- */
+                $this->addLog($authUser, 'crm-reminder-no-schedule-email',
+                    [
+                        'Date' =>  $check_date,
+                        'Time' =>  $check_time
+                    ]
+                );
+                /* --end LOG -- */
+            }
+
+            return $sent_email;
+        }
+        catch (\Exception $e) 
+        {
+            /* -- LOG -- */
+            $this->addLog($authUser, 'error-log',
+                [
+                    'status' => 'Error',
+                    'controller' => 'CRM Reminder Controller',
+                    'method' => 'scheduleCRMReminder',
+                    'message' => $e->getMessage()
+                ]
+            );
+            /* --end LOG -- */
+
+            return  $e->getMessage();
+        }  
+    }
+    /* --end Reminders schedule -- */
 }

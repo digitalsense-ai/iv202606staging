@@ -5,26 +5,127 @@
 'use strict';
 
 $(function () {      
+  // const periodmap = {
+  //             "no_1": "january-february",
+  //             "no_2": "march-april",
+  //             "no_3": "may-june",
+  //             "no_4": "july-august",
+  //             "no_5": "september-october",
+  //             "no_6": "november-december",
+  //             "uk_1": "january-february-march",
+  //             "uk_2": "february-march-april",
+  //             "uk_3": "march-april-may",
+  //             "uk_4": "april-may-june",
+  //             "uk_5": "may-june-july",
+  //             "uk_6": "june-july-august",
+  //             "uk_7": "july-august-september",
+  //             "uk_8": "august-september-october",
+  //             "uk_9": "september-october-november",
+  //             "uk_10": "october-november-december",
+  //             "uk_11": "november-december-january",
+  //             "uk_12": "december-january-february"
+  //         };
+
   const periodmap = {
-              "no_1": "january-february",
-              "no_2": "march-april",
-              "no_3": "may-june",
-              "no_4": "july-august",
-              "no_5": "september-october",
-              "no_6": "november-december",
-              "uk_1": "january-february-march",
-              "uk_2": "february-march-april",
-              "uk_3": "march-april-may",
-              "uk_4": "april-may-june",
-              "uk_5": "may-june-july",
-              "uk_6": "june-july-august",
-              "uk_7": "july-august-september",
-              "uk_8": "august-september-october",
-              "uk_9": "september-october-november",
-              "uk_10": "october-november-december",
-              "uk_11": "november-december-january",
-              "uk_12": "december-january-february"
-          };
+
+    /* ===== Monthly (12) ===== */
+    ...Object.fromEntries(
+      ['at','cz','fi','fr','lu','pl','pt']
+        .flatMap(c => [
+          [ `${c}_1`,  'january' ],
+          [ `${c}_2`,  'february' ],
+          [ `${c}_3`,  'march' ],
+          [ `${c}_4`,  'april' ],
+          [ `${c}_5`,  'may' ],
+          [ `${c}_6`,  'june' ],
+          [ `${c}_7`,  'july' ],
+          [ `${c}_8`,  'august' ],
+          [ `${c}_9`,  'september' ],
+          [ `${c}_10`, 'october' ],
+          [ `${c}_11`, 'november' ],
+          [ `${c}_12`, 'december' ],
+        ])
+    ),
+
+    /* ===== Quarterly (4) ===== */
+    ...Object.fromEntries(
+      ['be','it','nl','es','se','ch','us']
+        .flatMap(c => [
+          [ `${c}_1`, 'january-march' ],
+          [ `${c}_2`, 'april-june' ],
+          [ `${c}_3`, 'july-september' ],
+          [ `${c}_4`, 'october-december' ],
+        ])
+    ),
+
+    /* ===== Denmark (quarter + half year) ===== */
+    ...Object.fromEntries(
+      ['dk'].flatMap(c => [
+        [ `${c}_1`, 'january-march' ],
+        [ `${c}_2`, 'april-june' ],
+        [ `${c}_3`, 'july-september' ],
+        [ `${c}_4`, 'october-december' ],
+        [ `${c}_5`, 'january-june' ],
+        [ `${c}_6`, 'july-december' ],
+      ])
+    ),
+
+    /* ===== Bi-monthly (IE, NO) ===== */
+    ...Object.fromEntries(
+      ['ie','no'].flatMap(c => [
+        [ `${c}_1`, 'january-february' ],
+        [ `${c}_2`, 'march-april' ],
+        [ `${c}_3`, 'may-june' ],
+        [ `${c}_4`, 'july-august' ],
+        [ `${c}_5`, 'september-october' ],
+        [ `${c}_6`, 'november-december' ],
+      ])
+    ),
+
+    /* ===== Germany (complex but still grouped) ===== */
+    ...Object.fromEntries(
+      [
+        ['de_1','january-march'],
+        ['de_2','april-june'],
+        ['de_3','july-september'],
+        ['de_4','october-december'],
+        ['de_5','january-june'],
+        ['de_6','july-december'],
+        ['de_7','january-december'],
+        ['de_8','january'],
+        ['de_9','february'],
+        ['de_10','march'],
+        ['de_11','april'],
+        ['de_12','may'],
+        ['de_13','june'],
+        ['de_14','july'],
+        ['de_15','august'],
+        ['de_16','september'],
+        ['de_17','october'],
+        ['de_18','november'],
+        ['de_19','december'],
+      ]
+    ),
+
+    /* ===== UK rolling periods ===== */
+    ...Object.fromEntries(
+      [
+        ['uk_1','january-february-march'],
+        ['uk_2','february-march-april'],
+        ['uk_3','march-april-may'],
+        ['uk_4','april-may-june'],
+        ['uk_5','may-june-july'],
+        ['uk_6','june-july-august'],
+        ['uk_7','july-august-september'],
+        ['uk_8','august-september-october'],
+        ['uk_9','september-october-november'],
+        ['uk_10','october-november-december'],
+        ['uk_11','november-december-january'],
+        ['uk_12','december-january-february'],
+      ]
+    ),
+  };
+
 
   $(document).on("show.bs.modal", ".modal-file", function(event) { 
     // Init custom option check
@@ -1123,7 +1224,8 @@ $(function () {
                 'name' : dvuser['firstname'] + " " + dvuser['lastname'],
                 'firstname' : dvuser['firstname'],
                 'lastname' :  dvuser['lastname'],
-                'email' : user['email']             
+                'email' : user['email'],
+                'notificationsettings' : user['notificationsettings']
               });
             }
           });
@@ -1331,7 +1433,7 @@ $(function () {
         var vatregmain = declarations['vatregmain'];
         var vatreturns = declarations['vatreturns'];
         var client = declarations['client'];
-       
+      
         var importreconciliationfiles = declarations['importreconciliationfiles'];
         
         var importreconciliationcominvoices = declarations['importreconciliationcominvoices'];
@@ -1434,8 +1536,13 @@ $(function () {
             var filter_other_period_rematch_com_invoice_id_count = 0;            
 
             if(cominvoice['data_from'] == 'azure' || cominvoice['data_from'] == 'global-search-refresh' 
-               || cominvoice['data_from'] == 'specific-global-search-refresh' || cominvoice['data_from'] == 'specific-invoice-global-search-refresh'
-              || cominvoice['data_from'] == 'cron')  
+               || cominvoice['data_from'] == 'specific-global-search-refresh' 
+               || cominvoice['data_from'] == 'specific-invoice-global-search-refresh'
+               || cominvoice['data_from'] == 'cron'
+               || cominvoice['data_from'] == 'ocr'
+               || cominvoice['data_from'] == 'ocr-search-refresh' 
+               || cominvoice['data_from'] == 'specific-ocr-search-refresh' 
+               || cominvoice['data_from'] == 'specific-invoice-ocr-search-refresh')  
             {            
               if(com_invoice_date in modal_cominvoices)   
               {}
@@ -1741,11 +1848,12 @@ $(function () {
 
                       var sales_xml_id = null;
 
-                      var sales_net_amount = invoice['net_amount'];
+                      var sales_net_amount = (invoice['convert_net_amount']) ? invoice['convert_net_amount'] : invoice['net_amount'];                      
                       var sales_shipping = invoice['shipping'];
                       var sales_variance = invoice['variance'];
-                      var sales_vat_amount = invoice['vat_amount'];
-                      var sales_currency = invoice['currency_code'];
+                      var sales_vat_amount = (invoice['convert_vat_amount']) ? invoice['convert_vat_amount'] : invoice['vat_amount'];
+                      var sales_adjustment_amount = invoice['adjustment_amount'];
+                      var sales_currency = (invoice['convert_currency_code']) ? invoice['convert_currency_code'] : invoice['currency_code'];
 
                       if(filter_sales_pdf.length > 0)
                       {
@@ -1826,8 +1934,9 @@ $(function () {
                         var invoice_variance = (sales_variance) ? parseFloat(sales_variance) : 0;
                         var invoice_net_amount = (sales_net_amount) ? parseFloat(sales_net_amount) : 0;
                         var invoice_vat_amount = (sales_vat_amount) ? parseFloat(sales_vat_amount) : 0;
+                        var invoice_adjustment_amount = (sales_adjustment_amount) ? parseFloat(sales_adjustment_amount) : 0;
 
-                        var invoice_vat_percent = (invoice_vat_amount/(invoice_net_amount + invoice_shipping + invoice_variance)) * 100;
+                        var invoice_vat_percent = (invoice_vat_amount/((invoice_net_amount + invoice_shipping + invoice_variance) - invoice_adjustment_amount)) * 100;
 
                         var minimum_fraction_digits = (vatregmain['country'] == 'CH') ? 1 : 0;
                        
@@ -1857,6 +1966,9 @@ $(function () {
         style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
                           "vat_amount": ((sales_vat_amount == 0) ? '' : credit_note_symbol) + (sales_vat_amount ? new Intl.NumberFormat(currency_locale, {
         style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_vat_amount) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "adjustment_amount": ((sales_adjustment_amount == 0) ? '' : credit_note_symbol) + (sales_adjustment_amount ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_adjustment_amount) : new Intl.NumberFormat(currency_locale, {
         style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
                           "vat_check_25": vat_check_25,
                           "currency": sales_currency,
@@ -2051,6 +2163,8 @@ $(function () {
                   "vat_amount": ((sales_vat_amount == 0) ? '' : credit_note_symbol) + (sales_vat_amount ? new Intl.NumberFormat(currency_locale, {
     style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_vat_amount) : new Intl.NumberFormat(currency_locale, {
     style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                  "adjustment_amount": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
                   "vat_check_25": vat_check_25,
                   "currency": sales_currency,
                   "credit_note": parseInt(invoice['credit_note']),
@@ -3077,6 +3191,1839 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
        
         return unmatched_invoice_datas;
       }//vatcheck 
+      /*else if(type == 'analyzepdf')
+      { console.log(result);
+        var vatregmains = result['vatregmains'];
+        var analyzepdfs = result['analyzepdfs'];
+                
+        //analyzepdf_datas = [];
+        analyzepdf_completed_datas = [];
+        analyzepdf_processing_datas = [];
+        analyzepdf_error_datas = [];
+
+        var analyzepdf_completed_start = 1;
+        var analyzepdf_processing_start = 1;
+        var analyzepdf_error_start = 1;
+        console.log(vatregmains);
+        $.each(analyzepdfs, function (idx, analyzepdf) {
+          
+          var parsed_extracted_data = (analyzepdf['extracted_data']) ? JSON.parse(analyzepdf['extracted_data']) : null;
+          var invoice_type = analyzepdf.invoice_type;
+          var invoice_type_name = '';
+          var client_name = '';
+          let org_no = null;
+
+          if(parsed_extracted_data)
+          {
+            if(parsed_extracted_data.supplier)
+            {
+              //invoice_type = 'sales';
+              invoice_type_name = 'Sales Invoice' + (parsed_extracted_data.credit_note ? '(CN)' : '');
+           
+              // org_no = (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
+              //         ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '');
+                           
+              const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+              let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
+                            ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
+                           );
+              
+              if (vat_numeric && vat_numeric.length == 17) {
+                  org_no = vat_numeric.substring(0, 9);
+              }
+              else
+              {
+                if (vat_numeric && vat_numeric.length >= 9)
+                  org_no = vat_numeric;      
+              }
+
+              var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                  return (vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false;
+              });              
+
+              if(filter_vatregmains.length > 0)
+                client_name = filter_vatregmains[0].client.client_name;
+              else
+                client_name = parsed_extracted_data.supplier.name;
+            }
+            else if(parsed_extracted_data.recipient)
+            {
+              //invoice_type = 'com';
+              invoice_type_name = 'Commercial Invoice';
+                            
+              // // First, check CVR number
+              // let cvr_numeric = getNumeric(parsed_extracted_data.recipient.cvr_number);
+
+              // // If CVR is 8 digits, skip and check VAT number
+              // if (cvr_numeric.length >= 9) {
+              //     org_no = cvr_numeric;
+              // } else {
+              //     let vat_numeric = getNumeric(parsed_extracted_data.recipient.vat_number);
+              //     if (vat_numeric.length >= 9) {
+              //         org_no = vat_numeric;
+              //     }
+              // }
+
+              // let vat_numeric = getNumeric(parsed_extracted_data.recipient.org_number);
+              // if (vat_numeric.length >= 9) {
+              //     org_no = vat_numeric;
+              // }
+
+              const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+              let vat_numeric = getNumeric( (parsed_extracted_data.recipient.org_number) ? parsed_extracted_data.recipient.org_number.replace(/[a-zA-Z\s]+/g, '') : '');
+              
+              if (vat_numeric && vat_numeric.length == 17) {
+                  org_no = vat_numeric.substring(0, 9);
+              }
+              else
+              {
+                if (vat_numeric && vat_numeric.length >= 9)
+                  org_no = vat_numeric;      
+              }
+
+              var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                return (vatregmain.org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false;
+              });
+
+              if(filter_vatregmains.length > 0)
+                client_name = filter_vatregmains[0].client.client_name;
+              else
+                client_name = parsed_extracted_data.recipient.name;
+            }
+            else
+            {
+              if(analyzepdf.invoice_type == 'multi-invoices')
+              {                
+                //invoice_type = 'multi-invoices';
+                invoice_type_name = 'Multi Invoices' + ((parsed_extracted_data.length > 0) ? (parsed_extracted_data[0].credit_note ? '(CN)' : '') : '');
+
+                client_name = (parsed_extracted_data.length > 0) ? parsed_extracted_data[0].supplier.name : '';
+// console.log(parsed_extracted_data);
+//                 $.each(parsed_extracted_data, function (eidx, extracted_data) {
+//                   invoice_nos += (invoice_nos == '') ? extracted_data.invoice_number : ('<br>' + extracted_data.invoice_number);
+//                 });
+              }
+            }
+          }
+
+          if(invoice_type == '')
+          {            
+            if(analyzepdf.invoice_type == 'sales')
+            {
+              //invoice_type = 'sales';
+              invoice_type_name = 'Sales Invoice';
+            }
+            else if(analyzepdf.invoice_type == 'com')
+            {
+              //invoice_type = 'com';
+              invoice_type_name = 'Commercial Invoice';
+            }
+            else if(analyzepdf.invoice_type == 'multi-invoices')
+            {
+              //invoice_type = 'multi-invoices';
+              invoice_type_name = 'Multi Invoices';
+            }            
+          }
+
+          if(analyzepdf['status'] === 'completed' && parsed_extracted_data)
+          {              
+            if (parsed_extracted_data.length === undefined)
+            {
+              analyzepdf_completed_datas.push({                 
+                  'id' : analyzepdf['id'],   
+                  'fake_id' : analyzepdf_completed_start,
+                  'invoice_no' : parsed_extracted_data.invoice_number,
+                  'invoice_type' : invoice_type,
+                  'invoice_type_name' : invoice_type_name,
+                  'client_name' : client_name,
+                  'file_name' : analyzepdf['file_name'],
+                  'datetime' : (analyzepdf['created_at']) ? moment(analyzepdf['created_at']).format('DD-MM-YYYY hh:mm:s A') : '-',            
+                  'status' : analyzepdf['status'],
+                  'start_pageno' : analyzepdf['start_pageno'],
+                  'azure_url' : analyzepdf['azure_url'],                  
+                  'extracted_data' : analyzepdf['extracted_data']
+                });
+                analyzepdf_completed_start = analyzepdf_completed_start + 1;
+            }
+            else
+            {
+              $.each(parsed_extracted_data, function (eidx, extracted_data) {
+                analyzepdf_completed_datas.push({                 
+                  'id' : analyzepdf['id'],   
+                  'fake_id' : analyzepdf_completed_start,
+                  'invoice_no' : extracted_data.invoice_number,
+                  'invoice_type' : invoice_type,
+                  'invoice_type_name' : invoice_type_name,
+                  'client_name' : client_name,
+                  'file_name' : analyzepdf['file_name'],
+                  'datetime' : (analyzepdf['created_at']) ? moment(analyzepdf['created_at']).format('DD-MM-YYYY hh:mm:s A') : '-',            
+                  'status' : analyzepdf['status'],
+                  'start_pageno' : analyzepdf['start_pageno'],
+                  'azure_url' : analyzepdf['azure_url'],                  
+                  'extracted_data' : analyzepdf['extracted_data']
+                });
+                analyzepdf_completed_start = analyzepdf_completed_start + 1;
+              });
+            }
+          } //completed
+          else if(analyzepdf['status'] === 'processing' || analyzepdf['status'] === 'queued')
+          {  
+            analyzepdf_processing_datas.push({                 
+              'id' : analyzepdf['id'],   
+              'fake_id' : analyzepdf_processing_start,
+              'invoice_no' : '-',
+              'invoice_type' : invoice_type,
+              'invoice_type_name' : invoice_type_name,
+              'client_name' : client_name,
+              'file_name' : analyzepdf['file_name'],
+              'datetime' : (analyzepdf['created_at']) ? moment(analyzepdf['created_at']).format('DD-MM-YYYY hh:mm:s A') : '-',            
+              'status' : analyzepdf['status'],
+              'start_pageno' : analyzepdf['start_pageno'],
+              'azure_url' : analyzepdf['azure_url'],              
+              'extracted_data' : analyzepdf['extracted_data']
+            });
+            analyzepdf_processing_start = analyzepdf_processing_start + 1; 
+          } //processing
+          else if(analyzepdf['status'] === 'failed')
+          {  
+            analyzepdf_error_datas.push({                 
+              'id' : analyzepdf['id'],   
+              'fake_id' : analyzepdf_error_start,
+              'invoice_no' : '-', 
+              'invoice_type' : invoice_type,
+              'invoice_type_name' : invoice_type_name,
+              'client_name' : client_name,
+              'file_name' : analyzepdf['file_name'],
+              'datetime' : (analyzepdf['created_at']) ? moment(analyzepdf['created_at']).format('DD-MM-YYYY hh:mm:s A') : '-',            
+              'status' : analyzepdf['status'],
+              'start_pageno' : analyzepdf['start_pageno'],
+              'azure_url' : analyzepdf['azure_url'],              
+              'extracted_data' : analyzepdf['extracted_data']
+            });
+            analyzepdf_error_start = analyzepdf_error_start + 1;   
+          } //error
+        });
+console.log(analyzepdf_completed_datas);
+console.log(analyzepdf_processing_datas);
+console.log(analyzepdf_error_datas);
+        return {
+          'analyzepdf_completed_datas' : analyzepdf_completed_datas, 
+          'analyzepdf_processing_datas' : analyzepdf_processing_datas,
+          'analyzepdf_error_datas' : analyzepdf_error_datas
+        };          
+      }//analyzepdf 
+      */
+      else if(type == 'analyzepdf' || type == 'analyzepdf_search')
+      { 
+        var vatregmains = result.vatregmains;
+        var analyzepdfs = result.analyzepdfs;
+                               
+        if(type == 'analyzepdf')
+        {
+          analyzepdf_completed_datas = [];
+          analyzepdf_processing_datas = [];
+          analyzepdf_error_datas = [];
+          analyzepdf_deleted_datas = [];
+
+          var analyzepdf_completed_start = 1;
+          var analyzepdf_processing_start = 1;
+          var analyzepdf_error_start = 1;
+          var analyzepdf_deleted_start = 1;
+        }
+        else if(type == 'analyzepdf_search')
+        {
+          analyzepdf_commercial_invoice_datas = [];
+          analyzepdf_sales_invoice_datas = [];
+          analyzepdf_declaration_datas = [];
+
+          var analyzepdf_commercial_invoice_start = 1;
+          var analyzepdf_sales_invoice_start = 1;
+          var analyzepdf_declaration_start = 1;
+        }
+        
+        let salesInvoiceMap = {};
+        $.each(analyzepdfs, function (idx, item) {
+            if (item.invoice_type === 'sales' || item.invoice_type === 'multi-invoices') {
+                //let data = item.extracted_data ? JSON.parse(item.extracted_data) : null;
+                let data = item.extracted_data
+                                ? (typeof item.extracted_data === 'string'
+                                    ? JSON.parse(item.extracted_data)
+                                    : item.extracted_data)
+                                : null;
+
+                if (!data) return;
+
+                let invNo = data.invoice_number ? data.invoice_number.replace('#', '').trim() : null;
+                let noInvNo = data.no_invoice_number ? data.no_invoice_number.replace('#', '').trim() : null;
+
+                let client = null;
+
+                if (data.supplier && data.supplier.name) {
+                    client = data.supplier.name.trim().toLowerCase();
+                }
+
+                if (invNo && noInvNo && client && (
+                    (client.indexOf('rainwear') > -1) || 
+                    (client.indexOf('engel') > -1) ||
+                    (client.indexOf('berendsohn') > -1)
+                  )
+                ) 
+                {
+                    //let key = client + "_" + invNo;
+                    let key = noInvNo;
+                    salesInvoiceMap[key] = invNo;
+                }
+            }
+        });
+
+        $.each(analyzepdfs, function (idx, analyzepdf) {
+          
+          //var parsed_extracted_data = (analyzepdf.extracted_data) ? JSON.parse(analyzepdf.extracted_data) : null;
+          let parsed_extracted_data = analyzepdf.extracted_data
+                                ? (typeof analyzepdf.extracted_data === 'string'
+                                    ? JSON.parse(analyzepdf.extracted_data)
+                                    : analyzepdf.extracted_data)
+                                : null;
+                                
+          var invoice_type = analyzepdf.invoice_type;
+          //var invoice_type_name = '';
+          
+          // let show_delete = false;
+          // //if(!analyzepdf.is_deleted && !org_no && !client_name && !invoice_no && !currency && !net_amount)
+          // if(!analyzepdf.is_deleted)
+          //   show_delete = true;
+
+          let org_no = null;
+          let client_name = null;
+
+          let invoice_no = null;
+          let invoice_date = null;
+
+          let currency = null;
+          let credit_note = null;
+
+          let net_amount = null;
+          let vat_rate = null;
+          let vat_amount = null;
+          let variance_amount = null;
+          let freight_amount = null;
+          let discount_amount = null;
+          let total_amount = null;
+
+          let exchange_currency = null;
+          let exchange_rate = null;
+          let exchange_net_amount = null;
+          let exchange_vat_amount = null;
+          let exchange_total_amount = null;
+         
+          var invoice_type_name = '';
+          if(parsed_extracted_data)
+          {
+            invoice_no = (parsed_extracted_data.invoice_number) ? parsed_extracted_data.invoice_number.replace('#', "") : null;
+            invoice_date = parsed_extracted_data.invoice_date;
+
+            currency = (parsed_extracted_data.currency) ? parsed_extracted_data.currency.trim().replace(/[^\w\s]/g, "").substring(0, 3) : null;
+            currency = (currency) ? ((currency.toLowerCase() == 'kr') ? 'DKK' : currency) : null;            
+
+            //exchange_currency = (parsed_extracted_data.exchange_currency) ? parsed_extracted_data.exchange_currency.trim().replace(/[^\w\s]/g, "").substring(0, 3) : null;
+            exchange_currency = parsed_extracted_data.exchange_currency
+                                  ? parsed_extracted_data.exchange_currency
+                                      .trim()
+                                      .split('/')                // ["DKK", "NOK"]
+                                      .pop()                     // "NOK"
+                                      .replace(/[^\w\s]/g, "")
+                                      .substring(0, 3)
+                                  : null;
+            exchange_currency = (exchange_currency) ? ((exchange_currency.toLowerCase() == 'kr') ? 'DKK' : exchange_currency) : null;  
+
+            if(invoice_type == 'sales' || invoice_type == 'multi-invoices')
+            {
+              invoice_type_name = 'Sales Invoice' + (parsed_extracted_data.credit_note ? '(CN)' : '');
+
+              credit_note = (parsed_extracted_data.credit_note) ? true : false;
+
+              let og_net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_vat_amount = parsed_extracted_data.vat_amount ? parsed_extracted_data.vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_variance_amount = parsed_extracted_data.variance ? parsed_extracted_data.variance.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_freight_amount = parsed_extracted_data.additional_charges ? parsed_extracted_data.additional_charges.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_discount_amount = parsed_extracted_data.discount_amount ? parsed_extracted_data.discount_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
+              let og_total_amount = parsed_extracted_data.total_amount ? parsed_extracted_data.total_amount.replace(/[a-zA-Z\s]+/g, '') : '';             
+                            
+              let og_exchange_rate = parsed_extracted_data.exchange_rate ? parsed_extracted_data.exchange_rate.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_exchange_net_amount = parsed_extracted_data.exchange_net_amount ? parsed_extracted_data.exchange_net_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+              let og_exchange_vat_amount = parsed_extracted_data.exchange_vat_amount ? parsed_extracted_data.exchange_vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+
+              if(!exchange_currency)
+              {
+                const exchangeCurrencyPattern = /\b([A-Z]{3})\b/i;
+
+                let detectedExchangeCurrency = null;
+
+                const fieldsToCheck = [
+                    parsed_extracted_data.exchange_rate,
+                    parsed_extracted_data.exchange_net_amount,
+                    parsed_extracted_data.exchange_vat_amount
+                ];
+
+                for (const field of fieldsToCheck) {
+                    if (field) {
+                        const match = field.match(exchangeCurrencyPattern);
+
+                        if (match) {
+                            detectedExchangeCurrency = match[1].toUpperCase();
+                            break;
+                        }
+                    }
+                }
+
+                if(detectedExchangeCurrency)
+                  exchange_currency = detectedExchangeCurrency;
+              }
+
+              let parse_exchange_rate = parseAmountValue(og_exchange_rate);
+              let parse_exchange_net_amount = parseAmountValue(og_exchange_net_amount);
+              let parse_exchange_vat_amount = parseAmountValue(og_exchange_vat_amount);
+              
+              if (og_discount_amount && /^\d$/.test(og_discount_amount))
+                og_discount_amount = '';
+
+              let parse_net_amount = parseAmountValue(og_net_amount);
+              let parse_vat_amount = parseAmountValue(og_vat_amount);
+              let parse_variance_amount = parseAmountValue(og_variance_amount);
+              let parse_freight_amount = parseAmountValue(og_freight_amount);
+              let parse_discount_amount = parseAmountValue(og_discount_amount);
+              let parse_total_amount = parseAmountValue(og_total_amount);                          
+
+              if(/,(\d{1,2})$/.test(og_net_amount))
+              {
+                parse_net_amount = parseAmountValue(og_net_amount, 'NOK');
+                parse_vat_amount = parseAmountValue(og_vat_amount, 'NOK');
+                parse_variance_amount = parseAmountValue(og_variance_amount, 'NOK');
+                parse_freight_amount = parseAmountValue(og_freight_amount, 'NOK');
+                parse_discount_amount = parseAmountValue(og_discount_amount, 'NOK');
+                parse_total_amount = parseAmountValue(og_total_amount, 'NOK');                             
+              }   
+
+              if(parse_freight_amount)
+              {              
+                let parse_net_freight_amount = parse_net_amount + parse_freight_amount;
+                parse_net_amount = parse_net_freight_amount;
+                
+                net_amount = parse_net_freight_amount.toLocaleString('en-IN');
+              } 
+
+              if(parse_variance_amount)
+              {              
+                let parse_net_variance_amount = parse_net_amount + parse_variance_amount;
+                parse_net_amount = parse_net_variance_amount;
+                
+                net_amount = parse_net_variance_amount.toLocaleString('en-IN');
+              } 
+
+              if(parse_discount_amount)
+              {              
+                let parse_sub_discount_amount = parse_net_amount - parse_discount_amount;
+                parse_net_amount = parse_sub_discount_amount;
+                
+                net_amount = parse_sub_discount_amount.toLocaleString('en-IN');
+              }  
+
+              if(parse_total_amount != 0 && (parse_net_amount > parse_total_amount))
+              {
+                if(parsed_extracted_data.credit_note)
+                {
+                  let formatted_net_amount = parseDenmarkFormat(og_net_amount);        
+                  net_amount = formatted_net_amount;
+
+                  let formatted_total_amount = parseDenmarkFormat(og_total_amount);        
+                  total_amount = formatted_total_amount;
+                }
+                else
+                {
+                  let formatted_net_amount = parseDenmarkFormat(og_total_amount);        
+                  net_amount = formatted_net_amount;
+
+                  let formatted_total_amount = parseDenmarkFormat(og_net_amount);        
+                  total_amount = formatted_total_amount;
+                }          
+              }
+              else
+              {
+                let formatted_net_amount = parseDenmarkFormat(og_net_amount); 
+                if(og_net_amount != net_amount)
+                  formatted_net_amount = parseDenmarkFormat(net_amount);  
+
+                net_amount = formatted_net_amount;
+
+                let formatted_total_amount = parseDenmarkFormat(og_total_amount);        
+                total_amount = formatted_total_amount;
+              }
+
+              let formatted_vat_amount = parseDenmarkFormat(og_vat_amount);        
+              vat_amount = formatted_vat_amount;              
+
+              if(parse_total_amount == 0)
+              {              
+                parse_total_amount = parse_net_amount + parse_vat_amount;
+                
+                let formatted_total_amount = parseDenmarkFormat(parse_total_amount.toString());        
+                total_amount = formatted_total_amount;
+              }
+
+              var calculated_vat_rate = (parse_net_amount == 0) ? 0 : ((parse_vat_amount / parse_net_amount) * 100);    
+              if(parsed_extracted_data.vat_rate)
+              {          
+                let og_vat_rate = parseVatRate(parsed_extracted_data.vat_rate);
+      
+                if(parsed_extracted_data.vat_rate == calculated_vat_rate)
+                  vat_rate = og_vat_rate;
+                else if(calculated_vat_rate > 25)
+                  vat_rate = og_vat_rate;
+                else
+                {
+                  let calculated_vat_rate_result = null;
+                  if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
+                    calculated_vat_rate_result = "8,1";
+                  else
+                    calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
+
+                  vat_rate = calculated_vat_rate_result;
+                }
+              }
+              else
+              {
+                let calculated_vat_rate_result = null;
+                if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
+                  calculated_vat_rate_result = "8,1";
+                else
+                  calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
+
+                vat_rate = calculated_vat_rate_result;
+              }
+
+              if(exchange_currency)
+              {
+                if(/,(\d{1,2})$/.test(og_exchange_net_amount))
+                {                  
+                  parse_exchange_net_amount = parseAmountValue(og_exchange_net_amount, 'NOK');
+                  parse_exchange_vat_amount = parseAmountValue(og_exchange_vat_amount, 'NOK'); 
+
+                  const epsilon = 0.00001;
+
+                  const isNetZero = Math.abs(parse_exchange_net_amount) < epsilon;
+                  const isVatZero = Math.abs(parse_exchange_vat_amount) < epsilon;
+
+                  if (vat_rate) {
+                      if (isNetZero && !isVatZero) {
+                          parse_exchange_net_amount = (parse_exchange_vat_amount / vat_rate) * 100;
+                      } else if (isVatZero && !isNetZero) {
+                          parse_exchange_vat_amount = (parse_exchange_net_amount * vat_rate) / 100;
+                      }
+                  }
+                  
+                  exchange_rate = og_exchange_rate;
+
+                  let formatted_exchange_net_amount = parseDenmarkFormat(parse_exchange_net_amount.toString());        
+                  exchange_net_amount = formatted_exchange_net_amount;
+
+                  let formatted_exchange_vat_amount = parseDenmarkFormat(parse_exchange_vat_amount.toString());        
+                  exchange_vat_amount = formatted_exchange_vat_amount;
+
+                  let parse_exchange_total_amount = parse_exchange_net_amount + parse_exchange_vat_amount;
+
+                  let formatted_exchange_total_amount = parseDenmarkFormat(parse_exchange_total_amount.toString());        
+                  exchange_total_amount = formatted_exchange_total_amount;                  
+                }
+              }
+
+              if (credit_note === true && net_amount && !net_amount.startsWith('-'))
+                net_amount = '-' + net_amount.trim();
+
+              if (credit_note === true && vat_amount && !vat_amount.startsWith('-'))
+                vat_amount = '-' + vat_amount.trim();
+
+              if (credit_note === true && total_amount && !total_amount.startsWith('-'))
+                total_amount = '-' + total_amount.trim();
+
+              if(parsed_extracted_data.supplier)
+              {                                        
+                const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+                let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
+                              ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
+                             );
+                
+                if (vat_numeric && vat_numeric.length == 17) 
+                {
+                    org_no = vat_numeric.substring(0, 9);
+                }
+                else
+                {
+                  if (vat_numeric && (vat_numeric.length >= 9 || vat_numeric.length == 8))
+                    org_no = vat_numeric;      
+                }
+
+                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                    return ((vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
+                      (vatregmain.vat_no && org_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
+                });              
+
+                if(filter_vatregmains.length > 0)
+                  client_name = filter_vatregmains[0].client.client_name;
+                else
+                  client_name = parsed_extracted_data.supplier.name;
+
+                if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
+                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
+
+                if (client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
+                   || client_name.toLowerCase().indexOf('berendsohn') > -1)
+                )
+                  invoice_no = (parsed_extracted_data.no_invoice_number) ? parsed_extracted_data.no_invoice_number : invoice_no;
+                
+                if (client_name && client_name.toLowerCase().indexOf('stof') > -1)
+                  invoice_no = (invoice_no) ? invoice_no.replace(/-/g, '') : invoice_no;
+                else if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+                  invoice_no = (parsed_extracted_data.order_number) ? parsed_extracted_data.order_number : invoice_no;
+              }  
+
+              if(type == 'analyzepdf')
+              {
+                if(!analyzepdf.is_deleted && analyzepdf.status === 'completed' && parsed_extracted_data)
+                {              
+                  if (parsed_extracted_data.length === undefined)
+                  {
+                    //console.log("SALES - completedundefined");
+                    analyzepdf_completed_datas.push({
+                      'id' : analyzepdf.id,
+                      'fake_id' : analyzepdf_completed_start,
+                      'invoice_type_name' : invoice_type_name,
+                      'client_no' : org_no,
+                      'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                      'invoice_type' : analyzepdf.invoice_type,
+                      'invoice_no' : invoice_no,
+                      'invoice_date' : invoice_date,
+                      'currency' : currency,
+                      'credit_note' : credit_note,
+                      'net_amount' : net_amount,
+                      'vat_rate' : vat_rate,
+                      'vat_amount' : vat_amount,
+                      'variance_amount' : variance_amount,
+                      'freight_amount' : freight_amount,
+                      'discount_amount' : discount_amount,
+                      'total_amount' : total_amount,
+                      'exchange_currency' : exchange_currency,
+                      'exchange_rate' : exchange_rate,
+                      'exchange_net_amount' : exchange_net_amount,
+                      'exchange_vat_amount' : exchange_vat_amount,
+                      'exchange_total_amount' : exchange_total_amount,
+                      'azure_url' : analyzepdf.azure_url,
+                      'start_pageno' : analyzepdf.start_pageno,
+                      'status' : analyzepdf.status,
+                      'file_name' : analyzepdf.file_name,
+                      'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'extracted_data' : analyzepdf.extracted_data,
+                      'error' : analyzepdf.error,
+                      'is_deleted' : analyzepdf.is_deleted,
+                      'sync_status' : analyzepdf.sync_status
+                    });
+                    analyzepdf_completed_start = analyzepdf_completed_start + 1;
+                  }
+                  else
+                  {
+                    //console.log("SALES - completed");                    
+                    //$.each(parsed_extracted_data, function (eidx, extracted_data) {
+                    analyzepdf_completed_datas.push({
+                      'id' : analyzepdf.id,
+                      'fake_id' : analyzepdf_completed_start,
+                      'invoice_type_name' : invoice_type_name,
+                      'client_no' : org_no,
+                      'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                      'invoice_type' : analyzepdf.invoice_type,
+                      'invoice_no' : invoice_no,
+                      'invoice_date' : invoice_date,
+                      'currency' : currency,
+                      'credit_note' : credit_note,
+                      'net_amount' : net_amount,
+                      'vat_rate' : vat_rate,
+                      'vat_amount' : vat_amount,
+                      'variance_amount' : variance_amount,
+                      'freight_amount' : freight_amount,
+                      'discount_amount' : discount_amount,
+                      'total_amount' : total_amount,
+                      'exchange_currency' : exchange_currency,
+                      'exchange_rate' : exchange_rate,
+                      'exchange_net_amount' : exchange_net_amount,
+                      'exchange_vat_amount' : exchange_vat_amount,
+                      'exchange_total_amount' : exchange_total_amount,
+                      'azure_url' : analyzepdf.azure_url,
+                      'start_pageno' : analyzepdf.start_pageno,
+                      'status' : analyzepdf.status,
+                      'file_name' : analyzepdf.file_name,
+                      'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'extracted_data' : analyzepdf.extracted_data,
+                      'error' : analyzepdf.error,
+                      'is_deleted' : analyzepdf.is_deleted,
+                      'sync_status' : analyzepdf.sync_status
+                    });
+                    analyzepdf_completed_start = analyzepdf_completed_start + 1;
+                    //});
+                  }
+                } //completed
+                else if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+                {  
+                  //console.log("SALES - processing");
+                  //console.log(analyzepdf);
+                  analyzepdf_processing_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_processing_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,
+                    'credit_note' : credit_note,
+                    'net_amount' : net_amount,
+                    'vat_rate' : vat_rate,
+                    'vat_amount' : vat_amount,
+                    'variance_amount' : variance_amount,
+                    'freight_amount' : freight_amount,
+                    'discount_amount' : discount_amount,
+                    'total_amount' : total_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_rate' : exchange_rate,
+                    'exchange_net_amount' : exchange_net_amount,
+                    'exchange_vat_amount' : exchange_vat_amount,
+                    'exchange_total_amount' : exchange_total_amount,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted
+                  });
+                  analyzepdf_processing_start = analyzepdf_processing_start + 1; 
+                } //processing
+                else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+                {  
+                  //console.log("SALES - failed");                 
+                  analyzepdf_error_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_error_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,
+                    'credit_note' : credit_note,
+                    'net_amount' : net_amount,
+                    'vat_rate' : vat_rate,
+                    'vat_amount' : vat_amount,
+                    'variance_amount' : variance_amount,
+                    'freight_amount' : freight_amount,
+                    'discount_amount' : discount_amount,
+                    'total_amount' : total_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_rate' : exchange_rate,
+                    'exchange_net_amount' : exchange_net_amount,
+                    'exchange_vat_amount' : exchange_vat_amount,
+                    'exchange_total_amount' : exchange_total_amount,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted
+                  });
+                  analyzepdf_error_start = analyzepdf_error_start + 1;
+                } //error  
+
+                if(analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
+                {  
+                  analyzepdf_deleted_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_deleted_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,
+                    'credit_note' : credit_note,
+                    'net_amount' : net_amount,
+                    'vat_rate' : vat_rate,
+                    'vat_amount' : vat_amount,
+                    'variance_amount' : variance_amount,
+                    'freight_amount' : freight_amount,
+                    'discount_amount' : discount_amount,
+                    'total_amount' : total_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_rate' : exchange_rate,
+                    'exchange_net_amount' : exchange_net_amount,
+                    'exchange_vat_amount' : exchange_vat_amount,
+                    'exchange_total_amount' : exchange_total_amount,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted,
+                    'deleted_reason' : analyzepdf.deleted_reason,
+                    'duplicate_message' : analyzepdf.duplicate_message
+                  });
+                  analyzepdf_deleted_start = analyzepdf_deleted_start + 1;   
+                } //deleted
+              } //capture
+              else if(type == 'analyzepdf_search')
+              {
+                if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                {
+                  analyzepdf_sales_invoice_datas.push({                 
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_sales_invoice_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,
+                    'credit_note' : credit_note,
+                    'net_amount' : net_amount,
+                    'vat_rate' : vat_rate,
+                    'vat_amount' : vat_amount,
+                    'variance_amount' : variance_amount,
+                    'freight_amount' : freight_amount,
+                    'discount_amount' : discount_amount,
+                    'total_amount' : total_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_rate' : exchange_rate,
+                    'exchange_net_amount' : exchange_net_amount,
+                    'exchange_vat_amount' : exchange_vat_amount,
+                    'exchange_total_amount' : exchange_total_amount,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted,
+                    'extracted_data' : analyzepdf.extracted_data
+                  });
+                  analyzepdf_sales_invoice_start = analyzepdf_sales_invoice_start + 1;
+                } //deleted
+              } //search
+            } //sales
+            else if(invoice_type == 'com')
+            {
+              invoice_type_name = 'Commercial Invoice';
+              
+              let og_net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+              let parse_net_amount = parseAmountValue(og_net_amount);
+
+              //if(/,(\d{1,2})$/.test(og_net_amount))           
+                //parse_net_amount = parseAmountValue(og_net_amount, 'NOK');
+
+              let formatted_net_amount = parseDenmarkFormat(og_net_amount);        
+              net_amount = formatted_net_amount;
+              
+              let og_exchange_net_amount = parsed_extracted_data.exchange_net_amount ? parsed_extracted_data.exchange_net_amount.replace(/[a-zA-Z\s]+/g, '') : '';              
+              if(!exchange_currency)
+              {
+                const exchangeCurrencyPattern = /\b([A-Z]{3})\b/i;
+
+                let detectedExchangeCurrency = null;
+
+                const fieldsToCheck = [
+                    parsed_extracted_data.exchange_rate,
+                    parsed_extracted_data.exchange_net_amount,
+                    parsed_extracted_data.exchange_vat_amount
+                ];
+
+                for (const field of fieldsToCheck) {
+                    if (field) {
+                        const match = field.match(exchangeCurrencyPattern);
+
+                        if (match) {
+                            detectedExchangeCurrency = match[1].toUpperCase();
+                            break;
+                        }
+                    }
+                }
+
+                if(detectedExchangeCurrency)
+                  exchange_currency = detectedExchangeCurrency;
+              }              
+              let parse_exchange_net_amount = parseAmountValue(og_exchange_net_amount);              
+
+              if(exchange_currency)
+              {
+                if(/,(\d{1,2})$/.test(og_exchange_net_amount))
+                {                  
+                  parse_exchange_net_amount = parseAmountValue(og_exchange_net_amount, 'NOK');
+                  //parse_exchange_vat_amount = parseAmountValue(og_exchange_vat_amount, 'NOK'); 
+
+                  //const epsilon = 0.00001;
+
+                  //const isNetZero = Math.abs(parse_exchange_net_amount) < epsilon;
+                  //const isVatZero = Math.abs(parse_exchange_vat_amount) < epsilon;
+
+                  // if (vat_rate) {
+                  //     if (isNetZero && !isVatZero) {
+                  //         parse_exchange_net_amount = (parse_exchange_vat_amount / vat_rate) * 100;
+                  //     } else if (isVatZero && !isNetZero) {
+                  //         parse_exchange_vat_amount = (parse_exchange_net_amount * vat_rate) / 100;
+                  //     }
+                  // }
+                  
+                  // exchange_rate = og_exchange_rate;
+
+                  let formatted_exchange_net_amount = parseDenmarkFormat(parse_exchange_net_amount.toString());        
+                  exchange_net_amount = formatted_exchange_net_amount;
+
+                  // let formatted_exchange_vat_amount = parseDenmarkFormat(parse_exchange_vat_amount.toString());        
+                  // exchange_vat_amount = formatted_exchange_vat_amount;
+
+                  // let parse_exchange_total_amount = parse_exchange_net_amount + parse_exchange_vat_amount;
+
+                  // let formatted_exchange_total_amount = parseDenmarkFormat(parse_exchange_total_amount.toString());        
+                  // exchange_total_amount = formatted_exchange_total_amount;                  
+                }
+              }
+
+              if(parsed_extracted_data.recipient)
+              {                                                    
+                const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+                let vat_numeric = getNumeric( (parsed_extracted_data.recipient.org_number) ? parsed_extracted_data.recipient.org_number.replace(/[a-zA-Z\s]+/g, '') : '');
+                
+                if (vat_numeric && vat_numeric.length == 17) 
+                {
+                    org_no = vat_numeric.substring(0, 9);
+                }
+                else
+                {
+                  if (vat_numeric && (vat_numeric.length >= 9 || vat_numeric.length == 8))
+                    org_no = vat_numeric;      
+                }
+
+                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                  return ((vatregmain.org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
+                    (vatregmain.vat_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
+                });
+
+                if(filter_vatregmains.length > 0)
+                  client_name = filter_vatregmains[0].client.client_name;
+                else
+                  client_name = parsed_extracted_data.recipient.name;
+
+                if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
+                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);                
+              }
+
+              var related_sales_invoices = null;
+              var sales_invoices_raw = (parsed_extracted_data) ? parsed_extracted_data.related_sales_invoices : null;
+              if (sales_invoices_raw) 
+              {
+                  if (!Array.isArray(sales_invoices_raw)) {
+                      sales_invoices_raw = [sales_invoices_raw];
+                  }
+
+                  var invoiceValues = new Set();
+
+                  sales_invoices_raw.forEach(function(val) {
+                      if (!val) return;
+
+                      // Split by commas first
+                      var commaParts = String(val).split(',');
+
+                      commaParts.forEach(function(part) {                    
+                          part = part.trim().replace(/[.,;]+$/, '');
+                          if (!part) return;
+
+                          // Match alphanumeric or numeric range first (with optional spaces around dash)
+                          var rangeMatch = part.match(/^([A-Za-z]*)(\d+)\s*-\s*([A-Za-z]*)(\d+)$/);
+
+                          if (rangeMatch) {
+                              var prefixStart = rangeMatch[1];
+                              var startNum = parseInt(rangeMatch[2], 10);
+                              var prefixEnd = rangeMatch[3];
+                              var endNum = parseInt(rangeMatch[4], 10);
+
+                              // Handle shorthand ranges like 8992-99
+                              if (endNum.toString().length < startNum.toString().length) {
+                                var startStr = startNum.toString();
+                                var endStr = endNum.toString();
+                                endStr = startStr.slice(0, startStr.length - endStr.length) + endStr;
+
+                                startNum = parseInt(startStr, 10);
+                                endNum = parseInt(endStr, 10);
+                              }
+
+                              if (prefixStart === prefixEnd && startNum <= endNum) {
+                                  for (var i = startNum; i <= endNum; i++) {
+                                      invoiceValues.add(
+                                          prefixStart + i.toString().padStart(rangeMatch[2].length, '0')
+                                      );
+                                  }
+                              }
+                          } else {
+                              // Not a range: split by spaces (for "123 124 125" or "NO123 NO124")
+                              part.split(/\s+/).forEach(function(p) {
+                                  if (p) invoiceValues.add(p);
+                              });
+                          }
+                      });
+                  });
+                
+                  // Optional: convert to array and sort numerically/alphabetically
+                  related_sales_invoices = Array.from(invoiceValues).sort((a,b) => {
+                      var numA = parseInt(a.replace(/\D+/g,''), 10);
+                      var numB = parseInt(b.replace(/\D+/g,''), 10);
+                      return (numA && numB) ? numA - numB : a.localeCompare(b);
+                  });
+              }  
+
+              if (client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
+              {                
+                if (related_sales_invoices && related_sales_invoices.length) 
+                {
+                  let clientKey = client_name.trim().toLowerCase();
+
+                  let matchedInvoice = null;
+
+                  related_sales_invoices.forEach(function(inv) {
+                      let cleanInv = inv.trim();
+                      //let key = clientKey + "_" + cleanInv;
+                      let key = cleanInv;
+
+                      if (salesInvoiceMap[key] && !matchedInvoice) {
+                          matchedInvoice = salesInvoiceMap[key];
+                      }
+                  });
+
+                  if (matchedInvoice) {
+                      // Use matched sales invoice number
+                      invoice_no = matchedInvoice;
+                  }
+                }
+              } //rainwear
+
+              if(type == 'analyzepdf')
+              {
+                if(!analyzepdf.is_deleted && analyzepdf.status === 'completed' && parsed_extracted_data)
+                {              
+                  if (parsed_extracted_data.length === undefined)
+                  {
+                    //console.log("COM - completed undefined");
+                    analyzepdf_completed_datas.push({
+                      'id' : analyzepdf.id,
+                      'fake_id' : analyzepdf_completed_start,
+                      'invoice_type_name' : invoice_type_name,
+                      'client_no' : org_no,
+                      'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                      'invoice_type' : analyzepdf.invoice_type,                 
+                      'invoice_no' : invoice_no,
+                      'invoice_date' : invoice_date,
+                      'currency' : currency,                  
+                      'net_amount' : net_amount,   
+                      'exchange_currency' : exchange_currency,
+                      'exchange_net_amount' : exchange_net_amount,
+                      'related_sales_invoices' : related_sales_invoices,
+                      'azure_url' : analyzepdf.azure_url,
+                      'start_pageno' : analyzepdf.start_pageno,
+                      'status' : analyzepdf.status,
+                      'file_name' : analyzepdf.file_name,
+                      'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'extracted_data' : analyzepdf.extracted_data,
+                      'error' : analyzepdf.error,
+                      'is_deleted' : analyzepdf.is_deleted,
+                      'sync_status' : analyzepdf.sync_status
+                    });
+                    analyzepdf_completed_start = analyzepdf_completed_start + 1;                    
+                  }
+                  else
+                  {
+                    //console.log("COM - completed");
+                    //$.each(parsed_extracted_data, function (eidx, extracted_data) {
+                    analyzepdf_completed_datas.push({
+                      'id' : analyzepdf.id,
+                      'fake_id' : analyzepdf_completed_start,
+                      'invoice_type_name' : invoice_type_name,
+                      'client_no' : org_no,
+                      'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                      'invoice_type' : analyzepdf.invoice_type,                 
+                      'invoice_no' : invoice_no,
+                      'invoice_date' : invoice_date,
+                      'currency' : currency,                  
+                      'net_amount' : net_amount,  
+                      'exchange_currency' : exchange_currency,
+                      'exchange_net_amount' : exchange_net_amount,                
+                      'related_sales_invoices' : related_sales_invoices,
+                      'azure_url' : analyzepdf.azure_url,
+                      'start_pageno' : analyzepdf.start_pageno,
+                      'status' : analyzepdf.status,
+                      'file_name' : analyzepdf.file_name,
+                      'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                      'extracted_data' : analyzepdf.extracted_data,
+                      'error' : analyzepdf.error,
+                      'is_deleted' : analyzepdf.is_deleted,
+                      'sync_status' : analyzepdf.sync_status
+                    });
+                    analyzepdf_completed_start = analyzepdf_completed_start + 1;
+                    //});
+                  }
+                } //completed
+                else if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+                {  
+                  //console.log("COM - processing");
+                  //console.log(analyzepdf);
+                  analyzepdf_processing_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_processing_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,                 
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,                  
+                    'net_amount' : net_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_net_amount' : exchange_net_amount,                  
+                    'related_sales_invoices' : related_sales_invoices,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted
+                  });
+                  analyzepdf_processing_start = analyzepdf_processing_start + 1; 
+                } //processing
+                else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+                {  
+                  //console.log("COM - failed");
+                  analyzepdf_error_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_error_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,                 
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,                  
+                    'net_amount' : net_amount, 
+                    'exchange_currency' : exchange_currency,
+                    'exchange_net_amount' : exchange_net_amount,                 
+                    'related_sales_invoices' : related_sales_invoices,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted
+                  });
+                  analyzepdf_error_start = analyzepdf_error_start + 1;   
+                } //error
+                
+                if(analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
+                {
+                  analyzepdf_deleted_datas.push({
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_deleted_start,
+                    'invoice_type_name' : invoice_type_name,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,                 
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,                  
+                    'net_amount' : net_amount,
+                    'exchange_currency' : exchange_currency,
+                    'exchange_net_amount' : exchange_net_amount,                  
+                    'related_sales_invoices' : related_sales_invoices,
+                    'azure_url' : analyzepdf.azure_url,
+                    'start_pageno' : analyzepdf.start_pageno,
+                    'status' : analyzepdf.status,
+                    'file_name' : analyzepdf.file_name,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'extracted_data' : analyzepdf.extracted_data,
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted,                    
+                    'deleted_reason' : analyzepdf.deleted_reason,
+                    'duplicate_message' : analyzepdf.duplicate_message
+                  });
+                  analyzepdf_deleted_start = analyzepdf_deleted_start + 1;
+                } //deleted
+              } //capture
+              else if(type == 'analyzepdf_search')
+              {
+                if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                {
+                  analyzepdf_commercial_invoice_datas.push({                 
+                    'id' : analyzepdf.id,
+                    'fake_id' : analyzepdf_commercial_invoice_start,
+                    'client_no' : org_no,
+                    'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                    'invoice_type' : analyzepdf.invoice_type,                 
+                    'invoice_no' : invoice_no,
+                    'invoice_date' : invoice_date,
+                    'currency' : currency,                  
+                    'net_amount' : net_amount, 
+                    'exchange_currency' : exchange_currency,
+                    'exchange_net_amount' : exchange_net_amount,                 
+                    'related_sales_invoices' : related_sales_invoices,
+                    'azure_url' : analyzepdf.azure_url,
+                    'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                    'error' : analyzepdf.error,
+                    'is_deleted' : analyzepdf.is_deleted,
+                    'extracted_data' : analyzepdf.extracted_data,                   
+                  });
+                  analyzepdf_commercial_invoice_start = analyzepdf_commercial_invoice_start + 1;
+                }
+              } //search
+            } //commercial
+          }//has data
+          else
+          {
+            if(type == 'analyzepdf')
+            {
+              if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+              {  
+                //console.log("COM - processing");
+                //console.log(analyzepdf);
+                analyzepdf_processing_datas.push({
+                  'id' : analyzepdf.id,
+                  'fake_id' : analyzepdf_processing_start,
+                  'invoice_type_name' : invoice_type_name,
+                  'client_no' : org_no,
+                  'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                  'invoice_type' : analyzepdf.invoice_type,                 
+                  'invoice_no' : invoice_no,
+                  'invoice_date' : invoice_date,
+                  'currency' : currency,                  
+                  'net_amount' : net_amount,
+                  'exchange_currency' : exchange_currency,
+                  'exchange_net_amount' : exchange_net_amount,                  
+                  'related_sales_invoices' : related_sales_invoices,
+                  'azure_url' : analyzepdf.azure_url,
+                  'start_pageno' : analyzepdf.start_pageno,
+                  'status' : analyzepdf.status,
+                  'file_name' : analyzepdf.file_name,
+                  'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'extracted_data' : analyzepdf.extracted_data,
+                  'error' : analyzepdf.error,
+                  'is_deleted' : analyzepdf.is_deleted
+                });
+                analyzepdf_processing_start = analyzepdf_processing_start + 1; 
+              } //processing
+              else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+              {  
+                //console.log("COM - failed");
+                analyzepdf_error_datas.push({
+                  'id' : analyzepdf.id,
+                  'fake_id' : analyzepdf_error_start,
+                  'invoice_type_name' : invoice_type_name,
+                  'client_no' : org_no,
+                  'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                  'invoice_type' : analyzepdf.invoice_type,                 
+                  'invoice_no' : invoice_no,
+                  'invoice_date' : invoice_date,
+                  'currency' : currency,                  
+                  'net_amount' : net_amount,
+                  'exchange_currency' : exchange_currency,
+                  'exchange_net_amount' : exchange_net_amount,                  
+                  'related_sales_invoices' : related_sales_invoices,
+                  'azure_url' : analyzepdf.azure_url,
+                  'start_pageno' : analyzepdf.start_pageno,
+                  'status' : analyzepdf.status,
+                  'file_name' : analyzepdf.file_name,
+                  'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'extracted_data' : analyzepdf.extracted_data,
+                  'error' : analyzepdf.error,
+                  'is_deleted' : analyzepdf.is_deleted
+                });
+                analyzepdf_error_start = analyzepdf_error_start + 1;   
+              } //error
+
+              if(analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
+              {
+                analyzepdf_deleted_datas.push({
+                  'id' : analyzepdf.id,
+                  'fake_id' : analyzepdf_deleted_start,
+                  'invoice_type_name' : invoice_type_name,
+                  'client_no' : org_no,
+                  'client_name' : (client_name) ? client_name.toUpperCase() : null,
+                  'invoice_type' : analyzepdf.invoice_type,                 
+                  'invoice_no' : invoice_no,
+                  'invoice_date' : invoice_date,
+                  'currency' : currency,                  
+                  'net_amount' : net_amount,
+                  'exchange_currency' : exchange_currency,
+                  'exchange_net_amount' : exchange_net_amount,                  
+                  'related_sales_invoices' : related_sales_invoices,
+                  'azure_url' : analyzepdf.azure_url,
+                  'start_pageno' : analyzepdf.start_pageno,
+                  'status' : analyzepdf.status,
+                  'file_name' : analyzepdf.file_name,
+                  'created_at' : (analyzepdf.created_at) ? moment(analyzepdf.created_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'updated_at' : (analyzepdf.updated_at) ? moment(analyzepdf.updated_at).format('DD-MM-YYYY hh:mm A') : '-',
+                  'extracted_data' : analyzepdf.extracted_data,
+                  'error' : analyzepdf.error,
+                  'is_deleted' : analyzepdf.is_deleted,                    
+                  'deleted_reason' : analyzepdf.deleted_reason,
+                  'duplicate_message' : analyzepdf.duplicate_message
+                });
+                analyzepdf_deleted_start = analyzepdf_deleted_start + 1;
+              } //deleted
+            } //no data
+          } //processing
+        });
+
+        if(type == 'analyzepdf')
+        {
+          // console.log(analyzepdf_completed_datas);
+          // console.log(analyzepdf_processing_datas);
+          // console.log(analyzepdf_error_datas);
+          // console.log(analyzepdf_deleted_datas);
+
+          return {
+            'analyzepdf_completed_datas' : analyzepdf_completed_datas, 
+            'analyzepdf_processing_datas' : analyzepdf_processing_datas,
+            'analyzepdf_error_datas' : analyzepdf_error_datas,
+            'analyzepdf_deleted_datas' : analyzepdf_deleted_datas
+          }; 
+        } //capture
+        else if(type == 'analyzepdf_search')
+        {          
+          return {
+            'analyzepdf_commercial_invoice_datas' : analyzepdf_commercial_invoice_datas, 
+            'analyzepdf_sales_invoice_datas' : analyzepdf_sales_invoice_datas,
+            'analyzepdf_declaration_datas' : analyzepdf_declaration_datas
+          };
+        } //search
+        else
+          return;
+      }//analyzepdf_search 
+      else if(type == 'crm_lead')
+      {
+        var leads = result['leads'];
+        
+        crm_lead_datas = [];
+        var crm_lead_start = 1;
+        $.each(leads, function (idx, lead) {
+          crm_lead_datas.push({                             
+            'id' : lead.id,
+            'fake_id' : crm_lead_start,
+            'cvr_number' : lead.cvr_number,
+            'company_name' : lead.company_name,
+            //'company_address' : lead.company_address,
+            //'company_postcode' : lead.company_postcode,
+            //'company_city' : lead.company_city,
+            //'company_country' : lead.company_country,
+            //'company_telephone' : lead.company_telephone,
+            //'company_email' : lead.company_email,
+            'company_website' : lead.company_website,
+            //'company_desc' : lead.company_desc,
+            //'company_employees' : lead.company_employees,
+            //'financial_year' : lead.financial_year,
+            //'revenue' : lead.revenue,
+            //'rating' : lead.rating,
+            //'potential_countries' : lead.potential_countries,
+            //'potential_products' : lead.potential_products,
+            'lead_date' : moment(lead.lead_date).format('DD-MM-YYYY'),
+            'status' : lead.status,
+            //'role' : lead.contact.role,
+            'first_name' : lead.contact.first_name,
+            'last_name' : lead.contact.last_name,
+            'email' : lead.contact.email,
+            'phone' : lead.contact.phone,
+            'designation' : lead.contact.designation,
+            'lang' : lead.contact.lang,
+            'has_quote': (lead.quotes.length == 0) ? false : true
+          });
+          crm_lead_start = crm_lead_start + 1;
+        });
+       
+        return crm_lead_datas;
+      }//crm_lead 
+      else if(type == 'crm_quote')
+      {
+        var quotes = result['quotes'];
+        
+        crm_active_quote_datas = [];   
+        crm_negotiate_quote_datas = [];
+        crm_approved_quote_datas = [];
+        crm_rejected_quote_datas = [];
+
+        var crm_active_quote_start = 1;
+        var crm_negotiate_quote_start = 1;
+        var crm_approved_quote_start = 1;
+        var crm_rejected_quote_start = 1;
+
+        $.each(quotes, function (idx, quote) {
+
+          let addons = [];
+          $.each(quote.addons, function (addonidx, addon) {
+            if(addon.enabled)
+            {
+              addons.push({                             
+                'id' : addon.id,
+                'quote_id' : addon.quote_id,
+                'name' : addon.addon_name,
+                'price' : addon.price
+              });
+            }
+          });
+
+          if(quote.status == 'active')
+          {
+            crm_active_quote_datas.push({                             
+              'id' : quote.id,
+              'fake_id' : crm_active_quote_start,
+              'lead_id' : quote.lead_id,
+              'cvr_number' : quote.lead.cvr_number,
+              'company_name' : quote.lead.company_name,                        
+              'role' : quote.lead.contact.role,
+              'first_name' : quote.lead.contact.first_name,
+              'last_name' : quote.lead.contact.last_name,
+              'email' : quote.lead.contact.email,
+              'phone' : quote.lead.contact.phone,
+              'designation' : quote.lead.contact.designation,
+              'lang' : quote.lead.contact.lang,            
+              'version': quote.version,
+              'parent_quote_id': quote.parent_quote_id,
+              'root_quote_id': quote.root_quote_id,
+              'package': quote.package,
+              'base_price': quote.base_price,
+              'registration_price': quote.registration_price,
+              'addons': addons,
+              'status' : quote.status,
+              'created_at' : moment(quote.created_at).format('DD-MM-YYYY hh:mm A')
+            });
+            crm_active_quote_start = crm_active_quote_start + 1;
+          }
+          else if(quote.status == 'negotiation')
+          {
+            crm_negotiate_quote_datas.push({                             
+              'id' : quote.id,
+              'fake_id' : crm_negotiate_quote_start,
+              'lead_id' : quote.lead_id,
+              'cvr_number' : quote.lead.cvr_number,
+              'company_name' : quote.lead.company_name,                        
+              'role' : quote.lead.contact.role,
+              'first_name' : quote.lead.contact.first_name,
+              'last_name' : quote.lead.contact.last_name,
+              'email' : quote.lead.contact.email,
+              'phone' : quote.lead.contact.phone,
+              'designation' : quote.lead.contact.designation,
+              'lang' : quote.lead.contact.lang,            
+              'version': quote.version,
+              'parent_quote_id': quote.parent_quote_id,
+              'root_quote_id': quote.root_quote_id,
+              'package': quote.package,
+              'base_price': quote.base_price,
+              'registration_price': quote.registration_price,
+              'addons': addons,
+              'status' : quote.status,
+              'created_at' : moment(quote.created_at).format('DD-MM-YYYY hh:mm A')
+            });
+            crm_negotiate_quote_start = crm_negotiate_quote_start + 1;
+          }
+          else if(quote.status == 'approved')
+          {
+            crm_approved_quote_datas.push({                             
+              'id' : quote.id,
+              'fake_id' : crm_approved_quote_start,
+              'lead_id' : quote.lead_id,
+              'cvr_number' : quote.lead.cvr_number,
+              'company_name' : quote.lead.company_name,                        
+              'role' : quote.lead.contact.role,
+              'first_name' : quote.lead.contact.first_name,
+              'last_name' : quote.lead.contact.last_name,
+              'email' : quote.lead.contact.email,
+              'phone' : quote.lead.contact.phone,
+              'designation' : quote.lead.contact.designation,
+              'lang' : quote.lead.contact.lang,            
+              'version': quote.version,
+              'parent_quote_id': quote.parent_quote_id,
+              'root_quote_id': quote.root_quote_id,
+              'package': quote.package,
+              'base_price': quote.base_price,
+              'registration_price': quote.registration_price,
+              'addons': addons,
+              'status' : quote.status,
+              'created_at' : moment(quote.created_at).format('DD-MM-YYYY hh:mm A')
+            });
+            crm_approved_quote_start = crm_approved_quote_start + 1;
+          }
+          else if(quote.status == 'rejected')
+          {
+            crm_rejected_quote_datas.push({                             
+              'id' : quote.id,
+              'fake_id' : crm_rejected_quote_start,
+              'lead_id' : quote.lead_id,
+              'cvr_number' : quote.lead.cvr_number,
+              'company_name' : quote.lead.company_name,                        
+              'role' : quote.lead.contact.role,
+              'first_name' : quote.lead.contact.first_name,
+              'last_name' : quote.lead.contact.last_name,
+              'email' : quote.lead.contact.email,
+              'phone' : quote.lead.contact.phone,
+              'designation' : quote.lead.contact.designation,
+              'lang' : quote.lead.contact.lang,            
+              'version': quote.version,
+              'parent_quote_id': quote.parent_quote_id,
+              'root_quote_id': quote.root_quote_id,
+              'package': quote.package,
+              'base_price': quote.base_price,
+              'registration_price': quote.registration_price,
+              'addons': addons,
+              'status' : quote.status,
+              'created_at' : moment(quote.created_at).format('DD-MM-YYYY hh:mm A')
+            });
+            crm_rejected_quote_start = crm_rejected_quote_start + 1;
+          }
+        });
+            
+        let finalResult = [];
+
+        /**
+         * group by lead first
+         */
+        let byLead = {};
+
+        crm_negotiate_quote_datas.forEach(item => {
+
+            /**
+             * STEP 1:
+             * default collapse states
+             */
+            item.is_hidden = true;
+            item.is_latest = false;
+
+            if (!byLead[item.lead_id]) {
+                byLead[item.lead_id] = [];
+            }
+
+            byLead[item.lead_id].push(item);
+        });
+
+
+        /**
+         * version sort
+         * supports:
+         * 1
+         * 1.1
+         * 1.1.1
+         * 1.2
+         * etc
+         */
+        function sortVersion(a, b)
+        {
+            return a.version.localeCompare(
+                b.version,
+                undefined,
+                { numeric: true }
+            );
+        }
+
+
+        /**
+         * build tree per lead
+         */
+        function buildTree(list)
+        {
+            let childrenMap = {};
+
+            /**
+             * build parent-child map
+             */
+            list.forEach(item => {
+
+                let parentId = item.parent_quote_id ?? null;
+
+                if (!childrenMap[parentId]) {
+                    childrenMap[parentId] = [];
+                }
+
+                childrenMap[parentId].push(item);
+            });
+
+            let output = [];
+
+            /**
+             * recursive builder
+             */
+            function build(parentId, level)
+            {
+                let children = childrenMap[parentId] || [];
+
+                children.sort(sortVersion);
+
+                children.forEach(child => {
+
+                    child.level = level;
+
+                    output.push(child);
+
+                    build(child.id, level + 1);
+                });
+            }
+
+            /**
+             * root nodes
+             */
+            let roots = childrenMap[null] || [];
+
+            roots.sort(sortVersion);
+
+            roots.forEach(root => {
+
+                root.level = 0;
+
+                output.push(root);
+
+                build(root.id, 1);
+            });
+
+            /**
+             * STEP 2:
+             * show ONLY latest version initially
+             */
+            if(output.length > 0)
+            {
+                let latest = [...output]
+                    .sort(sortVersion)
+                    .pop();
+
+                if(latest)
+                {
+                    latest.is_latest = true;
+                    latest.is_hidden = false;
+                }
+            }
+
+            return output;
+        }
+
+
+        /**
+         * build per lead separately
+         */
+        Object.keys(byLead).forEach(leadId => {
+
+            let tree = buildTree(byLead[leadId]);
+
+            finalResult = finalResult.concat(tree);
+        });
+
+
+        crm_negotiate_quote_datas = finalResult;
+
+        // let finalResult = [];
+
+        // /**
+        //  * group by lead first (IMPORTANT)
+        //  */
+        // let byLead = {};
+
+        // crm_negotiate_quote_datas.forEach(item => {
+
+        //     if (!byLead[item.lead_id]) {
+        //         byLead[item.lead_id] = [];
+        //     }
+
+        //     byLead[item.lead_id].push(item);
+        // });
+
+
+        // /**
+        //  * version sort (safe numeric dot sort)
+        //  */
+        // function sortVersion(a, b)
+        // {
+        //     return a.version.localeCompare(b.version, undefined, { numeric: true });
+        // }
+
+
+        // /**
+        //  * build tree per lead
+        //  */
+        // function buildTree(list)
+        // {
+        //     let map = {};
+        //     let childrenMap = {};
+
+        //     list.forEach(item => {
+
+        //         map[item.id] = item;
+
+        //         let parentId = item.parent_quote_id;
+
+        //         if (!childrenMap[parentId]) {
+        //             childrenMap[parentId] = [];
+        //         }
+
+        //         childrenMap[parentId].push(item);
+        //     });
+
+        //     let output = [];
+
+        //     function build(parentId, level)
+        //     {
+        //         let children = childrenMap[parentId] || [];
+
+        //         children.sort(sortVersion);
+
+        //         children.forEach(child => {
+
+        //             child.level = level;
+
+        //             output.push(child);
+
+        //             build(child.id, level + 1);
+        //         });
+        //     }
+
+        //     /**
+        //      * root nodes = parent_quote_id = null
+        //      */
+        //     let roots = childrenMap[null] || [];
+
+        //     roots.sort(sortVersion);
+
+        //     roots.forEach(root => {
+
+        //         root.level = 0;
+
+        //         output.push(root);
+
+        //         build(root.id, 1);
+        //     });
+
+        //     return output;
+        // }
+
+
+        // /**
+        //  * build per lead separately
+        //  */
+        // Object.keys(byLead).forEach(leadId => {
+
+        //     let tree = buildTree(byLead[leadId]);
+
+        //     finalResult = finalResult.concat(tree);
+        // });
+
+
+        // crm_negotiate_quote_datas = finalResult;
+
+       
+        return {
+          'crm_active_quote_datas' : crm_active_quote_datas, 
+          'crm_negotiate_quote_datas' : crm_negotiate_quote_datas,
+          'crm_approved_quote_datas' : crm_approved_quote_datas,
+          'crm_rejected_quote_datas' : crm_rejected_quote_datas
+        }; 
+      }//crm_quote
+      else if(type == 'crm_reminder')
+      {
+        var reminders = result['reminders'];
+        
+        crm_reminder_datas = [];
+        var crm_reminder_start = 1;
+        $.each(reminders, function (idx, reminder) {
+          var lead = [];
+          var quote = [];
+          if(reminder.lead)
+          {
+            lead = reminder.lead;
+          }
+          else if(reminder.quote)
+          {
+            quote = reminder.quote;
+            lead = reminder.quote.lead;
+          }
+
+          crm_reminder_datas.push({                             
+            'id' : reminder.id,
+            'fake_id' : crm_reminder_start,
+            'sent_to' : reminder.sent_to,
+            'reminder_date' : moment(reminder.reminder_date).format('DD-MM-YYYY'),
+            'reminder_time' : reminder.reminder_time,
+            'reminder_notes' : reminder.notes,
+            'email_sent' : (reminder.email_sent) ? 1 : 0,
+
+            'cvr_number' : lead.cvr_number,
+            'company_name' : lead.company_name,
+            //'company_address' : lead.company_address,
+            //'company_postcode' : lead.company_postcode,
+            //'company_city' : lead.company_city,
+            //'company_country' : lead.company_country,
+            //'company_telephone' : lead.company_telephone,
+            //'company_email' : lead.company_email,
+            'company_website' : lead.company_website,
+            //'company_desc' : lead.company_desc,
+            //'company_employees' : lead.company_employees,
+            //'financial_year' : lead.financial_year,
+            //'revenue' : lead.revenue,
+            //'rating' : lead.rating,
+            //'potential_countries' : lead.potential_countries,
+            //'potential_products' : lead.potential_products,
+            'lead_date' : moment(lead.lead_date).format('DD-MM-YYYY'),
+            'lead_status' : lead.status,
+            //'role' : lead.contact.role,
+            'first_name' : lead.contact.first_name,
+            'last_name' : lead.contact.last_name,
+            'email' : lead.contact.email,
+            'phone' : lead.contact.phone,
+            'designation' : lead.contact.designation,
+            'lang' : lead.contact.lang,
+            
+            'version': (quote) ? quote.version : null,
+            'parent_quote_id': (quote) ? quote.parent_quote_id : null,
+            'package': (quote) ? quote.package : null,
+            'base_price': (quote) ? quote.base_price : null,
+            'registration_price': (quote) ? quote.registration_price : null,
+            'quote_status' : (quote) ? quote.status : null,
+
+            'created_at' : moment(reminder.created_at).format('DD-MM-YYYY hh:mm A')
+          });
+          crm_reminder_start = crm_reminder_start + 1;
+        });
+       
+        return crm_reminder_datas;
+      }//crm_reminder 
     }
 
     window.customFilter = function customFilter(search_type, search_percentage, search_currency, invoice_type, invoice_vatpercentage, invoice_currency)
@@ -3155,7 +5102,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
         return true;
     }
 
-    window.parseAmountValue = function parseAmountValue(amount, currency_code)
+    window.parseAmountValue = function parseAmountValue(amount, currency_code = null)
     {
       let parsed_amount = 0;
              
@@ -3208,5 +5155,97 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
       }
 
       return parsed_amount;
+    }
+
+    window.parseDenmarkFormat = function parseDenmarkFormat(amount)
+    {
+      //console.log(amount);
+      //console.log(/,(\d{1,2})$/.test(amount));
+
+      let formatted_amount = null;
+      if (/,(\d{1,2})$/.test(amount))
+      {                  
+        let parse_amount = parseFloat(amount.replace(/\./g, '').replace(',', '.'));          
+        formatted_amount = new Intl.NumberFormat('da-DK', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(parse_amount);  
+      }
+      else
+      {
+        if (/^\d+(\.\d+)?$/.test(amount))
+        {
+          if (amount.indexOf(',') > -1) 
+          {          
+            let parse_amount = parseAmountValue(amount, 'NOK');
+            formatted_amount = new Intl.NumberFormat('da-DK', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(parse_amount);
+          }
+          else
+          {
+            let parse_amount = parseAmountValue(amount);
+            formatted_amount = new Intl.NumberFormat('da-DK', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(parse_amount);
+          }
+        }
+        else
+        {
+          let parse_amount = parseAmountValue(amount);
+          formatted_amount = new Intl.NumberFormat('da-DK', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+          }).format(parse_amount);
+        }         
+      }
+      return formatted_amount;
+    }
+
+    window.normalizeAmountForFilter = function normalizeAmountForFilter(amount)
+    {
+      if (!amount || String(amount).trim() === '')
+          return null;
+
+      let sanitized = String(amount)
+          .replace(/\−/g, '-')
+          .replace(/\s/g, '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+          .replace(/\,/g, '');
+
+      let parsed = parseFloat(sanitized);
+
+      return isNaN(parsed) ? null : parsed;
+    }
+
+    window.parseVatRate = function parseVatRate(str) {
+      if (!str) return null;
+
+      // Remove spaces
+      str = str.trim();
+
+      // Remove all non-digit, non-dot, non-comma characters
+      str = str.replace(/[^0-9.,]/g, '');
+
+      if (!str) return null;
+
+      // If both comma and dot exist, assume dot is decimal and comma is thousand separator
+      if (str.indexOf('.') > -1 && str.indexOf(',') > -1) {
+          str = str.replace(/,/g, ''); // remove commas
+      }
+      // If only comma exists, treat comma as decimal
+      else if (str.indexOf(',') > -1) {
+          str = str.replace(',', '.'); // convert comma to dot
+      }
+
+      let num = parseFloat(str);
+
+      if (isNaN(num)) return null;
+
+      // Remove trailing .0 if integer
+      return Number.isInteger(num) ? num : num;
     }
 });

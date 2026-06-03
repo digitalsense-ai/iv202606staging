@@ -333,7 +333,10 @@ class DynamicsApiClass
         $end_date = $apiClass->getEndDateLazy($vatreg);            
 
         //Sales
-        $sales_filter = "((sellToCountry eq '".$country."') and (invoiceDate ge $service_start and invoiceDate le $end_date))";
+        if($service_start == '2026-01-01' && $end_date == '2026-03-31' && strtolower($client_name) == 'fairpoint outdoors a/s')         
+          $sales_filter = "((sellToCountry eq '".$country."') and (invoiceDate ge $service_start and invoiceDate le $end_date and invoiceDate ne 2026-03-27))";         
+        else
+          $sales_filter = "((sellToCountry eq '".$country."') and (invoiceDate ge $service_start and invoiceDate le $end_date))";
         
         if($api_environment == "Sandbox")
           $sales_expand = "salesInvoiceLines,customer,pdfDocument";

@@ -1174,7 +1174,8 @@ if($("#dropzone-multi-company-"+$("#client_id").val()).length > 0 || $("#dropzon
           var client_id = $("#client_id").val();
           var lrep_id = $(this).data('lrep_id');
           console.log(client_id + "  " + lrep_id);
-          if(lrep_id != '')
+          //if(lrep_id != '')
+          if (typeof lrep_id !== 'undefined' && lrep_id !== '')
           {
             $.ajax({
                type: 'DELETE',
@@ -1182,7 +1183,8 @@ if($("#dropzone-multi-company-"+$("#client_id").val()).length > 0 || $("#dropzon
                success: function(data){
                   $item.remove(); 
 
-                  loadCompanyHistoryTab(client_id);           
+                  if (typeof client_id !== 'undefined' && client_id !== '')
+                    loadCompanyHistoryTab(client_id);           
                },
                error: function(jqXHR, textStatus, errorThrown){
                   console.log('error: ' + textStatus);

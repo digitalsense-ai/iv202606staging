@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function () {
       $('#note-id-' + vat_reg_id).val('');
       $('#vatreturn-note-type-' + vat_reg_id).val('');      
       $('#vatreturn-note-editor-'+ vat_reg_id+' .ql-editor').html('');
+      $('#vatreturn-selectedCountries-' + vat_reg_id).selectpicker('deselectAll');
 
       $('#btn-vatreturn-note-save-' + vat_reg_id).html('Save');
     }
@@ -214,6 +215,8 @@ document.addEventListener('DOMContentLoaded', function () {
                   //var message = {message_title: 'Notes saved!', message_text: 'Notes has been saved.'};
                   //loadVATReturnsNotesTab(client_id, vat_reg_id, message);                
                   loadVATReturnsNotesTab(client_id, vat_reg_id);
+
+                  //loadAllVATReturnsNotes();
                 }
               },
               error: function (error) {
@@ -245,14 +248,22 @@ document.addEventListener('DOMContentLoaded', function () {
       var vat_reg_id = data.vat_reg_id;
       var note_type = data.note_type;
       var note_comment = data.note_comment;
+      var note_countries = data.note_countries;
 
       clearVATReturnsNotes(vat_reg_id);
 
       $('#note-id-' + vat_reg_id).val(note_id);
       $('#vatreturn-note-type-' + vat_reg_id).val(note_type);      
       $('#vatreturn-note-editor-'+ vat_reg_id+' .ql-editor').html(note_comment);
-      
-      $('#vatreturnNotesModal-' + vat_reg_id).modal('show');
+
+      // Convert to array and remove extra spaces
+      var arr_note_countries = note_countries.split(',').map(function(item) {
+          return item.trim();
+      });
+      $('#vatreturn-selectedCountries-' + vat_reg_id).selectpicker('deselectAll');
+      $('#vatreturn-selectedCountries-'+ vat_reg_id).selectpicker('val', arr_note_countries);
+
+      $('#vatreturnNotesModal-' + vat_reg_id).modal('show');      
     });
     
     //Delete VATReturn Notes
@@ -316,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     window.Echo.channel('vatreturn-notes-channel').listen('.VATReturnNotesEvent', (event) => {  
-        //console.log('VATReturn Notes Event:', event);        
+        console.log('VATReturn Notes Event:', event);        
         var vat_reg_id = event.vat_reg_id;
         
         loadAllVATReturnsNotes();

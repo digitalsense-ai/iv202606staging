@@ -12,8 +12,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Str;
 
 use App\Jobs\ReadFtpFiles;
+use App\Jobs\SubmitAnalyzeJob;
 
 use App\Models\CargoDeclarationFiles;
 use App\Models\Client;
@@ -28,6 +30,7 @@ use App\Models\ImportReconciliationComInvoices;
 use App\Models\ImportReconciliationSalesInvoices;
 use App\Models\ImportReconciliationFiles;
 use App\Models\ImportReconciliationSalesInvoicesData;
+use App\Models\InvoiceOcrPdf;
 
 use \App\Classes\CommonClass;
 use \App\Classes\ApiClass;
@@ -42,6 +45,7 @@ use \App\Classes\CargoDeclarationClass;
 use \App\Classes\SwissImportReconciliationClass;
 
 use App\Services\TableToExcelService;
+use App\Services\PdfInvoiceParser;
 
 use Illuminate\Support\Facades\Http;
 use GuzzleHttp\Client as GuzzleClient;
@@ -108,6 +112,12 @@ class TestSampleController extends Controller
 
 	public function index()
 	{	
+        // $system = $this->commonClass->getSystemInfoLazy();
+        //             $systemapi = $system->systemapi->first();
+        //            $systemapi->api_secret_key = "NEW KEY";
+        //             $systemapi->save();
+        //             dd($systemapi->api_secret_key);
+
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
@@ -1688,8 +1698,7 @@ dd($firstFile, $readcargofiles);
                 })
                 ->get();
             
-            $system_ftp = $this->commonClass->getSystemInfoLazy('FTP', 'Production');
-            $efacto = false;
+            $system_ftp = $this->commonClass->getSystemInfoLazy('FTP', 'Production');        
             $which_folder = 'archive';
 
             $clientapi = $system_ftp->systemapi->first();
@@ -1753,6 +1762,7 @@ dd($firstFile, $readcargofiles);
                     $filename = basename($filepath);
 
                     return !in_array($filename, $o_file_names);
+                    //return ($filename == '9010334.xml') ? !in_array($filename, $o_file_names) : false;
                 });
                 $missingimportreconciliationfiles = $filtered_importreconciliationfiles;                
 
@@ -1813,87 +1823,499 @@ dd($firstFile, $readcargofiles);
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
         
+        // Read file
+        //$fileName = 'azure-results/Millarco_faktura_NO190104.txt';
+        //$fileName = 'azure-results/4.txt';
+        //$fileName = 'azure-results/Dan-form - 4141_001.txt';
+        //$fileName = 'azure-results/Horn - S0124176_71363251-VENIReklamasjon_INVOICE_norge-005479_horn_20251127_101128.txt';
+        //$fileName = 'azure-results/Lyngsøe Rainwear - NOS 003977 - SF-1346566_Kundefakturaer.txt';
+        //$fileName = 'azure-results/Lyngsøe Rainwear - Sales Credit Memo KN-1117532.txt';
+        //$fileName = 'azure-results/Berendsohn - SALES INVOICE-983799620MVA_SI_9000020061_0000045930_END.txt';
+        //$fileName = 'azure-results/Berendsohn - COM INVOICE-983799620MVA_CI_0000045930_END.txt';
+
+        /*
+        $content = Storage::get($fileName);
+
+
+        // Convert back to array if needed
+        $resultArray = json_decode($content, true);
+
+        $pages = $resultArray['analyzeResult']['pages'] ?? [];
+
+        $fullText = '';
+
+        foreach ($pages as $page) {
+            foreach ($page['lines'] ?? [] as $line) {
+                $fullText .= $line['content'] . PHP_EOL;
+            }
+        }
+        */
+
+        /*
+        $fullText = Storage::get($fileName);
+        //$jsonData = json_decode($fullText, true);
+
+        $parser = new InvoiceOcrParser($fullText);
+        $invoiceData = $parser->parse();
+        */
+
+        /*
+        $useSaved = false;
+
+        if ($useSaved) {
+            $ocrData = json_decode(
+                Storage::get('azure-results/Millarco_faktura_NO190104.json'),
+                true
+            );
+
+            $invoiceData = $this->parseInvoice($ocrData);
+
+            dd($invoiceData);
+        } 
+        else {
+            $ocrData = $this->callAzureInvoiceModel($request);
+        }
+        */
+       
+        // $parser = new PolygonInvoiceParser();
+        // $fullText = Storage::get($fileName);
+        // $ocrJson = json_decode($fullText, true);
+
+        // $invoiceData = $parser->parse($ocrJson);
+/*
+        $text = file_get_contents(storage_path('app/'.$fileName));
+        
+        $json = json_decode($text, true);
+        $pdfContent = $json['analyzeResult']['content'] ?? '';
+
+        $parser = new PdfInvoiceParser($pdfContent);
+        $invoiceData = $parser->parse();
+        
+      //dd($invoiceData);
+      */
+
+        $invoiceocrpdfs = InvoiceOcrPdf::with(['client'])
+                            ->orderBy('id', 'DESC')            
+                            ->get(); 
+
         /* -- RETURN VIEW -- */
         return view('content.analyze', [
           'pageConfigs' => $pageConfigs, 
-          'authUser' => $this->authUser                
+          'authUser' => $this->authUser,
+          'invoice' => isset($invoiceData) ? $invoiceData : NULL,
+          'invoiceocrpdfs' => isset($invoiceocrpdfs) ? (($invoiceocrpdfs) ? $invoiceocrpdfs : NULL) : NULL
         ]);
         /* --end RETURN VIEW -- */
     }
 
-    public function analyze(Request $request)
+//     public function analyze(Request $request)
+//     {
+//         $request->validate([
+//             'file' => 'required|file|mimes:pdf'
+//         ]);
+
+//         $filePath = $request->file('file')->getRealPath();
+//         $filenameOnly = pathinfo(
+//             $request->file('file')->getClientOriginalName(),
+//             PATHINFO_FILENAME
+//         );
+
+
+//         // $endpoint = env('AZURE_FORM_ENDPOINT');
+//         // $apiKey = env('AZURE_FORM_KEY');
+
+//         $endpoint = config('services.azure_form.endpoint');
+//         $apiKey = config('services.azure_form.key');
+
+//         if (!$endpoint || !$apiKey) {
+//             dd('Endpoint or API key missing!');
+//         }
+
+//         //$url = $endpoint . "/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31";
+//         //$url = $endpoint . "/formrecognizer/documentModels/prebuilt-invoice:analyze?api-version=2023-07-31";
+//         $url = $endpoint . "contentunderstanding/analyzers/millarco_invoice_analyzer_v2:analyze?api-version=2023-10-31-preview";
+//         //$url = $endpoint . "formrecognizer/documentModels/millarco_invoice_analyzer_v2:analyze?api-version=2023-07-31";
+
+//         // Initialize Guzzle client
+//         $guzzleclient = new GuzzleClient();
+
+//         // Step 1: Send the PDF to Azure
+//         $response = $guzzleclient->post($url, [
+//             'headers' => [
+//                 'Ocp-Apim-Subscription-Key' => $apiKey,
+//                 'Content-Type' => 'application/pdf',
+//             ],
+//             'body' => file_get_contents($filePath),
+//         ]);
+
+//         // Step 2: Get operation-location header
+//         $operationLocation = $response->getHeaderLine('operation-location');
+        
+//         // Step 3: Wait a few seconds for processing
+//         sleep(3); // optional: you can implement polling for longer documents
+
+//         // Step 4: Poll the operation result
+//         $resultResponse = $guzzleclient->get($operationLocation, [
+//             'headers' => [
+//                 'Ocp-Apim-Subscription-Key' => $apiKey,
+//             ]
+//         ]);
+
+//         // Step 5: Decode JSON response
+//         $result = json_decode($resultResponse->getBody(), true);
+
+//         // Convert result to formatted text (JSON pretty print)
+//         $textOutput = json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+//         // Define file name (you can make this dynamic)
+//         $fileName = 'azure-results/result_' . time() . '.txt';
+
+//         // Save to storage/app/azure-results/
+//         Storage::put($fileName, $textOutput);
+        
+// /*
+//         // 3. Poll result
+//         sleep(2);
+
+//         do {
+//             $resultResponse = $guzzleclient->get($operationLocation, [
+//                 'headers' => [
+//                     'Ocp-Apim-Subscription-Key' => $apiKey,
+//                 ],
+//             ]);
+
+//             $result = json_decode($resultResponse->getBody(), true);
+//         } while (($result['status'] ?? '') === 'running');
+
+//         $textOutput = json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+//         $fileName = 'azure-results/'. $filenameOnly .'.json';
+
+//         Storage::put($fileName, $textOutput);
+
+//         // 4. Parse invoice
+//         $invoice = $this->parseInvoice($result);
+
+// dd($invoice);
+// */
+//         // Step 6: Return result
+//         return $invoice;
+
+//         /*
+//         // Step 1: Send PDF to Azure for analysis
+//         $response = Http::withHeaders([
+//             'Ocp-Apim-Subscription-Key' => $apiKey,
+//             'Content-Type' => 'application/pdf'
+//         ])->withBody(file_get_contents($filePath), 'application/pdf')
+//           ->post($url);
+
+//         if (!$response->successful()) {
+//             return response()->json($response->json(), 500);
+//         }
+
+//         $operationLocation = $response->header('operation-location');
+
+//         // Step 2: Get result (poll the operation)
+//         sleep(3);
+
+//         $result = Http::withHeaders([
+//             'Ocp-Apim-Subscription-Key' => $apiKey,
+//         ])->get($operationLocation);
+
+//         return $result->json();
+//         */
+//     }
+/*
+    public function analyzeInvoice(Request $request)
     {
+        // Step 0: Validate the uploaded file
         $request->validate([
             'file' => 'required|file|mimes:pdf'
         ]);
 
         $filePath = $request->file('file')->getRealPath();
+        $filenameOnly = pathinfo(
+            $request->file('file')->getClientOriginalName(),
+            PATHINFO_FILENAME
+        );
 
-        // $endpoint = env('AZURE_FORM_ENDPOINT');
-        // $apiKey = env('AZURE_FORM_KEY');
+        // Step 1: Prepare Azure Content Understanding details
+        $endpoint = 'https://intravatdocumentintelligence-resource-4329.services.ai.azure.com';
+        $analyzerId = 'millarco_invoice_analyzer_v2';
+        $apiVersion = '2025-11-01';
+        $apiKey = 'AvgMc8Ifrq8KFZO7lF6jNo1xvOLkDR2WdmBvB4V1mDL3b12ic877JQQJ99BLAC5RqLJXJ3w3AAAAACOGXRjt';
 
-        $endpoint = config('services.azure_form.endpoint');
-        $apiKey = config('services.azure_form.key');
+        $url = "$endpoint/contentunderstanding/analyzers/$analyzerId:analyze?api-version=$apiVersion";
 
-        if (!$endpoint || !$apiKey) {
-            dd('Endpoint or API key missing!');
-        }
+        // Step 2: Read file and encode as base64
+        $fileContent = base64_encode(file_get_contents($filePath));
 
-        $url = $endpoint . "/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31";
-
-        // Initialize Guzzle client
+        // Step 3: Initialize Guzzle client        
         $guzzleclient = new GuzzleClient();
 
-        // Step 1: Send the PDF to Azure
-        $response = $guzzleclient->post($url, [
-            'headers' => [
-                'Ocp-Apim-Subscription-Key' => $apiKey,
-                'Content-Type' => 'application/pdf',
-            ],
-            'body' => file_get_contents($filePath),
+        try {
+            // Step 4: Send PDF to Azure
+            // $response = $guzzleclient->post($url, [
+            //     'headers' => [
+            //         'Ocp-Apim-Subscription-Key' => $apiKey,
+            //         'Content-Type' => 'application/json',
+            //     ],
+            //     'json' => [
+            //         'content' => $fileContent,
+            //         'contentType' => 'application/pdf'
+            //     ],
+            // ]);
+
+            $response = $guzzleclient->post($url, [
+                'headers' => [
+                    'Ocp-Apim-Subscription-Key' => $apiKey,
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => [
+                    'inputs' => [
+                        [
+                            'data' => base64_encode(file_get_contents($filePath)),
+                            'name' => $filenameOnly . '.pdf'
+                        ]
+                    ]
+                ],
+            ]);
+
+
+            // Step 5: Get the request ID (Operation-Location header)
+            $operationLocation = $response->getHeaderLine('Operation-Location');
+            $requestId = basename($operationLocation); // The actual request ID
+            // You can also store the full URL in case you want to poll later
+//dd($operationLocation, $requestId);
+            
+            $maxRetries = 20; // try 20 times
+            $retry = 0;
+            $status = '';
+            do {
+                sleep(3); // wait 3 seconds between polls
+                $retry++;
+                
+                $resultResponse = $guzzleclient->get($operationLocation, [
+                    'headers' => ['Ocp-Apim-Subscription-Key' => $apiKey]
+                ]);
+                
+                $resultBody = json_decode($resultResponse->getBody(), true);
+                $status = $resultBody['status'] ?? '';
+            } while ($status !== 'succeeded' && $status !== 'failed' && $retry < $maxRetries);
+
+            if ($status === 'succeeded') {
+                //return $resultBody['analyzeResult'] ?? null;
+                $textOutput = json_encode($resultBody['analyzeResult'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+                $fileName = 'azure-results/'. $filenameOnly . Carbon::now()->format('Y-m-d-H-i-s') .'.json';
+
+                Storage::put($fileName, $textOutput);   
+            } elseif ($status === 'failed') {
+                // handle failure
+            } else {
+                // timed out
+            }
+
+
+                   
+            
+            return response()->json([
+                'message' => 'File sent to Azure successfully',
+                'request_id' => $requestId,
+                'operation_location' => $operationLocation,
+                'analyze_result' => $resultBody
+            ]);
+
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'body' => $e->hasResponse() ? (string)$e->getResponse()->getBody() : null
+            ], 500);
+        }
+    }
+    */
+
+    public function analyzeInvoicePdfs(Request $request)
+    {
+        $request->validate([
+            'pdfs.*' => 'required|mimes:pdf|max:20480',
         ]);
 
-        // Step 2: Get operation-location header
-        $operationLocation = $response->getHeaderLine('operation-location');
+        //$client = $request->user()->client;
+        $batchId = (string) Str::uuid();
+        $responses = [];
 
-        // Step 3: Wait a few seconds for processing
-        sleep(3); // optional: you can implement polling for longer documents
+        $invoiceType = $request->pdf_invoice_type;
+        if($invoiceType == 'sales')
+            $analyzerId = 'sales_invoice_analyzer_v1';
+        else if($invoiceType == 'multiple-invoices-single-pdf')
+            $analyzerId = 'dan_form_invoices_v1';
+        else if($invoiceType == 'com')
+            $analyzerId = 'com_invoice_analyzer_v3';
+        foreach ($request->file('pdfs') as $file) {
+            //$path = $file->store('incoming');
+            $path = $file->storeAs('ocr/' . $invoiceType, $file->getClientOriginalName(), 'public');
 
-        // Step 4: Poll the operation result
-        $resultResponse = $guzzleclient->get($operationLocation, [
-            'headers' => [
-                'Ocp-Apim-Subscription-Key' => $apiKey,
-            ]
-        ]);
+            $docId = \DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+                'client_id' => NULL,//$client->id,                
+                'batch_id'    => $batchId,
+                'invoice_type' => $invoiceType,
+                'file_name' => $file->getClientOriginalName(),
+                'analyzer_id' => $analyzerId,
+                'status' => 'queued',
+                'created_at' => now(),
+            ]);
 
-        // Step 5: Decode JSON response
-        $result = json_decode($resultResponse->getBody(), true);
-dd($result);
-        // Step 6: Return result
-        return $result;
+            SubmitAnalyzeJob::dispatch(
+                $docId,
+                storage_path("app/public/{$path}"),
+                $file->getClientOriginalName(),
+                $analyzerId,
+                $invoiceType
+            )->onQueue('ocrpdfinvoices');
 
-        /*
-        // Step 1: Send PDF to Azure for analysis
-        $response = Http::withHeaders([
-            'Ocp-Apim-Subscription-Key' => $apiKey,
-            'Content-Type' => 'application/pdf'
-        ])->withBody(file_get_contents($filePath), 'application/pdf')
-          ->post($url);
-
-        if (!$response->successful()) {
-            return response()->json($response->json(), 500);
+            $responses[] = [
+                'document_id' => $docId,
+                'status' => 'queued',
+            ];
         }
 
-        $operationLocation = $response->header('operation-location');
+        //return response()->json($responses, 202);
+        return response()->json([
+            'batch_id' => $batchId,
+            'documents' => $responses,
+        ], 202);
+    }
 
-        // Step 2: Get result (poll the operation)
-        sleep(3);
+    public function batchProgress(string $batchId)
+    {
+        $total = DB::table('dv_invoice_ocr_pdfs')
+            ->where('batch_id', $batchId)
+            ->count();
 
-        $result = Http::withHeaders([
-            'Ocp-Apim-Subscription-Key' => $apiKey,
-        ])->get($operationLocation);
+        $completed = DB::table('dv_invoice_ocr_pdfs')
+            ->where('batch_id', $batchId)
+            ->whereIn('status', ['completed', 'failed'])
+            ->count();
 
-        return $result->json();
-        */
+        $invoiceocrpdfs = InvoiceOcrPdf::with(['client'])
+                            ->orderBy('id', 'DESC')            
+                            ->get();
+
+        return response()->json([
+            'invoiceocrpdfs' => isset($invoiceocrpdfs) ? (($invoiceocrpdfs) ? $invoiceocrpdfs : NULL) : NULL,
+            'total'     => $total,
+            'completed' => $completed,
+            'percent'   => $total === 0
+                ? 0
+                : round(($completed / $total) * 100),
+        ]);
+    }
+
+    public function sendHmrcValidate()
+    {   
+        /* -- PAGE CONFIG -- */
+        $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+        /* --end PAGE CONFIG -- */
+
+        /* -- RETURN VIEW -- */
+        return view('content.hmrc', [
+          'pageConfigs' => $pageConfigs, 
+          'authUser' => $this->authUser                
+        ]);
+        /* --end RETURN VIEW -- */        
+    }
+   
+    public function hmrcValidate(Request $request)
+    {      
+        $accessToken = "b8df3294fd0bc67ddf4e7d5fd9aa3cbc"; 
+
+        // Example MFA info (Authenticator app)       
+        $mfaHeader = [        
+            'type' => 'AUTH_CODE',
+            'timestamp' => gmdate('Y-m-d\TH:i:s\Z'), // Standard ISO 8601 without ms is safer
+            'unique-reference' => (string) \Illuminate\Support\Str::uuid()    
+        ];
+
+        // Screen info
+        $screens = [         
+            'width' => 1920,
+            'height' => 1080,
+            'colour-depth' => 24,
+            'scaling-factor' => 1.0 // float required         
+        ];
+
+        // Window size
+        $windowSize = [
+            'width' => 1920,
+            'height' => 1080
+        ];
+
+        $windowSizeHeader = sprintf("height=%d,width=%d", 1080, 1920);
+
+        // Vendor version
+        $vendorVersion = [
+            'client' => config('app.version', '1.0.0'),
+            'server' => '1.0.0'
+        ];
+
+        // Vendor license IDs
+        $vendorLicenseIds = [
+            'SANDBOX' => 'SANDBOX-001'
+        ];
+
+        // Public IP (client and vendor)
+        $vendorPublicIp = '165.22.78.137';
+        $clientPublicIp = $_SERVER['REMOTE_ADDR'] ?? '203.0.113.45';
+        $clientPort = $_SERVER['REMOTE_PORT'] ?? '5000';
+
+        $headers = [
+            'Authorization' => 'Bearer ' .$accessToken,
+            'Accept' => 'application/vnd.hmrc.1.0+json',
+
+            // Vendor headers
+            'Gov-Client-Connection-Method' => 'WEB_APP_VIA_SERVER',
+            'Gov-Vendor-Product-Name' => config('app.name', 'IntraVAT'),
+            'Gov-Vendor-Version' => "client={$vendorVersion['client']}&server={$vendorVersion['server']}",
+            'Gov-Vendor-Public-IP' => $vendorPublicIp,
+            'Gov-Vendor-Forwarded' => "by={$vendorPublicIp}&for={$clientPublicIp}",
+            'Gov-Vendor-License-Ids' => "SANDBOX=SANDBOX-001",
+
+            // Client headers
+            'Gov-Client-Browser-Js-User-Agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+            // 'Gov-Client-Multi-Factor' => "type={$mfaHeader['type']}&timestamp={$mfaHeader['timestamp']}&unique-reference={$mfaHeader['unique-reference']}",
+
+            'Gov-Client-Multi-Factor' => "type=" . rawurlencode($mfaHeader['type']) . 
+               "&timestamp=" . rawurlencode($mfaHeader['timestamp']) . 
+               "&unique-reference=" . rawurlencode($mfaHeader['unique-reference']),
+
+            'Gov-Client-Public-IP' => $clientPublicIp,
+            'Gov-Client-Public-Port' => (string)$clientPort,
+            'Gov-Client-Public-IP-Timestamp' => gmdate('Y-m-d\TH:i:s.v\Z'),
+            'Gov-Client-Device-ID' => (string) Str::uuid(),
+            'Gov-Client-Screens' => "width={$screens['width']}&height={$screens['height']}&colour-depth={$screens['colour-depth']}&scaling-factor={$screens['scaling-factor']}",
+
+            //'width=' . $screens['width'] . '&height=' . $screens['height'] . '&colour-depth=' . $screens['colour-depth'] . '&scaling-factor=' . $screens['scaling-factor'],
+            'Gov-Client-Window-Size' => "width={$windowSize['width']}&height={$windowSize['height']}",
+
+            //'width=' . $windowSize['width'] . '&height=' . $windowSize['height'],
+            'Gov-Client-Timezone' => 'UTC+00:00',
+            'Gov-Client-User-IDs' => "userId=exampleUser123",
+        ];
+
+//dd($headers);
+        $url = 'https://test-api.service.hmrc.gov.uk/test/fraud-prevention-headers/validate';
+
+        try {
+            $response = Http::withHeaders($headers)->get($url);
+
+            if ($response->successful()) {
+                dd('Success:', $response->json());
+            } else {
+                dd('Error:', $response->json());
+            }
+        } catch (\Exception $e) {
+            dd('Exception:', $e->getMessage());
+        }
     }
 }
