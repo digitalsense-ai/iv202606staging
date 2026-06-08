@@ -104,9 +104,9 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             $invoices = InvoiceOcrPdf::where('invoice_type', $duplicate->invoice_type)
                 ->where('duplicate_hash', $duplicate->duplicate_hash)
                 ->where('status', 'completed')
-                ->when(!empty($this->invoiceIds), function ($query) {
-                    $query->whereIn('id', $this->invoiceIds);
-                })
+                // ->when(!empty($this->invoiceIds), function ($query) {
+                //     $query->whereIn('id', $this->invoiceIds);
+                // })
                 ->orderBy('id') // oldest first
                 ->get();
 
@@ -114,17 +114,30 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                 continue;
             }
 
-            // Keep the oldest invoice as the master/original
+            // Keep the oldest invoice as the master/original, even when only
+            // validating a batch or recaptured invoice subset.
             $original = $invoices->first();
             $og_invoice_no = $original->extracted_data['invoice_number'] ?? null;
+
+            $duplicateCandidates = $invoices->where('id', '!=', $original->id);
+
+            if ($this->batchId) {
+                $duplicateCandidates = $duplicateCandidates->where('batch_id', $this->batchId);
+            }
+
+            if (!empty($this->invoiceIds)) {
+                $duplicateCandidates = $duplicateCandidates->whereIn('id', $this->invoiceIds);
+            }
 
             // Log::info('Duplicate group found', [
             //     'invoice_type' => $duplicate->invoice_type,
             //     'original_id' => $original->id,
             //     'duplicate_ids' => $invoices->skip(1)->pluck('id')->toArray(),
+            //     'duplicate_ids' => $duplicateCandidates->pluck('id')->toArray(),
             // ]);
 
-            foreach ($invoices->skip(1) as $invoice) {
+            //foreach ($invoices->skip(1) as $invoice) {
+            foreach ($duplicateCandidates as $invoice) {
                 $invoice_no = " / Invoice No. " . ($og_invoice_no ?? '');
 
                 $invoice->update([

@@ -100,7 +100,8 @@ class ValidateOcrInvoiceDuplicateService
             'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
             'vat_amount' => $this->normalizeAmount($data['vat_amount'] ?? null),
             'total_amount' => $this->normalizeAmount($data['total_amount'] ?? null),
-            'org_number' => $this->normalizeIdentifier($data['supplier']['org_number'] ?? null),
+            //'org_number' => $this->normalizeIdentifier($data['supplier']['org_number'] ?? null),
+            'org_number' => $this->normalizeIdentifier($data['supplier']['org_number'] ?? ($data['supplier']['cvr_number'] ?? null)),
         ];
     }
 

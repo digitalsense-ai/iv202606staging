@@ -55,7 +55,9 @@ class PollAnalyzeResultJob implements ShouldQueue
             ->where('id', $this->documentId)
             ->value('status');
 
-        if (in_array($status, ['completed', 'failed', 'timeout'])) {
+        //if (in_array($status, ['completed', 'failed', 'timeout'])) {
+        if (in_array($status, ['completed', 'failed', 'timeout', 'duplicate'])) {
+            $this->finalizeEmailBatchIfComplete();    
             return;
         }
 
@@ -71,6 +73,8 @@ class PollAnalyzeResultJob implements ShouldQueue
                     'status' => 'timeout',
                     'error' => 'Polling exceeded 5 minutes'
                 ]);
+
+            $this->finalizeEmailBatchIfComplete();
 
             return;
         }
@@ -168,6 +172,8 @@ class PollAnalyzeResultJob implements ShouldQueue
                         'status' => 'failed',
                         'error' => json_encode($result),
                     ]);
+
+                $this->finalizeEmailBatchIfComplete();
 
                 return;
             }
@@ -285,29 +291,31 @@ class PollAnalyzeResultJob implements ShouldQueue
              */
             if ($this->emailMessageId) {
 
-                $batchId = DB::table('dv_invoice_ocr_pdfs')
-                    ->where('id', $this->documentId)
-                    ->value('batch_id');
+                // $batchId = DB::table('dv_invoice_ocr_pdfs')
+                //     ->where('id', $this->documentId)
+                //     ->value('batch_id');
 
-                $remaining = DB::table('dv_invoice_ocr_pdfs')
-                    ->where('batch_id', $batchId)
-                    //->whereNotIn('status', ['completed', 'failed'])
-                    ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
-                    ->count();
+                // $remaining = DB::table('dv_invoice_ocr_pdfs')
+                //     ->where('batch_id', $batchId)
+                //     //->whereNotIn('status', ['completed', 'failed'])
+                //     ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
+                //     ->count();
 
-                // Cache::increment('inbox_completed', 1);
+                // // Cache::increment('inbox_completed', 1);
 
-                if ($remaining === 0) {
+                // if ($remaining === 0) {
 
-                    $mailService = app(MicrosoftMailService::class);
+                //     $mailService = app(MicrosoftMailService::class);
 
-                    $mailService->addCategory($this->emailMessageId);
-                    $mailService->markEmailAsRead($this->emailMessageId);
-                    $mailService->moveEmailToFolder($this->emailMessageId);
+                //     $mailService->addCategory($this->emailMessageId);
+                //     $mailService->markEmailAsRead($this->emailMessageId);
+                //     $mailService->moveEmailToFolder($this->emailMessageId);
 
-                    ValidateOcrInvoicesJob::dispatch($batchId)
-                        ->onQueue('ocrpdfvalidateinvoices');
-                }
+                //     ValidateOcrInvoicesJob::dispatch($batchId)
+                //         ->onQueue('ocrpdfvalidateinvoices');
+                // }
+
+                $this->finalizeEmailBatchIfComplete();
             }
             else
             {
@@ -359,6 +367,51 @@ class PollAnalyzeResultJob implements ShouldQueue
                 ->update([
                     'polling_locked_at' => null
                 ]);
+        }
+    }
+
+     private function finalizeEmailBatchIfComplete(): void
+    {
+        if (!$this->emailMessageId) {
+            return;
+        }
+
+        $batchId = DB::table('dv_invoice_ocr_pdfs')
+            ->where('id', $this->documentId)
+            ->value('batch_id');
+
+        if (!$batchId) {
+            return;
+        }
+
+        $remaining = DB::table('dv_invoice_ocr_pdfs')
+            ->where('batch_id', $batchId)
+            ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
+            ->count();
+
+        if ($remaining !== 0) {
+            return;
+        }
+
+        $cacheKey = "ocr_email_batch_finalized:{$batchId}";
+
+        if (!Cache::add($cacheKey, true, now()->addHours(6))) {
+            return;
+        }
+
+        try {
+            $mailService = app(MicrosoftMailService::class);
+
+            $mailService->addCategory($this->emailMessageId);
+            $mailService->markEmailAsRead($this->emailMessageId);
+            $mailService->moveEmailToFolder($this->emailMessageId);
+
+            ValidateOcrInvoicesJob::dispatch($batchId)
+                ->onQueue('ocrpdfvalidateinvoices');
+        } catch (\Throwable $e) {
+            Cache::forget($cacheKey);
+
+            throw $e;
         }
     }
 }
