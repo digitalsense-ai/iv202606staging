@@ -343,10 +343,8 @@ async function fetchInboxAndTrackProgress() {
 
     <div class="row">
         <div class="col-12">
-            <a class="btn btn-primary" href="{{ route('analyze.pdf.validate') }}" target="_blank">Validate</a>
-            
             @if(strtolower(env('APP_URL')) === "http://localhost:8000" || strtolower(config('app.url')) === "http://localhost:8000")
-                
+                <a class="btn btn-primary" href="{{ route('analyze.pdf.validate', 'all') }}" target="_blank">Validate</a>
             @else
                 <a href="javascript:fetchInboxAndTrackProgress()" class="btn btn-dark float-end">Fetch Email PDFs</a>
             @endif

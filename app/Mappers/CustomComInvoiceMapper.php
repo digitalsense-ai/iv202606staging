@@ -44,19 +44,26 @@ class CustomComInvoiceMapper
                                 : ($invoiceDate ? str_replace('-', '', $invoiceDate) : null);            
         if($validate)
         {
-            $finalRelatedSalesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
-            $finalRelatedSalesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
-            $finalRelatedShipments     = $doc['Related Shipment Numbers']['valueString'] ?? null;
+            $parser = app(ClientInvoiceParser::class);
+            $related = $parser->parse($doc, $client_name, $client_no, true);
+
+            // $finalRelatedSalesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
+            // $finalRelatedSalesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
+            // $finalRelatedShipments     = $doc['Related Shipment Numbers']['valueString'] ?? null;
         }
         else
         {
-            $parser = app(ClientInvoiceParser::class);
-            $related = $parser->parse($result);
+            //Log::info($result);
 
-            $finalRelatedSalesInvoices = $related['related_sales_invoices'] ?? null;
-            $finalRelatedSalesOrders   = $related['related_sales_orders'] ?? null;
-            $finalRelatedShipments     = $related['related_shipment_nos'] ?? null;
+            $parser = app(ClientInvoiceParser::class);
+            $related = $parser->parse($result, $client_name, $client_no, false);   
+
+            //Log::info($related);
         }
+
+        $finalRelatedSalesInvoices = $related['related_sales_invoices'] ?? null;
+        $finalRelatedSalesOrders   = $related['related_sales_orders'] ?? null;
+        $finalRelatedShipments     = $related['related_shipment_nos'] ?? null;
        
         [$og_currency, $net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Net Amount']['valueString'] ?? null,
@@ -100,6 +107,12 @@ class CustomComInvoiceMapper
         ];
 
         $error_message = '';
+        if (!$client_name)
+            $error_message .= "Client Name missing\n";
+
+        if (!$client_no)
+            $error_message .= "Client No. missing\n";
+
         if (!$invoiceDate)
             $error_message .= "Invoice Date missing\n";
 

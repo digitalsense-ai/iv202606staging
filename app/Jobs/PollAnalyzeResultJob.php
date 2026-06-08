@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+use App\Models\InvoiceOcrPdf;
+
 use App\Classes\CommonClass;
 
 use App\Mappers\InvoiceMapper;
@@ -21,6 +23,8 @@ use App\Services\AzureContentUnderstandingService;
 use App\Services\AzureDocumentIntelligenceService;
 use App\Services\MicrosoftMailService;
 use App\Services\AzureStorageService;
+
+use App\Jobs\ValidateOcrInvoicesJob;
 
 class PollAnalyzeResultJob implements ShouldQueue
 {
@@ -76,12 +80,19 @@ class PollAnalyzeResultJob implements ShouldQueue
          * 3. ATOMIC DB LOCK (NO RACE CONDITION)
          * -------------------------------------------------
          */
-        $locked = DB::update("
-            UPDATE dv_invoice_ocr_pdfs
-            SET polling_locked_at = NOW()
-            WHERE id = ?
-            AND polling_locked_at IS NULL
-        ", [$this->documentId]);
+        // $locked = DB::update("
+        //     UPDATE dv_invoice_ocr_pdfs
+        //     SET polling_locked_at = NOW()
+        //     WHERE id = ?
+        //     AND polling_locked_at IS NULL
+        // ", [$this->documentId]);
+        $locked = DB::table('dv_invoice_ocr_pdfs')
+                    ->where('id', $this->documentId)
+                    ->where(function ($query) {
+                        $query->whereNull('polling_locked_at')
+                            ->orWhere('polling_locked_at', '<', now()->subMinutes(2));
+                    })
+                    ->update(['polling_locked_at' => now()]);
 
         if ($locked === 0) {
             return; // another worker is processing
@@ -253,6 +264,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     'status' => isset($normalized['error']) ? 'failed' : 'completed',
                     'error' => isset($normalized['error']) ? $normalized['error'] : null,
                     'extracted_data' => json_encode($normalized),
+                    'og_extracted_data' => null,
                 ]);
 
             /**
@@ -279,7 +291,8 @@ class PollAnalyzeResultJob implements ShouldQueue
 
                 $remaining = DB::table('dv_invoice_ocr_pdfs')
                     ->where('batch_id', $batchId)
-                    ->whereNotIn('status', ['completed', 'failed'])
+                    //->whereNotIn('status', ['completed', 'failed'])
+                    ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
                     ->count();
 
                 // Cache::increment('inbox_completed', 1);
@@ -291,6 +304,9 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $mailService->addCategory($this->emailMessageId);
                     $mailService->markEmailAsRead($this->emailMessageId);
                     $mailService->moveEmailToFolder($this->emailMessageId);
+
+                    ValidateOcrInvoicesJob::dispatch($batchId)
+                        ->onQueue('ocrpdfvalidateinvoices');
                 }
             }
             else
@@ -300,11 +316,20 @@ class PollAnalyzeResultJob implements ShouldQueue
                 {                    
                     $prevId = $this->prevCapture['prevId'];
                     $sasUrl = $this->prevCapture['sasUrl'];
+                    $blobPath = $this->prevCapture['blobPath'];
 
                     //Delete prev file from Azure Blob Storage
                     $azureService = app(AzureStorageService::class);
-                    $azureService->deleteFile($sasUrl);
+                    $azureService->deleteFile($blobPath);
 
+                    Log::info("Azure file deleted {$blobPath}");
+
+                    $invoice = InvoiceOcrPdf::where('id', $prevId)->first();
+                    $invoice->azure_sas_url = null;
+                    $invoice->azure_sas_expiry = null;
+                    $invoice->save();
+
+                    //                             
                     // if ($this->invoiceType == 'multi-invoices')
                     // {
                     //     $prevocrpdf = InvoiceOcrPdf::where('id', $prevId)->first();

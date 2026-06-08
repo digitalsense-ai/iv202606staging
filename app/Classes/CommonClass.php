@@ -8082,7 +8082,7 @@ class CommonClass
                     
                     "ORDER BY S.Field17"
                     ;
-
+// ASC, S1.Field6 DESC
 
           try
           {
@@ -11083,9 +11083,18 @@ dd($matches);
                    
           if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')
           {
-            $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
-                                  $query->where('invoice_no', str_replace('IC', '', $importreconciliationcominvoice->invoice_no)) ;
-                              });
+            if(Str::startsWith(Str::lower($importreconciliationcominvoice->invoice_no), ['ic']))
+            {
+              $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+                                    $query->where('invoice_no', $importreconciliationcominvoice->invoice_no) ;
+                                });
+            }
+            else
+            {
+              $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+                                    $query->where('invoice_no', str_replace('IC', '', $importreconciliationcominvoice->invoice_no)) ;
+                                });
+            }
           }
           else if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'REXHOLM A/S')
           {            

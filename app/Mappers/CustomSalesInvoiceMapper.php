@@ -189,6 +189,12 @@ class CustomSalesInvoiceMapper
         ];
 
         $error_message = '';
+        if (!$client_name)
+            $error_message .= "Client Name missing\n";
+
+        if (!$client_no)
+            $error_message .= "Client No. missing\n";
+        
         if (!$invoiceDate)
             $error_message .= "Invoice Date missing\n";
 

@@ -118,9 +118,10 @@ class AzureStorageService
     }
 
     public function deleteFile(string $blobPath): bool
-    {
-        if (Storage::disk('azure')->exists($blobPath)) {
-            return Storage::disk('azure')->delete($blobPath);
+    {        
+        if (Storage::disk('azure')->exists($blobPath)) {         
+            $result =  Storage::disk('azure')->delete($blobPath);
+            return $result;
         }
 
         return false;

@@ -4,12 +4,12 @@ namespace App\Parsers;
 
 class DefaultInvoiceParser implements ClientInvoiceParserInterface
 {
-    public function supports(?string $clientName, array $doc = [], array $result = []): bool
+    public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
         return true; // fallback always matches
     }
 
-    public function parse(array $result, array $doc, ?string $clientName = null): array
+    public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
         $doc = $doc ?: ($result['analyzeResult']['documents'][0]['fields'] ?? []);
 

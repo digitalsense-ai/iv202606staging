@@ -282,6 +282,14 @@ $(function () {
                                       </li>`
                                       ;
 
+                let btn_validate_analyzepdf = `<div class="dropdown-divider"></div>
+                                      <li>
+                                        <a href="javascript:;" class="dropdown-item btn-validate" id="validate-analyzepdf-data" title="Validate Data" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
+                                          <span><i class="bx bx-check me-2"></i>Validate</span>
+                                        </a>                                     
+                                      </li>`
+                                      ;
+
                 return `<div class="d-inline-block">
                           <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></a>
                           <ul class="dropdown-menu dropdown-menu-end m-0">` +                            
@@ -291,6 +299,7 @@ $(function () {
                               </a>                                     
                             </li>` +
                             btn_recapture_analyzepdf +
+                            btn_validate_analyzepdf +
                             btn_delete_analyzepdf +
                           `</ul>
                         </div>`;
@@ -485,14 +494,19 @@ $(function () {
               $(".dt-dropdown-filter").prependTo('.dt-search-filter .completed-search-filter #DataTables_Table_0_filter'); 
           }
 
-          var btn_recapture_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_recapture_invoice" title="Recapture Invoice" class="btn-recapture me-2 badge rounded-pill bg-label-primary border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_recapture="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+          var btn_recapture_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_recapture_invoice" title="Recapture Invoice" class="btn-recapture me-2 my-2 badge rounded-pill bg-label-primary border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_recapture="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
                                       '<span><i class="bx bx-refresh"></i> Recapture</span>' +
                                     '</button>';
           $(btn_recapture_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
+          var btn_validate_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+                                      '<span><i class="bx bx-check"></i> Validate</span>' +
+                                    '</button>';
+          $(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+
           if(analyzepdf_name != 'deleted')          
           {          
-            var btn_delete_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_delete_invoice" title="Delete Invoice" class="btn-delete-analyzepdf badge rounded-pill bg-label-danger border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_delete="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+            var btn_delete_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_delete_invoice" title="Delete Invoice" class="btn-delete-analyzepdf my-2 badge rounded-pill bg-label-danger border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_delete="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
                                         '<span><i class="bx bx-x"></i> Delete</span>' +
                                       '</button>';
             $(btn_delete_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
@@ -1909,6 +1923,9 @@ console.log("LOADING--------: " + total);
       
       $(".btn-recapture").attr('disabled', 'disabled');
       $(".btn-recapture").addClass('disabled-opacity');
+
+      $(".btn-validate").attr('disabled', 'disabled');
+      $(".btn-validate").addClass('disabled-opacity');
     }
     else
     {
@@ -1920,6 +1937,9 @@ console.log("LOADING--------: " + total);
 
         $(".btn-recapture").removeAttr('disabled');        
         $(".btn-recapture").removeClass('disabled-opacity');
+
+        $(".btn-validate").removeAttr('disabled');        
+        $(".btn-validate").removeClass('disabled-opacity');
       }
       else
       {  
@@ -1930,6 +1950,9 @@ console.log("LOADING--------: " + total);
 
         $(".btn-recapture").removeAttr('disabled');        
         $(".btn-recapture").removeClass('disabled-opacity');
+
+        $(".btn-validate").removeAttr('disabled');        
+        $(".btn-validate").removeClass('disabled-opacity');
       }
     }
   }  
@@ -2021,7 +2044,8 @@ console.log("LOADING--------: " + total);
                     const res = await fetch(`/analyzepdf/progress`);
                     const progressData = await res.json();
 
-                    const completed =
+                    //const 
+                    completed =
                         progressData.completed || 0;
 
                     const percent = Math.min(
@@ -2155,5 +2179,131 @@ console.log("LOADING--------: " + total);
   }
 
   loadOcrBulkUploadDropzone($("#dropzone-ocr-bulk-upload"));
+
+  // validate
+  $(document).on('click', '.btn-validate', function () {
+    var btn_validate = $(this);   
+
+    var analyzepdf_id = $(this).data('analyzepdf_id'),
+      invoice_no = $(this).data('invoice_no'),
+      tab_name = $(this).data('tab_name');
+    
+    var selected_analyzepdf_id = $.map($('#navs-analyzepdf-'+ tab_name +' .form-check-input.dt-checkboxes:checked'), function(c){
+                                  return c.value; 
+                              });
+        
+    analyzepdf_id = (selected_analyzepdf_id.length > 0) ? 0 : analyzepdf_id;
+   
+    btn_validate.attr('disabled', 'disabled');
+    btn_validate.addClass('disabled-opacity');    
+    btn_validate.html('<span><i class="bx bx-refresh me-2"></i>Validating...</span>');
+
+    $.ajax({      
+      url: `${analyzePdfUrl}${analyzepdf_id}/validate`,
+      type: 'GET',          
+      data: 'selected_analyzepdf_id=' + selected_analyzepdf_id,  
+      success: function (response) {  
+        const progressCard = document.getElementById('batch-progress');
+        const bar = document.getElementById('progress-bar');
+        const text = document.getElementById('progress-text');
+
+        const data = response;
+        const total = parseInt(data.total || 0);
+
+        if (total === 0) {
+            text.innerText = "No validate to process";
+            progressCard.classList.add('d-none'); // Keep hidden
+            return;
+        }
+       
+        // Only show progress card if there are emails
+        progressCard.classList.remove('d-none');
+        bar.style.width = '0%';
+        bar.innerText = '0%';        
+        text.innerText = `Queuing ${total} validate…`;
+        
+        let validatePoll = null;
+        let pollingStopped = false;
+
+        async function pollProgress() {
+
+            if (pollingStopped) {
+                return;
+            }
+
+            try {
+
+                const res = await fetch(`/analyzepdf/progress`);
+                const progressData = await res.json();
+
+                const completed =
+                    progressData.completed || 0;
+
+                const percent = Math.min(
+                    100,
+                    Math.round((completed / total) * 100)
+                );
+
+                console.log("validate COMPLETED:", completed);
+
+                bar.style.width = percent + '%';
+                bar.innerText = percent + '%';
+
+                text.innerText =
+                    `${completed} / ${total} validate processed`;
+
+                if (completed >= total && total > 0) {
+
+                    pollingStopped = true;
+
+                    clearTimeout(validatePoll);
+
+                    bar.classList.remove('progress-bar-animated');
+                    bar.classList.add('bg-success');
+
+                    text.innerText =
+                        `All validate processed`;
+
+                    btn_validate.removeAttr('disabled');
+
+                    btn_validate.removeClass(
+                        'disabled-opacity'
+                    );
+
+                    btn_validate.html(
+                        '<span><i class="bx bx-check me-2"></i>Validate</span>'
+                    );
+
+                    console.log("validate LOADING DONE");
+
+                    var analyzepdf_datas =
+                        drawDtTable(progressData, 'analyzepdf');
+
+                    reloadAnalyzedPdf(analyzepdf_datas);
+
+                    return;
+                }
+
+                validatePoll =
+                    setTimeout(pollProgress, 3000);
+
+            }
+            catch (e) {
+
+                console.log(e);
+
+                validatePoll =
+                    setTimeout(pollProgress, 3000);
+            }
+        }
+
+        pollProgress();            
+      },
+      error: function (error) {
+        console.log(error);
+      }
+    });
+
+  });
 
 });

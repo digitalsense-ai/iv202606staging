@@ -908,19 +908,66 @@ class CargoDeclarationClass
                   if (stripos(trim($arraytext[$start_pos_com_invoice]), "Finansielle opplysninger og bankdata") !== false) 
                   {
                     $com_invoice_no_line = trim($arraytext[$start_pos_com_invoice + 2]);
-                    $com_invoice_no = preg_replace('/^(-)+|(-)$/', '', $com_invoice_no_line);
 
-                    $com_invoice_date_line = trim($arraytext[$start_pos_com_invoice + 3]);   
-                    $arr_com_invoice_date = explode('.', trim($com_invoice_date_line));
+                    if (stripos(trim($com_invoice_no_line), "Se vedlagt fakturaliste") !== false) 
+                    {
+                      $fatura_start_pos = $start_pos_com_invoice + 2;
+                      foreach ($arraytext as $listkey => $item) 
+                      {                        
+                        if(stripos(trim($item), "Beløp Dato") !== false)
+                        {
+                          $fatura_start_pos = $listkey;
+                          break;                         
+                        } //date                        
+                      } //loop
 
-                    $com_invoice_date_year = trim($arr_com_invoice_date[2]);
-                    $com_invoice_date_month = trim($arr_com_invoice_date[1]);
-                    $com_invoice_date_date = trim($arr_com_invoice_date[0]);
-                    
-                    if($com_invoice_date == '')
-                      $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                      foreach (array_slice($arraytext, ($fatura_start_pos+1)) as $item) 
+                      {
+                        if ($item === null || $item === '')
+                          continue;
+
+                        if(stripos(trim($item), "/") !== false)
+                        {
+                          $arr_com_invoice_date = explode('/', trim($item));
+
+                          $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                          $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                          $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                          
+                          if($com_invoice_date == '')
+                            $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                          else
+                            $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                        }
+                        else if(stripos(trim($item), ".") !== false || stripos(trim($item), "EUR") !== false)
+                        {
+
+                        }
+                        else
+                        {                            
+                          if($com_invoice_no == '') 
+                            $com_invoice_no = trim(str_replace('--', '', $item));
+                          else
+                            $com_invoice_no .= ',' . trim(str_replace('--', '', $item));
+                        } //invoice no.
+                      }                      
+                    }//see invoice list
                     else
-                      $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                    {
+                      $com_invoice_no = preg_replace('/^(-)+|(-)$/', '', $com_invoice_no_line);
+
+                      $com_invoice_date_line = trim($arraytext[$start_pos_com_invoice + 3]);   
+                      $arr_com_invoice_date = explode('.', trim($com_invoice_date_line));
+
+                      $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                      $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                      $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                      
+                      if($com_invoice_date == '')
+                        $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                      else
+                        $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                    }
                   }
                   else
                   {

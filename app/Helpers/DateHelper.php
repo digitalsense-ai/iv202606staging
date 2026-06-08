@@ -55,29 +55,71 @@ class DateHelper
       // );
 
       // Danish, Norwegian, Swedish → English months
-      $value = str_ireplace(
-          [
-              // Danish
-              'januar','februar','marts','april','maj','juni','juli','august','september','oktober','november','december',
+      // $value = str_ireplace(
+      //     [
+      //         // Danish
+      //         'januar','februar','marts','april','maj','juni','juli','august','september','oktober','november','december',
 
-              // Norwegian
-              'mars','mai','desember',
+      //         // Norwegian
+      //         'mars','mai','desember',
 
-              // Swedish
-              'januari','februari','augusti'
-          ],
-          [
-              // Danish
-              'January','February','March','April','May','June','July','August','September','October','November','December',
+      //         // Swedish
+      //         'januari','februari','augusti'
+      //     ],
+      //     [
+      //         // Danish
+      //         'January','February','March','April','May','June','July','August','September','October','November','December',
 
-              // Norwegian
-              'March','May','December',
+      //         // Norwegian
+      //         'March','May','December',
 
-              // Swedish
-              'January','February','August'
-          ],
-          $value
-      );
+      //         // Swedish
+      //         'January','February','August'
+      //     ],
+      //     $value
+      // );
+
+      $months = [
+        // Danish
+        'januar'    => 'January',
+        'februar'   => 'February',
+        'marts'     => 'March',
+        'april'     => 'April',
+        'maj'       => 'May',
+        'juni'      => 'June',
+        'juli'      => 'July',
+        'august'    => 'August',
+        'september' => 'September',
+        'oktober'   => 'October',
+        'november'  => 'November',
+        'december'  => 'December',
+
+        // Norwegian
+        'mars'      => 'March',
+        'mai'       => 'May',
+        'desember'  => 'December',
+
+        // Swedish
+        'januari'   => 'January',
+        'februari'  => 'February',
+        'augusti'   => 'August',
+    ];
+
+    // Replace ONLY full month words
+    $pattern = '/\b(' .
+        implode('|', array_map(
+            fn($m) => preg_quote($m, '/'),
+            array_keys($months)
+        )) .
+    ')\b/iu';
+
+    $value = preg_replace_callback(
+        $pattern,
+        function ($matches) use ($months) {
+            return $months[strtolower($matches[1])];
+        },
+        $value
+    );
 
       //Convert uppercase months like JUN → Jun before parsing:
       $value = preg_replace_callback('/\/([A-Z]{3})\//', function ($m) {
@@ -86,6 +128,8 @@ class DateHelper
 
       //Log::info("Invoice date : {$value}");
 
+      $value = trim($value);
+      
       /*
       |--------------------------------------------------------------------------
       | 3️ Strict deterministic formats

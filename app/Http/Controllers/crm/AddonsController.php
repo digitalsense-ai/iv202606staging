@@ -7,16 +7,41 @@ use Illuminate\Http\Request;
 
 use App\Models\CRMAddon;
 
+use App\Classes\CommonClass;
+use App\Classes\CVRApiClass;
+
 class AddonsController extends Controller
 {
+    public $authUser;
+
+    public $commonClass;
+    public $cvrApiClass;
+    
+    public function __construct()
+    {
+        $this->middleware('auth');
+        $this->middleware(function ($request, $next) {
+            $this->commonClass = new CommonClass();
+            $this->authUser = $this->commonClass->getAuthUser();   
+            
+            $this->cvrApiClass = new CVRApiClass();
+
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
+        /* -- PAGE CONFIG -- */
+        $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+        /* --end PAGE CONFIG -- */
+
         $addons = CRMAddon::latest()->get();
 
-        return view('crm.addon.index', compact('addons'));
+        return view('content.crm.addon.index', compact('pageConfigs', 'addons'));
     }
 
     /**
@@ -24,7 +49,7 @@ class AddonsController extends Controller
      */
     public function create()
     {
-        return view('crm.addon.create');
+        return view('content.crm.addon.create');
     }
 
     /**
@@ -43,7 +68,7 @@ class AddonsController extends Controller
         }
 
         return redirect()
-            ->route('crm.addon.index')
+            ->route('content.crm.addon.index')
             ->with('success', 'Pricing added');
     }
 
@@ -62,7 +87,7 @@ class AddonsController extends Controller
     {
         $pricing = CRMAddon::findOrFail($id);
 
-        return view('crm.pricing.edit', compact('pricing'));
+        return view('content.crm.pricing.edit', compact('pricing'));
     }
 
     /**

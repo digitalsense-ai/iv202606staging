@@ -3538,6 +3538,47 @@ console.log(analyzepdf_error_datas);
 
             if(invoice_type == 'sales' || invoice_type == 'multi-invoices')
             {
+              if(parsed_extracted_data.supplier)
+              {                                        
+                const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+                let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
+                              ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
+                             );
+                
+                if (vat_numeric && vat_numeric.length == 17) 
+                {
+                    org_no = vat_numeric.substring(0, 9);
+                }
+                else
+                {
+                  if (vat_numeric && (vat_numeric.length >= 9 || vat_numeric.length == 8))
+                    org_no = vat_numeric;      
+                }
+
+                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                    return ((vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
+                      (vatregmain.vat_no && org_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
+                });              
+
+                if(filter_vatregmains.length > 0)
+                  client_name = filter_vatregmains[0].client.client_name;
+                else
+                  client_name = parsed_extracted_data.supplier.name;
+
+                if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
+                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
+
+                if (client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
+                   || client_name.toLowerCase().indexOf('berendsohn') > -1)
+                )
+                  invoice_no = (parsed_extracted_data.no_invoice_number) ? parsed_extracted_data.no_invoice_number : invoice_no;
+                
+                if (client_name && client_name.toLowerCase().indexOf('stof') > -1)
+                  invoice_no = (invoice_no) ? invoice_no.replace(/-/g, '') : invoice_no;
+                else if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+                  invoice_no = (parsed_extracted_data.order_number) ? parsed_extracted_data.order_number : invoice_no;
+              }
+
               invoice_type_name = 'Sales Invoice' + (parsed_extracted_data.credit_note ? '(CN)' : '');
 
               credit_note = (parsed_extracted_data.credit_note) ? true : false;
@@ -3604,12 +3645,17 @@ console.log(analyzepdf_error_datas);
                 parse_total_amount = parseAmountValue(og_total_amount, 'NOK');                             
               }   
 
+              if(parse_net_amount)
+              {                             
+                net_amount = parse_net_amount.toLocaleString('en-IN');               
+              } 
+
               if(parse_freight_amount)
               {              
                 let parse_net_freight_amount = parse_net_amount + parse_freight_amount;
                 parse_net_amount = parse_net_freight_amount;
                 
-                net_amount = parse_net_freight_amount.toLocaleString('en-IN');
+                net_amount = parse_net_freight_amount.toLocaleString('en-IN');                
               } 
 
               if(parse_variance_amount)
@@ -3617,7 +3663,7 @@ console.log(analyzepdf_error_datas);
                 let parse_net_variance_amount = parse_net_amount + parse_variance_amount;
                 parse_net_amount = parse_net_variance_amount;
                 
-                net_amount = parse_net_variance_amount.toLocaleString('en-IN');
+                net_amount = parse_net_variance_amount.toLocaleString('en-IN');                
               } 
 
               if(parse_discount_amount)
@@ -3629,7 +3675,7 @@ console.log(analyzepdf_error_datas);
               }  
 
               if(parse_total_amount != 0 && (parse_net_amount > parse_total_amount))
-              {
+              {                
                 if(parsed_extracted_data.credit_note)
                 {
                   let formatted_net_amount = parseDenmarkFormat(og_net_amount);        
@@ -3648,7 +3694,7 @@ console.log(analyzepdf_error_datas);
                 }          
               }
               else
-              {
+              {                
                 let formatted_net_amount = parseDenmarkFormat(og_net_amount); 
                 if(og_net_amount != net_amount)
                   formatted_net_amount = parseDenmarkFormat(net_amount);  
@@ -3736,6 +3782,62 @@ console.log(analyzepdf_error_datas);
                 }
               }
 
+              if (client_name && (
+                  client_name.toLowerCase().indexOf('einhell') > -1 
+                  || client_name.toLowerCase().indexOf('woden') > -1
+                )
+              )
+              {
+                if(client_name.toLowerCase().indexOf('woden') > -1)
+                {
+                  let swap_currency = currency;
+                  let swap_exchange_currency = exchange_currency; 
+
+                  currency = swap_exchange_currency;
+                  exchange_currency = swap_currency;
+
+                  let swap_net_amount = net_amount;
+                  let swap_exchange_net_amount = exchange_net_amount;
+
+                  net_amount = swap_exchange_net_amount;
+                  exchange_net_amount = swap_net_amount;
+                  
+                  let swap_vat_amount = vat_amount;
+                  let swap_exchange_vat_amount = exchange_vat_amount;
+
+                  vat_amount = swap_exchange_vat_amount;
+                  exchange_vat_amount = swap_vat_amount;
+
+                  let swap_total_amount = total_amount;
+                  let swap_exchange_total_amount = exchange_total_amount;
+
+                  total_amount = swap_exchange_total_amount;
+                  exchange_total_amount = swap_total_amount;
+                }
+                else
+                {
+                  if(!exchange_currency && og_exchange_vat_amount)
+                  {
+                    parse_exchange_vat_amount = parseAmountValue(og_exchange_vat_amount, 'NOK');
+
+                    let calc_exchange_net_amount = (parse_exchange_vat_amount * 100) / vat_rate;
+                    let calc_exchange_total_amount = calc_exchange_net_amount + parse_exchange_vat_amount;
+
+                    exchange_currency = currency;
+                    currency = 'NOK';
+
+                    exchange_net_amount = net_amount;
+                    net_amount = parseDenmarkFormat(calc_exchange_net_amount.toString());
+
+                    exchange_vat_amount = vat_amount;
+                    vat_amount = parseDenmarkFormat(parse_exchange_vat_amount.toString());
+                    
+                    exchange_total_amount = total_amount;
+                    total_amount = parseDenmarkFormat(calc_exchange_total_amount.toString());
+                  }
+                }
+              }
+
               if (credit_note === true && net_amount && !net_amount.startsWith('-'))
                 net_amount = '-' + net_amount.trim();
 
@@ -3743,48 +3845,16 @@ console.log(analyzepdf_error_datas);
                 vat_amount = '-' + vat_amount.trim();
 
               if (credit_note === true && total_amount && !total_amount.startsWith('-'))
-                total_amount = '-' + total_amount.trim();
+                total_amount = '-' + total_amount.trim();    
 
-              if(parsed_extracted_data.supplier)
-              {                                        
-                const getNumeric = str => str ? str.replace(/\D/g, '') : '';
-                let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
-                              ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
-                             );
-                
-                if (vat_numeric && vat_numeric.length == 17) 
-                {
-                    org_no = vat_numeric.substring(0, 9);
-                }
-                else
-                {
-                  if (vat_numeric && (vat_numeric.length >= 9 || vat_numeric.length == 8))
-                    org_no = vat_numeric;      
-                }
+              if (credit_note === true && exchange_net_amount && !exchange_net_amount.startsWith('-'))
+                exchange_net_amount = '-' + exchange_net_amount.trim();
 
-                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
-                    return ((vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
-                      (vatregmain.vat_no && org_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
-                });              
+              if (credit_note === true && exchange_vat_amount && !exchange_vat_amount.startsWith('-'))
+                exchange_vat_amount = '-' + exchange_vat_amount.trim();
 
-                if(filter_vatregmains.length > 0)
-                  client_name = filter_vatregmains[0].client.client_name;
-                else
-                  client_name = parsed_extracted_data.supplier.name;
-
-                if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
-                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
-
-                if (client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
-                   || client_name.toLowerCase().indexOf('berendsohn') > -1)
-                )
-                  invoice_no = (parsed_extracted_data.no_invoice_number) ? parsed_extracted_data.no_invoice_number : invoice_no;
-                
-                if (client_name && client_name.toLowerCase().indexOf('stof') > -1)
-                  invoice_no = (invoice_no) ? invoice_no.replace(/-/g, '') : invoice_no;
-                else if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
-                  invoice_no = (parsed_extracted_data.order_number) ? parsed_extracted_data.order_number : invoice_no;
-              }  
+              if (credit_note === true && exchange_total_amount && !exchange_total_amount.startsWith('-'))
+                exchange_total_amount = '-' + exchange_total_amount.trim();                
 
               if(type == 'analyzepdf')
               {

@@ -251,9 +251,9 @@ class AnalyzePdfController extends Controller
         };
 
         $modelId = match ($invoiceType) {
-            'sales' => 'custom_sales_invoice_v12',
-            'com'   => 'custom_com_invoice_v9',
-            default => 'custom_sales_invoice_v12',
+            'sales' => 'custom_sales_invoice_v13',
+            'com'   => 'custom_com_invoice_v10',
+            default => 'custom_sales_invoice_v13',
         };
 
         foreach ($paths as $key => $fullPath) {
@@ -270,9 +270,10 @@ class AnalyzePdfController extends Controller
                 $storedPath = $fullPath->storeAs(
                     'ocr/' . $invoiceType,
                     $originalName.'.pdf',
-                    'public'
+                    'local'
                 );
-                $fullPath = storage_path('app/public/' . $storedPath);
+                //$fullPath = storage_path('app/public/' . $storedPath);
+                $fullPath = storage_path('app/' . $storedPath);
             }
 
             $prevCapture = ($prevCaptures) ? $prevCaptures[$key] : [];
@@ -771,11 +772,12 @@ class AnalyzePdfController extends Controller
 
         $azureService = new AzureStorageService();
 
+        $invoice_azure_url = $invoice->azure_url;
         if ($invoice->azure_sas_url && $invoice->azure_sas_expiry && now()->lt($invoice->azure_sas_expiry))
             $signedUrl = $invoice->azure_sas_url;
         else 
         {
-            $invoice_azure_url = $invoice->azure_url;
+            //$invoice_azure_url = $invoice->azure_url;
             if (stripos($invoice->azure_url, "multi-invoices/") !== false)
             {
                 if($type == 'recapture')
@@ -791,7 +793,13 @@ class AnalyzePdfController extends Controller
         }
 
         if($type == 'recapture')
-            return $signedUrl;
+        {
+            //return $signedUrl;
+            return [
+                'blobPath' =>  $invoice_azure_url,
+                'signedUrl' =>  $signedUrl,
+            ];  
+        }
         else    
             return response()->json([
                 'azure_signed_url' => $signedUrl,
@@ -1140,11 +1148,15 @@ class AnalyzePdfController extends Controller
             $invoice->save();
 
             //Get file from Azure storage
-            $sasUrl = $this->getSasUrl($id, 'recapture');
+            $sasPaths = $this->getSasUrl($id, 'recapture');
 
+            $sasUrl = $sasPaths['signedUrl'];
+            $blobPath = $sasPaths['blobPath'];
+            
             $prevCapture = [
                 'prevId' => $id,
-                'sasUrl' => $sasUrl
+                'sasUrl' => $sasUrl,
+                'blobPath' => $blobPath
             ];
 
             //Save it in local
@@ -1153,12 +1165,14 @@ class AnalyzePdfController extends Controller
 
             $stream = fopen($sasUrl, 'r');
             $fileName = basename($invoice->file_name);
-            Storage::disk('public')->put('ocr/' . $fileName, $stream);
+            //Storage::disk('public')->put('ocr/' . $fileName, $stream);
+            Storage::disk('local')->put('ocr/' . $fileName, $stream);
 
             if (is_resource($stream)) {
                 fclose($stream);
             }
-            $fullPath = storage_path('app/public/ocr/' . $fileName);            
+            //$fullPath = storage_path('app/public/ocr/' . $fileName);            
+            $fullPath = storage_path('app/ocr/' . $fileName);            
 
             // Unique batch ID for this email
             $batchId = (string) Str::uuid();
@@ -1288,17 +1302,32 @@ class AnalyzePdfController extends Controller
     }
     /* -- GET /analyzepdf/reload -- */
 
-    /* -- GET /analyzepdf/validate -- */
-    public function analyzeValidate(Request $request)
+    /* -- GET /analyzepdf/{analyze_id}/validate -- */
+    public function analyzeValidate(Request $request, $id)
     {     
         try 
         { 
-            dispatch((new ValidateOcrInvoicesJob())->onQueue('ocrpdfvalidateinvoices'));
+            Cache::forget('inbox_completed');
+            Cache::forget('inbox_total');
+            
+            if($id == 'all')
+            {
+                $selected_analyze_ids = [];
+            }
+            else
+            {
+                $selected_analyze_ids = ($id == '0')
+                    ? explode(',', $request->selected_analyzepdf_id)
+                    : [$id];
+            }
 
+            dispatch((new ValidateOcrInvoicesJob(null, $selected_analyze_ids))->onQueue('ocrpdfvalidateinvoices'));
+           
             return response()->json([
                 'status'=> 'success', 
-                'message'=> "Validation Done"
-            ], 200);
+                'message'=> "Validation Done",
+                'total' => count($selected_analyze_ids)
+            ], 202);
         }//try
         catch (\Exception $e) 
         { 
@@ -1308,5 +1337,5 @@ class AnalyzePdfController extends Controller
             ], 400); 
         }//catch
     }
-    /* --end GET /analyzepdf/validate -- */
+    /* --end GET /analyzepdf/{analyze_id}/validate -- */
 }

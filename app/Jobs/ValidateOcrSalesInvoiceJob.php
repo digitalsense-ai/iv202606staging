@@ -27,7 +27,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
 
         if (!$invoice) return;
        
-        $data = $invoice->extracted_data;
+        $data = ($invoice->og_extracted_data) ? $invoice->og_extracted_data : $invoice->extracted_data;
 
         if (is_string($data)) {
             $data = json_decode($data, true);

@@ -22,8 +22,12 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    public function __construct()
+    protected array $invoiceIds;
+
+    public function __construct(public ?string $batchId = null, array $invoiceIds = [])
     {
+        $this->invoiceIds = $invoiceIds;
+
         $this->onQueue('ocrpdfvalidateinvoices');
     }
 
@@ -33,13 +37,23 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 
         $service = app(ValidateOcrInvoiceDuplicateService::class);
 
+        $baseQuery = InvoiceOcrPdf::query();
+
+        if (!empty($this->invoiceIds)) {
+            $baseQuery->whereIn('id', $this->invoiceIds);
+        }
+
         /*
         |-------------------------------------------------
         | STEP 1: Generate duplicate_hash (ALL invoices)
         |-------------------------------------------------
         */
-        InvoiceOcrPdf::where('status', 'completed')
-            ->whereNull('duplicate_hash')
+        //InvoiceOcrPdf::where('status', 'completed')
+        $query = clone $baseQuery;
+
+        $query->where('status', 'completed')
+            //->whereNull('duplicate_hash')
+            ->when($this->batchId, fn ($query) => $query->where('batch_id', $this->batchId))
             ->chunkById(500, function ($invoices) use ($service) {
 
                 foreach ($invoices as $invoice) {
@@ -49,7 +63,21 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                     //     'invoice_type' => $invoice->invoice_type,
                     // ]);
 
-                    $hash = $service->generateHash($invoice->extracted_data ?? []);
+                    //$hash = $service->generateHash($invoice->extracted_data ?? []);
+                    $data = $invoice->extracted_data ?? [];
+
+                    if (!$service->hasMinimumFingerprint($data, $invoice->invoice_type)) {
+                        Log::warning('Skipping OCR duplicate hash; minimum fingerprint fields are missing', [
+                            'invoice_id' => $invoice->id,
+                            'invoice_type' => $invoice->invoice_type,
+                        ]);
+
+                        $invoice->duplicate_hash = null;
+                        $invoice->save();
+
+                        continue;
+                    }
+                    $hash = $service->generateHash($data, $invoice->invoice_type);
 
                     $invoice->duplicate_hash = $hash;
                     $invoice->save();
@@ -61,7 +89,10 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         | STEP 2: Mark duplicates per invoice_type
         |-------------------------------------------------
         */
-        $duplicates = InvoiceOcrPdf::select('invoice_type', 'duplicate_hash')
+        //$duplicates = InvoiceOcrPdf::select('invoice_type', 'duplicate_hash')
+        $duplicatesQuery = clone $baseQuery;
+
+        $duplicates = $duplicatesQuery->select('invoice_type', 'duplicate_hash')
             ->where('status', 'completed')
             ->whereNotNull('duplicate_hash')
             ->groupBy('invoice_type', 'duplicate_hash')
@@ -73,6 +104,9 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             $invoices = InvoiceOcrPdf::where('invoice_type', $duplicate->invoice_type)
                 ->where('duplicate_hash', $duplicate->duplicate_hash)
                 ->where('status', 'completed')
+                ->when(!empty($this->invoiceIds), function ($query) {
+                    $query->whereIn('id', $this->invoiceIds);
+                })
                 ->orderBy('id') // oldest first
                 ->get();
 
@@ -109,8 +143,12 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         |-------------------------------------------------
         */
 
-        InvoiceOcrPdf::where('status', 'completed')
+        //InvoiceOcrPdf::where('status', 'completed')
         //->where('status', '!=', 'duplicate')
+        $query = clone $baseQuery;
+
+        $query->where('status', 'completed')
+        ->when($this->batchId, fn ($query) => $query->where('batch_id', $this->batchId))
         ->whereIn('validation_status', [
             'not_yet_validated',
             'validated_with_changes'
@@ -120,15 +158,13 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             foreach ($invoices as $invoice) {
 
                 if ($invoice->invoice_type === 'com') {
-
                     dispatch((new ValidateOcrCommercialInvoiceJob(
                         $clients,
                         $invoice->id
                     ))->onQueue('ocrpdfvalidateinvoices'));
                 }
 
-                if ($invoice->invoice_type === 'sales' || $invoice->invoice_type === 'multi-invoices') {
-
+                if ($invoice->invoice_type === 'sales' || $invoice->invoice_type === 'multi-invoices') {                    
                     dispatch((new ValidateOcrSalesInvoiceJob(
                         $clients,
                         $invoice->id                        

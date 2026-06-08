@@ -395,12 +395,12 @@ class MicrosoftMailService
                 }
             }
 
-            $azureService = new AzureStorageService();
-            $azurePath = $folder . '/' . $baseName . $extension;
-            $file_exists = $azureService->checkFile($azurePath);
+            // $azureService = new AzureStorageService();
+            // $azurePath = $folder . '/' . $baseName . $extension;
+            // $file_exists = $azureService->checkFile($azurePath);
 
-            if(!$file_exists)
-                $fileName = $baseName . $extension;
+            // if(!$file_exists)
+            //     $fileName = $baseName . $extension;
 
             $path = "ocr/$folder/$fileName"; // relative to storage/app
             Storage::disk('local')->put($path, base64_decode($attachment['contentBytes']));

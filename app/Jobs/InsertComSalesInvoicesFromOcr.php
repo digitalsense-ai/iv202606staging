@@ -90,7 +90,10 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
         $parsedComCache = [];
       
         foreach ($comInvoices as $id => $com) {
-            $parsedComCache[$id] = json_decode($com->extracted_data ?? null, true);
+            //$parsedComCache[$id] = json_decode($com->extracted_data ?? null, true);
+            $parsedComCache[$id] = is_array($com->extracted_data)
+                ? $com->extracted_data
+                : json_decode($com->extracted_data ?? '[]', true);
         }
 
         if ($clientNameCache && (
@@ -140,7 +143,11 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
 
             $parsedSalesCache = [];        
             foreach ($salesInvoices as $id => $sale) {
-                $parsedSalesCache[$id] = json_decode($sale->extracted_data ?? null, true);
+                //$parsedSalesCache[$id] = json_decode($sale->extracted_data ?? null, true);
+                
+                $parsedSalesCache[$id] = is_array($sale->extracted_data)
+                    ? $sale->extracted_data
+                    : json_decode($sale->extracted_data ?? '[]', true);
             }
         }//else from OCR table extracted_data
             

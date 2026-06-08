@@ -4,7 +4,7 @@ namespace App\Parsers;
 
 class KiteInvoiceParser implements ClientInvoiceParserInterface
 {
-    public function supports(?string $clientName, array $doc = [], array $result = []): bool
+    public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
         $name = strtolower(trim($clientName ?? ''));
 
@@ -17,7 +17,7 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
         return str_contains($content, 'kite'); // FIXED (was wrong)
     }
 
-    public function parse(array $result, array $doc, ?string $clientName = null): array
+    public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
         $content = $result['analyzeResult']['content'] ?? '';
 

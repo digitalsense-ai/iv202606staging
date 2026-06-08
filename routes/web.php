@@ -49,7 +49,7 @@ use App\Http\Controllers\crm\LeadController;
 use App\Http\Controllers\crm\QuoteController;
 use App\Http\Controllers\crm\QuoteAddonController;
 use App\Http\Controllers\crm\ReminderController as CRMReminderController;
-
+use App\Http\Controllers\crm\AddonsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -233,6 +233,8 @@ Route::middleware([
             Route::put('quote-addons/{id}', [QuoteAddonController::class,'update'])->name('quote-addons.update');
             Route::delete('quote-addons/{id}', [QuoteAddonController::class,'destroy'])->name('quote-addons.destroy');
             Route::get('quotes/{id}/calculate', [QuoteAddonController::class,'calculate'])->name('quotes.calculate');
+
+            Route::resource('addons', AddonsController::class);
         });
         /* --end CRM -- */
     });
@@ -465,7 +467,7 @@ Route::middleware([
             /* --end SPLIT PDF -- */
 
             /* -- VALIDATE -- */            
-            Route::get('analyzepdf/validate', [AnalyzePdfController::class, 'analyzeValidate'])->name('analyze.pdf.validate');           
+            Route::get('analyzepdf/{analyze_id}/validate', [AnalyzePdfController::class, 'analyzeValidate'])->name('analyze.pdf.validate');           
             /* --end VALIDATE -- */
         /* --end SETTINGS -- */ 
 

@@ -6,6 +6,7 @@ $(function () {
 
   var crmLeadUrl = baseUrl + 'crm/leads'; 
   var crmQuoteUrl = baseUrl + 'crm/quotes';       
+  var crmAddonUrl = baseUrl + 'crm/addons';
 
   let iti;
 
@@ -21,9 +22,10 @@ $(function () {
     1: { title: 'Sent', class: 'bg-label-success' } 
   };
 
-  // Variable declaration for table
-  var dt_lead_table = $('.datatables-leads');
-  var dt_lead = null;
+  var addonStatusObj = {      
+    0: { title: 'In-active', class: 'bg-label-danger' },
+    1: { title: 'Active', class: 'bg-label-success' } 
+  };  
 
   // ajax setup
   $.ajaxSetup({
@@ -32,6 +34,349 @@ $(function () {
     }
   });
   
+  // Variable declaration for table
+  var dt_addon_table = $('.datatables-addons');
+  var dt_addon = null;
+  
+  // addons datatable
+  if (dt_addon_table.length) {console.log(crm_addon_datas);
+    dt_addon = dt_addon_table.DataTable({
+      data: crm_addon_datas,        
+      processing: true,
+      columns: [
+        // columns according to JSON
+        { data: 'id', className: "align-top" },
+        { data: 'name', className: "align-top" },
+        { data: 'price', className: "align-top" },
+        { data: 'frequency', className: "align-top" },        
+        { data: 'status', className: "align-top" },
+        { data: 'action', className: "align-top" }
+      ],
+      lengthMenu: [
+        [10, 25, 50, 100],
+        [10, 25, 50, 100]
+      ],
+      pageLength: 100,
+      columnDefs: [
+        // {
+        //   // For Responsive
+        //   className: 'control',
+        //   searchable: false,
+        //   orderable: false,
+        //   responsivePriority: 2,
+        //   targets: 0,          
+        // },
+        // {
+        //   // CoNamempany
+        //   targets: 1, 
+        //   width: "5%",         
+        //   render: function (data, type, full, meta) {
+        //     var cvr_number = full['cvr_number'];
+
+        //     return cvr_number;
+        //   }
+        // },
+        // {
+        //   // Company
+        //   targets: 2, 
+        //   width: "10%",         
+        //   render: function (data, type, full, meta) {
+        //     var company_name = full['company_name'];
+
+        //     return company_name;
+        //   }
+        // },
+        // {
+        //   // Company
+        //   targets: 3, 
+        //   width: "10%",         
+        //   render: function (data, type, full, meta) {
+        //     var company_website = full['company_website'];
+
+        //     return company_website;
+        //   }
+        // },
+        // {
+        //   // Lead username and email
+        //   targets: 4,
+        //   responsivePriority: 4,
+        //   width: "30%",   
+        //   render: function (data, type, full, meta) {
+        //     var $name = full['first_name'] + ' ' + full['last_name'],
+        //       phone = full['phone'],
+        //       $email = full['email'],
+        //       $designation = full['designation']
+        //       //$image = full['avatar']
+        //       ;
+            
+        //     // Creates full output for row
+        //     var $row_output =
+        //       '<div class="d-flex justify-content-start align-items-center user-name">' +
+        //       // '<div class="avatar-wrapper">' +
+        //       // '<div class="avatar avatar-sm me-3">' +
+        //       // $output +
+        //       // '</div>' +
+        //       // '</div>' +
+        //       '<div class="d-flex flex-column">' +
+        //       '<a href="#' +              
+        //       '" class="text-body text-truncate"><span class="fw-semibold d-inline-block w-px-250 text-wrap text-break">' +
+        //       $name +
+        //       '</span></a>' +
+        //       '<small class="text-muted">' +
+        //       (($designation) ? $designation : '') +
+        //       '</small>' +
+        //       '<small class="text-muted">' +
+        //       ((phone) ? phone : '') +
+        //       '</small>' +
+        //       '<small class="text-muted">' +
+        //       (($email) ? $email : '') +
+        //       '</small>' +
+        //       '</div>' +
+        //       '</div>';
+        //     return $row_output;
+        //   }
+        // },                                   
+        {
+          // Status
+          targets: 4,
+          width: "5%",
+          render: function (data, type, full, meta) {
+            var $status = full['status'];
+
+            return '<span class="badge ' + addonStatusObj[$status].class + '">' + addonStatusObj[$status].title + '</span>';
+          }
+        },
+        {
+          // Actions
+          targets: -1,
+          width: "25%",
+          title: 'Actions',
+          searchable: false,
+          orderable: false,
+          render: function (data, type, full, meta) {
+            var buttons = "";            
+
+            buttons ='<button class="btn btn-sm btn-icon edit-addon" data-id="'+full['id']+'" title="Edit"><i class="bx bx-edit"></i></button>' +
+                        '<button class="btn btn-sm btn-icon delete-addon" data-id="'+full['id']+'" title="Delete"><i class="bx bx-trash"></i></button>';           
+           
+            return (             
+              buttons              
+            );
+          }
+        }
+      ],
+      order: [[0, 'desc']],
+      dom:
+        '<"row mx-2"' +
+        '<"col-md-2"<"me-3"l>>' +
+        '<"col-md-10"<"dt-action-buttons text-xl-end text-lg-start text-md-end text-start d-flex align-items-center justify-content-end flex-md-row flex-column mb-3 mb-md-0"fB>>' +
+        '>t' +
+        '<"row mx-2"' +
+        '<"col-sm-12 col-md-6"i>' +
+        '<"col-sm-12 col-md-6"p>' +
+        '>',
+      language: {
+        sLengthMenu: '_MENU_',
+        search: '',
+        searchPlaceholder: 'Search..'
+      },
+      // Buttons with Dropdown
+      buttons: [
+        {
+          extend: 'collection',
+          className: 'btn btn-label-secondary dropdown-toggle mx-3',
+          text: '<i class="bx bx-upload me-1"></i>Export',
+          buttons: [
+            {
+              extend: 'print',
+              text: '<i class="bx bx-printer me-2" ></i>Print',
+              className: 'dropdown-item',
+              exportOptions: {
+                columns: [1, 2, 3, 4],
+                // prevent avatar to be print
+                format: {
+                  body: function (inner, coldex, rowdex) {
+                    if (inner.length <= 0) return inner;
+                    var el = $.parseHTML(inner);
+                    var result = '';
+                    $.each(el, function (index, item) {
+                      if (item.classList !== undefined && item.classList.contains('user-name')) {
+                        result = result + item.lastChild.firstChild.textContent;
+                      } else if (item.innerText === undefined) {
+                        result = result + item.textContent;
+                      } else result = result + item.innerText;
+                    });
+                    return result;
+                  }
+                }
+              },
+              customize: function (win) {
+                //customize print view for dark
+                $(win.document.body)
+                  .css('color', headingColor)
+                  .css('border-color', borderColor)
+                  .css('background-color', bodyBg);
+                $(win.document.body)
+                  .find('table')
+                  .addClass('compact')
+                  .css('color', 'inherit')
+                  .css('border-color', 'inherit')
+                  .css('background-color', 'inherit');
+              }
+            },
+            {
+              extend: 'csv',
+              text: '<i class="bx bx-file me-2" ></i>Csv',
+              className: 'dropdown-item',
+              exportOptions: {
+                columns: [1, 2, 3, 4],
+                // prevent avatar to be display
+                format: {
+                  body: function (inner, coldex, rowdex) {
+                    if (inner.length <= 0) return inner;
+                    var el = $.parseHTML(inner);
+                    var result = '';
+                    $.each(el, function (index, item) {
+                      if (item.classList !== undefined && item.classList.contains('user-name')) {
+                        result = result + item.lastChild.firstChild.textContent;
+                      } else if (item.innerText === undefined) {
+                        result = result + item.textContent;
+                      } else result = result + item.innerText;
+                    });
+                    return result;
+                  }
+                }
+              }
+            },
+            {
+              extend: 'excel',
+              text: '<i class="bx bxs-file-export me-2"></i>Excel',
+              className: 'dropdown-item',
+              exportOptions: {
+                columns: [1, 2, 3, 4],
+                // prevent avatar to be display
+                format: {
+                  body: function (inner, coldex, rowdex) {
+                    if (inner.length <= 0) return inner;
+                    var el = $.parseHTML(inner);
+                    var result = '';
+                    $.each(el, function (index, item) {
+                      if (item.classList !== undefined && item.classList.contains('user-name')) {
+                        result = result + item.lastChild.firstChild.textContent;
+                      } else if (item.innerText === undefined) {
+                        result = result + item.textContent;
+                      } else result = result + item.innerText;
+                    });
+                    return result;
+                  }
+                }
+              }
+            },
+            {
+              extend: 'pdf',
+              text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
+              className: 'dropdown-item',
+              exportOptions: {
+                columns: [1, 2, 3, 4],
+                // prevent avatar to be display
+                format: {
+                  body: function (inner, coldex, rowdex) {
+                    if (inner.length <= 0) return inner;
+                    var el = $.parseHTML(inner);
+                    var result = '';
+                    $.each(el, function (index, item) {
+                      if (item.classList !== undefined && item.classList.contains('user-name')) {
+                        result = result + item.lastChild.firstChild.textContent;
+                      } else if (item.innerText === undefined) {
+                        result = result + item.textContent;
+                      } else result = result + item.innerText;
+                    });
+                    return result;
+                  }
+                }
+              }
+            },
+            {
+              extend: 'copy',
+              text: '<i class="bx bx-copy me-2" ></i>Copy',
+              className: 'dropdown-item',
+              exportOptions: {
+                columns: [1, 2, 3, 4],
+                // prevent avatar to be display
+                format: {
+                  body: function (inner, coldex, rowdex) {
+                    if (inner.length <= 0) return inner;
+                    var el = $.parseHTML(inner);
+                    var result = '';
+                    $.each(el, function (index, item) {
+                      if (item.classList !== undefined && item.classList.contains('user-name')) {
+                        result = result + item.lastChild.firstChild.textContent;
+                      } else if (item.innerText === undefined) {
+                        result = result + item.textContent;
+                      } else result = result + item.innerText;
+                    });
+                    return result;
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          text: '<i class="bx bx-plus me-0 me-lg-2"></i><span class="d-none d-lg-inline-block">Add Addon</span>',
+          className: 'add-new-addon btn btn-primary',
+          attr: {
+            'data-bs-toggle': 'offcanvas',
+            'data-bs-target': '#offcanvasAddAddon'
+          }
+        }
+      ],
+      // For responsive popup
+      responsive: {
+        details: {
+          display: $.fn.dataTable.Responsive.display.modal({
+            header: function (row) {
+              var data = row.data();
+              return 'Details of ' + data['name'];
+            }
+          }),
+          type: 'column',
+          renderer: function (api, rowIdx, columns) {
+            var data = $.map(columns, function (col, i) {
+              return col.title !== '' // ? Do not show row in modal popup if title is blank (for check box)
+                ? '<tr data-dt-row="' +
+                    col.rowIndex +
+                    '" data-dt-column="' +
+                    col.columnIndex +
+                    '">' +
+                    '<td>' +
+                    col.title +
+                    ':' +
+                    '</td> ' +
+                    '<td>' +
+                    col.data +
+                    '</td>' +
+                    '</tr>'
+                : '';
+            }).join('');
+
+            return data ? $('<table class="table"/><tbody />').append(data) : false;
+          }
+        }
+      },
+      initComplete: function () {
+
+          $(".sk-bounce.addon-page").hide();
+          $("#header-card").show();
+          $("#table-card").show();
+      }
+    });
+  }
+
+  // Variable declaration for table
+  var dt_lead_table = $('.datatables-leads');
+  var dt_lead = null;
+
   // leads datatable
   if (dt_lead_table.length) {console.log(crm_lead_datas);
     dt_lead = dt_lead_table.DataTable({
