@@ -210,11 +210,29 @@ class SplitPdfJob implements ShouldQueue
             $pdfSplit = new Fpdi();
             $pageCount = $pdfSplit->setSourceFile($this->fullPath);
 
+            $rangeLayout = [];
+
             for ($page = $start; $page <= $end; $page++) {
-                if ($page > $pageCount) break;
-                $pdfSplit->AddPage();
+                if ($page > $pageCount) {
+                    break;
+                }
+            
                 $tpl = $pdfSplit->importPage($page);
-                $pdfSplit->useTemplate($tpl);
+                $size = $pdfSplit->getTemplateSize($tpl);
+            
+                $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
+                $width = (float) ($size['width'] ?? 0);
+                $height = (float) ($size['height'] ?? 0);
+            
+                $pdfSplit->AddPage($orientation, [$width, $height]);
+                $pdfSplit->useTemplate($tpl, 0, 0, $width, $height, true);
+            
+                $rangeLayout[] = [
+                    'page' => $page,
+                    'width' => $width,
+                    'height' => $height,
+                    'orientation' => $orientation,
+                ];
             }
 
             $splitPath = $outputDir.'/'.$this->originalName.'_'.$counter.'.pdf';
@@ -231,6 +249,18 @@ class SplitPdfJob implements ShouldQueue
                 'status' => 'queued',
                 'start_pageno' => $start,
                 'end_pageno' => $end,
+                'layout_metadata' => json_encode([
+                    'source_file' => $this->originalName . '.pdf',
+                    'range' => [
+                        'start' => $start,
+                        'end' => $end,
+                    ],
+                    'pages' => $rangeLayout,
+                    'orientation_summary' => collect($rangeLayout)
+                        ->pluck('orientation')
+                        ->countBy()
+                        ->toArray(),
+                ]),
                 'created_at' => now(),
             ]);
 
@@ -292,9 +322,15 @@ class SplitPdfJob implements ShouldQueue
             $tmpPdf = tempnam(sys_get_temp_dir(), 'pdfp_') . '.pdf';
             $fpdi = new Fpdi();
             $fpdi->setSourceFile($this->fullPath);
-            $fpdi->AddPage();
             $tpl = $fpdi->importPage($pageNo);
-            $fpdi->useTemplate($tpl);
+            $size = $fpdi->getTemplateSize($tpl);
+            
+            $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
+            $width = (float) ($size['width'] ?? 0);
+            $height = (float) ($size['height'] ?? 0);
+            
+            $fpdi->AddPage($orientation, [$width, $height]);
+            $fpdi->useTemplate($tpl, 0, 0, $width, $height, true);
             $fpdi->Output('F', $tmpPdf);
             unset($fpdi);
 
