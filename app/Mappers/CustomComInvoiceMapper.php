@@ -28,8 +28,10 @@ class CustomComInvoiceMapper
             $orgNo,
             null
         );
+       
         $client_name = $client_result['name'] ?? null;
         $client_no   = $client_result['org_no'] ?? null; 
+        $extracted_client_no = $client_result['og_org_no'] ?? null; 
 
         $invoiceDate = DateHelper::parseInvoiceDate(
             $doc['Invoice Date']['content'] ?? null
@@ -70,7 +72,7 @@ class CustomComInvoiceMapper
             $doc['Currency']['valueString'] ?? null
         );
         $currency = CurrencyHelper::parseCurrency($og_currency);
-
+       
         [$og_exchange_currency, $exchange_net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Exchange Net Amount']['valueString'] ?? null,
             $doc['Exchange Currency']['valueString'] ?? null
@@ -94,6 +96,7 @@ class CustomComInvoiceMapper
                 'name'    => $client_name ?? null,
                 'address' => $doc['Client Address']['valueString'] ?? null,
                 'org_number'   => $client_no ?? null,
+                'extracted_org_number' => $extracted_client_no,
             ],                                              
             
             'related_sales_invoices' => $finalRelatedSalesInvoices,
@@ -111,7 +114,12 @@ class CustomComInvoiceMapper
             $error_message .= "Client Name missing\n";
 
         if (!$client_no)
-            $error_message .= "Client No. missing\n";
+        {
+            if ($extracted_client_no)
+                $error_message .= "Client No. missing - Invalid Client No.\n";
+            else
+                $error_message .= "Client No. missing\n";
+        }
 
         if (!$invoiceDate)
             $error_message .= "Invoice Date missing\n";

@@ -22,6 +22,20 @@ class EuropeanNumberHelper
             return null;
         }
 
+        /**
+         * Normalize all line breaks first (OCR safety)
+         */
+        $value = str_replace(["\r\n", "\r"], "\n", $value);
+
+        /**
+         * Collapse duplicate OCR lines
+         */
+        $parts = array_values(array_filter(array_map('trim', explode("\n", $value))));
+
+        if (count($parts) > 1) {
+            $value = $parts[0];
+        }
+
         $value = trim($value);
 
         /**

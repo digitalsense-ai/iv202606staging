@@ -65,7 +65,7 @@ class SplitPdfJob implements ShouldQueue
                     'created_at' => now(),
                 ]);
 
-            //if (file_exists($this->fullPath)) unlink($this->fullPath);
+            if (file_exists($this->fullPath)) unlink($this->fullPath);
             return;
         }
 
@@ -129,6 +129,47 @@ class SplitPdfJob implements ShouldQueue
 
             return;
         }
+        else
+        {
+            if($this->prevCapture)
+            {
+                $docId = $this->prevCapture['prevId'];
+
+                //Store in azure storage blob
+                $azureService = new AzureStorageService();
+                $azurePath = $this->invoiceType . '/' . $this->originalName . '.pdf';
+                $azureUrl = $azureService->uploadFile($this->fullPath, $azurePath);
+
+                // Update record            
+                $ocrpdf = InvoiceOcrPdf::where('id', $docId)->first();
+                $ocrpdf->azure_url = $azureUrl;
+                if($this->prevCapture)
+                {
+                    $ocrpdf->client_id = null;
+                    $ocrpdf->batch_id = $this->batchId;
+                    $ocrpdf->invoice_type = $this->invoiceType;
+                    $ocrpdf->file_name = $this->originalName . '.pdf';
+                    $ocrpdf->analyzer_id = $this->analyzerId;
+                    $ocrpdf->status = 'queued';
+                    $ocrpdf->updated_at = now();
+                }
+                $ocrpdf->save();
+
+                SubmitAnalyzeJob::dispatch(
+                    $this->clients,
+                    $docId,
+                    $this->fullPath,
+                    basename($this->fullPath),
+                    $this->azureStudioType,
+                    $this->analyzerId,                
+                    $this->invoiceType,
+                    $this->emailMessageId,
+                    $this->prevCapture
+                )->onQueue('ocrpdfinvoices');
+
+                return;
+            }
+        }//multi-invoices
 
         $ranges = [];
 

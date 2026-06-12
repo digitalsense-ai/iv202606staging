@@ -28,6 +28,8 @@ use App\Repositories\ClientRepository;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 
+use App\Helpers\DateHelper;
+
 class AnalyzePdfController extends Controller
 {
     public $authUser;
@@ -50,7 +52,12 @@ class AnalyzePdfController extends Controller
 
     /* -- GET /analyzepdf -- */
     public function index()
-    {           
+    {       
+        // $invoiceDate = DateHelper::parseInvoiceDate(
+        //     '02/JUN/2026.'
+        // );
+        // dd($invoiceDate);
+
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
@@ -245,15 +252,15 @@ class AnalyzePdfController extends Controller
         $whichStudio = 'model';
 
         $analyzerId = match ($invoiceType) {
-            'sales' => 'sales_invoice_analyzer_v7',
+            'sales', 'multi-invoices' => 'sales_invoice_analyzer_v7',
             'com'   => 'com_invoice_analyzer_v8',
             default => 'sales_invoice_analyzer_v7',
         };
 
         $modelId = match ($invoiceType) {
-            'sales' => 'custom_sales_invoice_v13',
-            'com'   => 'custom_com_invoice_v10',
-            default => 'custom_sales_invoice_v13',
+            'sales', 'multi-invoices' => 'custom_sales_invoice_v17',
+            'com'   => 'custom_com_invoice_v15',
+            default => 'custom_sales_invoice_v17',
         };
 
         foreach ($paths as $key => $fullPath) {
@@ -266,13 +273,12 @@ class AnalyzePdfController extends Controller
                     PATHINFO_FILENAME
                 );
 
-                // Store in storage/app/public/ocr/{invoice_type}
+                // Store in storage/app/ocr/{invoice_type}
                 $storedPath = $fullPath->storeAs(
                     'ocr/' . $invoiceType,
                     $originalName.'.pdf',
                     'local'
-                );
-                //$fullPath = storage_path('app/public/' . $storedPath);
+                );                
                 $fullPath = storage_path('app/' . $storedPath);
             }
 
@@ -596,107 +602,190 @@ class AnalyzePdfController extends Controller
     /* -- PUT /analyzepdf/{analyze_id} -- */
     public function analyzeUpdate(Request $request)
     {     
-      $invoice = InvoiceOcrPdf::find($request->analyzepdf_id);
+        $invoice = InvoiceOcrPdf::find($request->analyzepdf_id);
 
-      if (!$invoice)
-        return;
+        if (!$invoice)
+            return;
 
-      $updates = [];
-      // Current JSON data
-      $currentData = $invoice->extracted_data ?? [];
+        $updates = [];
+        // Current JSON data
+        $currentData = $invoice->extracted_data ?? [];
 
-      // Check invoice_type
-      if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
-          $updates['invoice_type'] = $request->invoice_type;
-      }
+        // Check invoice_type
+        if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
+            $updates['invoice_type'] = $request->invoice_type;
+        }
 
-      // Check supplier org_number
-      if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
-          $updates['extracted_data->supplier->org_number'] = $request->client_no;
-      }
+        // Check supplier org_number
+        if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
+            $updates['extracted_data->supplier->org_number'] = $request->client_no;
+        }
 
-      // Check supplier name
-      if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
-          $updates['extracted_data->supplier->name'] = $request->client_name;
-      }
+        // Check supplier name
+        if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
+            $updates['extracted_data->supplier->name'] = $request->client_name;
+        }
 
-      // Check recipient org_number
-      if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
-          $updates['extracted_data->recipient->org_number'] = $request->client_no;
-      }
+        // Check recipient org_number
+        if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
+            $updates['extracted_data->recipient->org_number'] = $request->client_no;
+        }
 
-      // Check recipient name
-      if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
-          $updates['extracted_data->recipient->name'] = $request->client_name;
-      }
+        // Check recipient name
+        if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
+            $updates['extracted_data->recipient->name'] = $request->client_name;
+        }
 
-      // Check invoice_date
-      if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
-          $updates['extracted_data->invoice_date'] = $request->invoice_date;
-      }
+        // Check invoice_date
+        if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
+            $updates['extracted_data->invoice_date'] = $request->invoice_date;
+        }
 
-      if($request->client_name && (
-        str_contains(strtolower($request->client_name), 'rainwear') 
-        || str_contains(strtolower($request->client_name), 'engel') 
-        || str_contains(strtolower($request->client_name), 'berendsohn')
-        || str_contains(strtolower($request->client_name), 'horn bord')
+        if($request->client_name && (
+                str_contains(strtolower($request->client_name), 'rainwear') 
+                || str_contains(strtolower($request->client_name), 'engel') 
+                || str_contains(strtolower($request->client_name), 'berendsohn')
+                || str_contains(strtolower($request->client_name), 'horn bord')
+            )
         )
-      )
-      {
+        {
 
-      }
-      else
-      {
-          // Check invoice_number
-          if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
-              $updates['extracted_data->invoice_number'] = $request->invoice_no;
-          }
-      }
+        }
+        else
+        {
+            // Check invoice_number
+            if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
+                $updates['extracted_data->invoice_number'] = $request->invoice_no;
+            }
+        }
 
-      // Check currency
-      if (($currentData['currency'] ?? null) !== $request->currency) {
-          $updates['extracted_data->currency'] = $request->currency;
-      }
+        $currency               = $request->currency;
+        $exchangeCurrency       = $request->exchange_currency;
 
-      // Check net_amount
-      if (($currentData['net_amount'] ?? null) !== $request->net_amount) {
-          $updates['extracted_data->net_amount'] = $request->net_amount;
-      }
+        $netAmount              = $request->net_amount;
+        $exchangeNetAmount      = $request->exchange_net_amount;
 
-      // Check vat_rate
-      if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
-          $updates['extracted_data->vat_rate'] = $request->vat_rate;
-      }
+        $vatAmount              = $request->vat_amount;
+        $exchangeVatAmount      = $request->exchange_vat_amount;
 
-      // Check vat_amount
-      if (($currentData['vat_amount'] ?? null) !== $request->vat_amount) {
-          $updates['extracted_data->vat_amount'] = $request->vat_amount;
-      }
+        $totalAmount            = $request->total_amount;
+        $exchangeTotalAmount    = $request->exchange_total_amount;
 
-      // Check total_amount
-      if (($currentData['total_amount'] ?? null) !== $request->total_amount) {
-          $updates['extracted_data->total_amount'] = $request->total_amount;
-      }
+        // Apply same swap logic as frontend
+        if ($currency !== 'NOK' && $currency !== 'CHF') {
+
+            [$currency, $exchangeCurrency] = [$exchangeCurrency, $currency];
+
+            [$netAmount, $exchangeNetAmount] = [
+                $exchangeNetAmount,
+                $netAmount
+            ];
+
+            [$vatAmount, $exchangeVatAmount] = [
+                $exchangeVatAmount,
+                $vatAmount
+            ];
+
+            [$totalAmount, $exchangeTotalAmount] = [
+                $exchangeTotalAmount,
+                $totalAmount
+            ];
+        }
+
+        // Check currency
+        if (($currentData['currency'] ?? null) !== $currency) {
+            $updates['extracted_data->currency'] = $currency;
+        }
+
+        // Check net_amount
+        if (($currentData['net_amount'] ?? null) !== $netAmount) {
+            $updates['extracted_data->net_amount'] = $netAmount;
+        }
+
+        // Check vat_rate
+        if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
+            $updates['extracted_data->vat_rate'] = $request->vat_rate;
+        }
+
+        // Check vat_amount
+        if (($currentData['vat_amount'] ?? null) !== $vatAmount) {
+            $updates['extracted_data->vat_amount'] = $vatAmount;
+        }
+
+        // Check total_amount
+        if (($currentData['total_amount'] ?? null) !== $totalAmount) {
+            $updates['extracted_data->total_amount'] = $totalAmount;
+        }
+
+        // Check exchange_currency
+        if (($currentData['exchange_currency'] ?? null) !== $exchangeCurrency) {
+            $updates['extracted_data->exchange_currency'] = $exchangeCurrency;
+        }
+
+        // Check exchange_rate
+        if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
+            $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+        }
+
+        // Check exchange_net_amount
+        if (($currentData['exchange_net_amount'] ?? null) !== $exchangeNetAmount) {
+            $updates['extracted_data->exchange_net_amount'] = $exchangeNetAmount;
+        }
+
+        // Check exchange_vat_amount
+        if (($currentData['exchange_vat_amount'] ?? null) !== $exchangeVatAmount) {
+            $updates['extracted_data->exchange_vat_amount'] = $exchangeVatAmount;
+        }
+
+        // Check exchange_total_amount
+        if (($currentData['exchange_total_amount'] ?? null) !== $exchangeTotalAmount) {
+            $updates['extracted_data->exchange_total_amount'] = $exchangeTotalAmount;
+        }
+
+      // // Check currency
+      // if (($currentData['currency'] ?? null) !== $request->currency) {
+      //     $updates['extracted_data->currency'] = $request->currency;
+      // }
+
+      // // Check net_amount
+      // if (($currentData['net_amount'] ?? null) !== $request->net_amount) {
+      //     $updates['extracted_data->net_amount'] = $request->net_amount;
+      // }
+
+      // // Check vat_rate
+      // if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
+      //     $updates['extracted_data->vat_rate'] = $request->vat_rate;
+      // }
+
+      // // Check vat_amount
+      // if (($currentData['vat_amount'] ?? null) !== $request->vat_amount) {
+      //     $updates['extracted_data->vat_amount'] = $request->vat_amount;
+      // }
+
+      // // Check total_amount
+      // if (($currentData['total_amount'] ?? null) !== $request->total_amount) {
+      //     $updates['extracted_data->total_amount'] = $request->total_amount;
+      // }
       
-      // Check exchange_currency
-      if (($currentData['exchange_currency'] ?? null) !== $request->exchange_currency) {
-          $updates['extracted_data->exchange_currency'] = $request->exchange_currency;
-      }
+      // // Check exchange_currency
+      // if (($currentData['exchange_currency'] ?? null) !== $request->exchange_currency) {
+      //     $updates['extracted_data->exchange_currency'] = $request->exchange_currency;
+      // }
 
-      // Check exchange_rate
-      if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
-          $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
-      }
+      // // Check exchange_rate
+      // if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
+      //     $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+      // }
 
-      // Check exchange_net_amount
-      if (($currentData['exchange_net_amount'] ?? null) !== $request->exchange_net_amount) {
-          $updates['extracted_data->exchange_net_amount'] = $request->exchange_net_amount;
-      }     
+      // // Check exchange_net_amount
+      // if (($currentData['exchange_net_amount'] ?? null) !== $request->exchange_net_amount) {
+      //     $updates['extracted_data->exchange_net_amount'] = $request->exchange_net_amount;
+      // }     
 
-      // Check exchange_vat_amount
-      if (($currentData['exchange_vat_amount'] ?? null) !== $request->exchange_vat_amount) {
-          $updates['extracted_data->exchange_vat_amount'] = $request->exchange_vat_amount;
-      }
+      // // Check exchange_vat_amount
+      // if (($currentData['exchange_vat_amount'] ?? null) !== $request->exchange_vat_amount) {
+      //     $updates['extracted_data->exchange_vat_amount'] = $request->exchange_vat_amount;
+      // }
 
       // Check sales invoices
       $requestSalesInvoices = collect($request->input('sales-invoice', []))
@@ -1190,7 +1279,8 @@ class AnalyzePdfController extends Controller
             $attachment = [
                 'name' => $fileName,
                 'contentBytes' => $contentBytes,
-                'prevCapture' => $prevCapture
+                'prevCapture' => $prevCapture,
+                'prevFolder' => $invoice->invoice_type
             ];
             $grouped = $mailService->groupFiles($attachment, null, $grouped);            
         }
@@ -1312,7 +1402,16 @@ class AnalyzePdfController extends Controller
             
             if($id == 'all')
             {
-                $selected_analyze_ids = [];
+                $selected_analyze_ids = [];//41, 27281
+
+                $selected_analyze_ids = InvoiceOcrPdf::where('status', 'completed')
+                                ->where('invoice_type', 'com')                                
+                                ->where('extracted_data', 'LIKE', '%932337274%')  
+                                ->orderBy('id', 'ASC')            
+                                ->pluck('id')
+                                ->toArray(); 
+
+                //dd($selected_analyze_ids);
             }
             else
             {

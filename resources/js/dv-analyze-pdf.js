@@ -299,7 +299,7 @@ $(function () {
                               </a>                                     
                             </li>` +
                             btn_recapture_analyzepdf +
-                            btn_validate_analyzepdf +
+                            //btn_validate_analyzepdf +
                             btn_delete_analyzepdf +
                           `</ul>
                         </div>`;
@@ -446,7 +446,7 @@ $(function () {
                 )
                   .appendTo('.client_name')
                   .on('change', function () {                
-                    var val = $(this).val().replace(/-/g, " ");
+                    var val = $(this).val();//.replace(/-/g, " ");
                     column.search(val ? val : '', true, false).draw();
                   });
 
@@ -502,7 +502,7 @@ $(function () {
           var btn_validate_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
                                       '<span><i class="bx bx-check"></i> Validate</span>' +
                                     '</button>';
-          $(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+          //$(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
           if(analyzepdf_name != 'deleted')          
           {          

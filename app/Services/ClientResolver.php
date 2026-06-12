@@ -32,9 +32,14 @@ class ClientResolver
             }
 
             // IMPORTANT: stop here if orgNo provided but not found
+            // return [
+            //     'name'   => null,
+            //     'org_no' => $orgNo,
+            // ];
             return [
-                'name'   => null,
-                'org_no' => $orgNo,
+                'name'   => $name,
+                'org_no' => null,
+                'og_org_no' => $orgNo,
             ];
         }
 

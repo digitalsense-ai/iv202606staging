@@ -35,6 +35,32 @@ class ExchangeRateHelper
         ], '', $value);
 
         /**
+         * Handle division expressions
+         * Example:
+         * 100/68,35 => 1.4631
+         */
+        if (str_contains($value, '/')) {
+
+            $parts = explode('/', $value);
+
+            if (count($parts) === 2) {
+
+                $left = str_replace(',', '.', $parts[0]);
+                $right = str_replace(',', '.', $parts[1]);
+
+                if (
+                    is_numeric($left) &&
+                    is_numeric($right) &&
+                    (float) $right != 0.0
+                ) {
+                    $value = (string) (
+                        (float) $left / (float) $right
+                    );
+                }
+            }
+        }
+    
+        /**
          * Keep only digits + separators
          */
         $value = preg_replace('/[^0-9.,]/', '', $value);
@@ -83,6 +109,34 @@ class ExchangeRateHelper
             4,
             ',',
             ''
+        );
+    }
+
+    // public static function calculateExchangeRateFromVat($nokVat, $eurVat): ?float
+    // {
+    //     if (!$nokVat || !$eurVat || $eurVat == 0) {
+    //         return null;
+    //     }
+
+    //     return round($nokVat / $eurVat, 4);
+    // }
+
+    public static function calculateExchangeRateFromVat(
+        float|int|null $exchangeVatAmount,
+        float|int|null $baseVatAmount
+    ): ?float {
+
+        if (
+            empty($exchangeVatAmount) ||
+            empty($baseVatAmount) ||
+            $baseVatAmount == 0
+        ) {
+            return null;
+        }
+
+        return round(
+            $exchangeVatAmount / $baseVatAmount,
+            4
         );
     }
 }

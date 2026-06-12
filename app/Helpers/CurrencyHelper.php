@@ -10,7 +10,9 @@ class CurrencyHelper
         '€' => 'EUR',
         'kr' => 'DKK',
         'NORGE-FULL' => 'NOK',
-        'NOK-SALG' => 'NOK'
+        'NOK-SALG' => 'NOK',
+        'NOK NOK' => 'NOK',
+        'EURO' => 'EUR',
     ];
 
     public static function parseCurrency(?string $currency): ?string
@@ -20,25 +22,81 @@ class CurrencyHelper
         }
 
         // normalize spaces
-        $currency = trim(preg_replace('/\s+/', ' ', $currency));
+        $currency = trim(preg_replace('/\s+/', ' ', $currency));        
 
-        // map symbols / known variants first
+        /*
+        |--------------------------------------------------------------------------
+        | Map known symbols / aliases
+        |--------------------------------------------------------------------------
+        */
         foreach (self::MAP as $key => $iso) {
+
             if (stripos($currency, $key) !== false) {
                 return $iso;
             }
         }
 
-        // remove everything except letters
+        /*
+        |--------------------------------------------------------------------------
+        | Handle exchange pairs:
+        | DKK/NOK -> NOK
+        | EUR-NOK -> NOK
+        |--------------------------------------------------------------------------
+        */
+        if (preg_match('/[\/\-]/', $currency)) {
+
+            $parts = preg_split('/[\/\-]/', $currency);
+
+            if (!empty($parts)) {
+                $currency = trim(end($parts));
+            }
+        }
+        
+        /*
+        |--------------------------------------------------------------------------
+        | Clean non letters
+        |--------------------------------------------------------------------------
+        */
         $clean = strtoupper(preg_replace('/[^A-Z]/i', '', $currency));
 
-        // validate ISO format (exactly 3 letters)
+        /*
+        |--------------------------------------------------------------------------
+        | Validate ISO currency
+        |--------------------------------------------------------------------------
+        */
         if (preg_match('/^[A-Z]{3}$/', $clean)) {
             return $clean;
         }
 
         return null;
     }
+
+    // public static function parseCurrency(?string $currency): ?string
+    // {
+    //     if (!$currency) {
+    //         return null;
+    //     }
+
+    //     // normalize spaces
+    //     $currency = trim(preg_replace('/\s+/', ' ', $currency));
+
+    //     // map symbols / known variants first
+    //     foreach (self::MAP as $key => $iso) {
+    //         if (stripos($currency, $key) !== false) {
+    //             return $iso;
+    //         }
+    //     }
+
+    //     // remove everything except letters
+    //     $clean = strtoupper(preg_replace('/[^A-Z]/i', '', $currency));
+
+    //     // validate ISO format (exactly 3 letters)
+    //     if (preg_match('/^[A-Z]{3}$/', $clean)) {
+    //         return $clean;
+    //     }
+
+    //     return null;
+    // }
 
     // public static function parseCurrency(?string $currency): ?string
     // {

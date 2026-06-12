@@ -36,7 +36,7 @@ class Kernel extends ConsoleKernel
         //$schedule->command('reminder:task')->hourly();
         $schedule->command('crmreminder:task')->hourly();
         
-        $schedule->command('irazure:task')->dailyAt('00:00'); 
+        //$schedule->command('irazure:task')->dailyAt('00:00'); 
         
         if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
         {

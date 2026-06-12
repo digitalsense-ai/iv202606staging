@@ -161,7 +161,7 @@ class FtpClass
 			$sftp_foldername = 'aubo';
 		else if($sftp_foldername == 'becksondergaardaps' || $sftp_foldername == 'becksndergaardaps')		
 			$sftp_foldername = 'becksondergaard';
-		else if($sftp_foldername == 'asvillyjensenbesaetningsartiklerengros')		
+		else if($sftp_foldername == 'asvillyjensenbesaetningsartiklerengros' || $sftp_foldername == 'asvillyjensen')		
 			$sftp_foldername = 'villyjensen';
 		else if($sftp_foldername == 'dfi-geisleras')
 			$sftp_foldername = 'dfigeisler';

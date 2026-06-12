@@ -36,16 +36,16 @@ class BergToysInvoiceParser implements ClientInvoiceParserInterface
             if (!is_array($relatedSalesInvoices)) {
                 $relatedSalesInvoices = array_filter(array_map('trim', explode(',', $relatedSalesInvoices)));
             }
-Log::info($relatedSalesInvoices);
+//Log::info($relatedSalesInvoices);
             if (!is_array($relatedSalesOrders)) {
                 $relatedSalesOrders = array_filter(array_map('trim', explode(',', $relatedSalesOrders)));
             }
-Log::info($relatedSalesOrders);
+//Log::info($relatedSalesOrders);
 
             if (!is_array($relatedShipments)) {
                 $relatedShipments = array_filter(array_map('trim', explode(',', $relatedShipments)));
             }
-Log::info($relatedShipments);
+//Log::info($relatedShipments);
 
             $related_sales_invoices = null;
             foreach ($relatedSalesInvoices as $relatedSalesInvoice)
@@ -66,7 +66,7 @@ Log::info($relatedShipments);
                     }
                 }
             }
-Log::info($related_sales_invoices);
+//Log::info($related_sales_invoices);
             $related_sales_orders = null;
             foreach ($relatedSalesOrders as $relatedSalesOrder)
             {
@@ -80,7 +80,7 @@ Log::info($related_sales_invoices);
                         $related_sales_orders = $relatedSalesOrder;
                 }
             }
-Log::info($related_sales_orders);
+//Log::info($related_sales_orders);
             $related_shipment_nos = null;
             foreach ($relatedShipments as $relatedShipment)
             {
@@ -91,7 +91,7 @@ Log::info($related_sales_orders);
                 else
                     $related_shipment_nos = $relatedShipment;
             }
-Log::info($related_shipment_nos);            
+//Log::info($related_shipment_nos);            
             return [
                 'related_sales_invoices' => $related_sales_invoices,
                 'related_sales_orders'   => $related_sales_orders,

@@ -486,7 +486,7 @@ console.log(analyzepdfsearch_name);
           { data: 'net_amount', width: '150px', className: 'text-end' },
           { data: 'duties', width: '150px', className: 'text-end' },
           { data: 'adjustment', width: '150px', className: 'text-end' },
-          { data: 'reference_no', width: '14150px0px' },
+          { data: 'reference_no', width: '200px' },
           { data: 'created_at', width: '220px' },
           { data: 'action', defaultContent: '', width: '150px' }
         ];
@@ -547,15 +547,35 @@ console.log(analyzepdfsearch_name);
             }
           },
 
-          // ================= COMMERCIAL COLUMN 7 FIX =================
-          {
+          // // ================= COMMERCIAL COLUMN 7 FIX =================
+          // {
+          //   targets: relatedInvoiceIndex,
+          //   render: function (data, type, full) {
+
+          //     let arr = full.related_sales_invoices || [];
+
+          //     if (type === 'sort' || type === 'type') {
+          //       return arr.length; // stable sorting
+          //     }
+
+          //     if (type === 'filter') {
+          //       return arr.join(' ');
+          //     }
+
+          //     if (arr.length === 1) return arr[0];
+          //     if (arr.length > 1) return arr[0] + " ...";
+          //     return '';
+          //   }
+          // },
+
+          ...(relatedInvoiceIndex >= 0 ? [{
             targets: relatedInvoiceIndex,
             render: function (data, type, full) {
 
               let arr = full.related_sales_invoices || [];
 
               if (type === 'sort' || type === 'type') {
-                return arr.length; // stable sorting
+                return arr.length;
               }
 
               if (type === 'filter') {
@@ -564,16 +584,44 @@ console.log(analyzepdfsearch_name);
 
               if (arr.length === 1) return arr[0];
               if (arr.length > 1) return arr[0] + " ...";
+
               return '';
             }
-          },
-
+          }] : []),
           // ================= ACTION FIX =================
           {
             targets: actiontargets,
             orderable: false,
             searchable: false,
-            defaultContent: ''
+            render: function (data, type, full, meta) { 
+                return `<div class="d-inline-block">
+                          <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
+                            <i class="bx bx-dots-vertical-rounded"></i>
+                          </a>
+                          <ul class="dropdown-menu dropdown-menu-end m-0">
+
+                            <li>
+                              <a href="javascript:;" 
+                                class="dropdown-item btn-show-data" 
+                                id="show-analyzepdf-data"
+                                title="Show Data"
+
+                                data-analyzepdf_id="` + full['id'] + `"
+                                data-tab_name="` + analyzepdfsearch_name + `"
+                                data-invoice_no="` + (full['invoice_no'] || full['declaration_no'] || '') + `"
+
+                                data-bs-toggle="offcanvas" 
+                                data-bs-target="#offcanvasAnalyzePdfData">
+
+                                <span>
+                                  <i class="bx bx-show me-2"></i>Show Data
+                                </span>
+                              </a>
+                            </li>
+
+                          </ul>
+                        </div>`;
+            }                
           },
 
           // ================= GENERAL COLUMNS =================
@@ -664,8 +712,43 @@ console.log(analyzepdfsearch_name);
         },        
 
         initComplete: function () {
+//console.log(analyzepdfsearch_name);
+          //$("."+ analyzepdfsearch_name +"-search-filter").appendTo('.dt-search-filter');
 
           const api = this.api();
+
+          // api
+          //   .columns(2)
+          //   .every(function () {
+          //     var column = this;
+          //     var select = $(
+          //       '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
+          //     )
+          //       .appendTo('.client_name')
+          //       .on('change', function () {                
+          //         var val = $(this).val().replace(/-/g, " ");
+          //         column.search(val ? val : '', true, false).draw();
+          //       });
+
+          //     column
+          //       .data()
+          //       .unique()
+          //       .sort()
+          //       .each(function (d, j) {
+          //         var selected = (j === 0) ? 'selected' : '';
+          //         if(d)
+          //           select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
+          //       });
+
+          //     // manually trigger filter
+          //     select.trigger('change');  
+          //   });
+
+          // if(analyzepdfsearch_name === 'commercial-invoice')  
+          //   $(".dt-dropdown-filter").prependTo('.dt-search-filter .'+ analyzepdfsearch_name +'-search-filter #DataTables_Table_0_filter');   
+          // else if(analyzepdfsearch_name === 'sales-invoice')  
+          //   $(".dt-dropdown-filter").prependTo('.dt-search-filter .'+ analyzepdfsearch_name +'-search-filter #DataTables_Table_1_filter');   
+
 
           // // IMPORTANT: fix hidden tab column width issue
           // setTimeout(function () {

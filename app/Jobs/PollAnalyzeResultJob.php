@@ -337,6 +337,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $invoice->azure_sas_expiry = null;
                     $invoice->save();
 
+                    $this->finalizeEmailBatchIfComplete();
                     //                             
                     // if ($this->invoiceType == 'multi-invoices')
                     // {
@@ -370,10 +371,10 @@ class PollAnalyzeResultJob implements ShouldQueue
         }
     }
 
-     private function finalizeEmailBatchIfComplete(): void
+    private function finalizeEmailBatchIfComplete(): void
     {
-        if (!$this->emailMessageId) {
-            return;
+        if (file_exists($this->filePath)) {
+            unlink($this->filePath);
         }
 
         $batchId = DB::table('dv_invoice_ocr_pdfs')
@@ -393,6 +394,9 @@ class PollAnalyzeResultJob implements ShouldQueue
             return;
         }
 
+        ValidateOcrInvoicesJob::dispatch($batchId)
+            ->onQueue('ocrpdfvalidateinvoices');
+
         $cacheKey = "ocr_email_batch_finalized:{$batchId}";
 
         if (!Cache::add($cacheKey, true, now()->addHours(6))) {
@@ -400,18 +404,69 @@ class PollAnalyzeResultJob implements ShouldQueue
         }
 
         try {
+            if (!$this->emailMessageId) {
+                return;
+            }
+
             $mailService = app(MicrosoftMailService::class);
 
             $mailService->addCategory($this->emailMessageId);
             $mailService->markEmailAsRead($this->emailMessageId);
             $mailService->moveEmailToFolder($this->emailMessageId);
 
-            ValidateOcrInvoicesJob::dispatch($batchId)
-                ->onQueue('ocrpdfvalidateinvoices');
         } catch (\Throwable $e) {
             Cache::forget($cacheKey);
-
             throw $e;
         }
     }
+    
+    // private function finalizeEmailBatchIfComplete(): void
+    // {
+    //     // Delete local file
+    //     if (file_exists($this->filePath)) {
+    //         unlink($this->filePath);
+    //     }
+        
+    //     if (!$this->emailMessageId) {
+    //         return;
+    //     }
+
+    //     $batchId = DB::table('dv_invoice_ocr_pdfs')
+    //         ->where('id', $this->documentId)
+    //         ->value('batch_id');
+
+    //     if (!$batchId) {
+    //         return;
+    //     }
+
+    //     $remaining = DB::table('dv_invoice_ocr_pdfs')
+    //         ->where('batch_id', $batchId)
+    //         ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
+    //         ->count();
+
+    //     if ($remaining !== 0) {
+    //         return;
+    //     }
+
+    //     $cacheKey = "ocr_email_batch_finalized:{$batchId}";
+
+    //     if (!Cache::add($cacheKey, true, now()->addHours(6))) {
+    //         return;
+    //     }
+
+    //     try {
+    //         $mailService = app(MicrosoftMailService::class);
+
+    //         $mailService->addCategory($this->emailMessageId);
+    //         $mailService->markEmailAsRead($this->emailMessageId);
+    //         $mailService->moveEmailToFolder($this->emailMessageId);
+
+    //         ValidateOcrInvoicesJob::dispatch($batchId)
+    //             ->onQueue('ocrpdfvalidateinvoices');
+    //     } catch (\Throwable $e) {
+    //         Cache::forget($cacheKey);
+
+    //         throw $e;
+    //     }
+    // }
 }

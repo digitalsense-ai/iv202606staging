@@ -55,7 +55,9 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             //->whereNull('duplicate_hash')
             ->when($this->batchId, fn ($query) => $query->where('batch_id', $this->batchId))
             ->chunkById(500, function ($invoices) use ($service) {
-
+                \Log::info('Validation OCR invoice', [
+                        'count' => count($invoices)
+                    ]);
                 foreach ($invoices as $invoice) {
 
                     // \Log::info('Validation OCR invoice', [
@@ -98,7 +100,9 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             ->groupBy('invoice_type', 'duplicate_hash')
             ->havingRaw('COUNT(*) > 1')
             ->get();
-
+// \Log::info('Validation OCR Duplicate invoices', [    
+//     'total' => count($duplicates)
+// ]);
         foreach ($duplicates as $duplicate) {
 
             $invoices = InvoiceOcrPdf::where('invoice_type', $duplicate->invoice_type)
@@ -129,12 +133,12 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                 $duplicateCandidates = $duplicateCandidates->whereIn('id', $this->invoiceIds);
             }
 
-            // Log::info('Duplicate group found', [
-            //     'invoice_type' => $duplicate->invoice_type,
-            //     'original_id' => $original->id,
-            //     'duplicate_ids' => $invoices->skip(1)->pluck('id')->toArray(),
-            //     'duplicate_ids' => $duplicateCandidates->pluck('id')->toArray(),
-            // ]);
+            Log::info('Duplicate group found', [
+                'invoice_type' => $duplicate->invoice_type,
+                'original_id' => $original->id,
+                'duplicate_ids' => $invoices->skip(1)->pluck('id')->toArray(),
+                'duplicate_ids' => $duplicateCandidates->pluck('id')->toArray(),
+            ]);
 
             //foreach ($invoices->skip(1) as $invoice) {
             foreach ($duplicateCandidates as $invoice) {

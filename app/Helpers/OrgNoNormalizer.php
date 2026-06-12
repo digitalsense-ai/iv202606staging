@@ -22,6 +22,7 @@ class OrgNoNormalizer
         $replacements = [
             '91644842'     => '919644842',
             '369530275000' => '369530275',
+            '99701560632431125' => '997015606',
         ];
 
         if (isset($replacements[$orgNo])) {

@@ -75,8 +75,8 @@ class ValidateOcrInvoiceDuplicateService
             'currency' => $this->normalizeIdentifier($data['currency'] ?? null),
             'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
             'org_number' => $this->normalizeIdentifier($data['recipient']['org_number'] ?? null),
-            'shipments' => $this->normalizeList($data['related_shipment_nos'] ?? null),
-            'sales_invoices' => $this->normalizeList($data['related_sales_invoices'] ?? null),
+            //'shipments' => $this->normalizeList($data['related_shipment_nos'] ?? null),
+            //'sales_invoices' => $this->normalizeList($data['related_sales_invoices'] ?? null),
         ];
     }
 

@@ -144,6 +144,9 @@ $(function () {
             
             <div class="card-header border-bottom p-2">        
               <div class="dt-search-filter text-end align-middle">
+                <div class="dt-dropdown-filter w-auto d-inline-block">
+                    <div class="w-auto d-inline-block me-1 client_name"></div>                    
+                </div>
               </div>
             </div>
 

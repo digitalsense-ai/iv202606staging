@@ -251,7 +251,7 @@ class MicrosoftMailService
         // $com_keywords = ['consolidated', 'commercial', 'proformafaktura', 'samlefaktura', 'report', 'ci-', 'ch ', 
         //                     'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'uk ', 'gb '];
         $com_keywords = ['consolidated', 'commercial', 'proformafaktura', 'samlefaktura', 'report', 'ci-', 
-                            'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'msj_'];
+                            'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'msj_', 'eksportsalgsfaktura'];
         $sales_keywords = ['kundefakturaer', 'sales', ' fakturaer ', 'intertrans_invoice', 'invoices_for_commercial_invoice', 'deerhunter_invoice', 'proforma_invoice_'];
         $multiple_sales_keywords = ['nos-', 'salesinvoices_ic', 'posted sales invoices', 'invoices_for_commercial_invoice_'];
 
@@ -278,6 +278,7 @@ class MicrosoftMailService
             preg_match('/^(ATT|EAD|ESCAN_|Payment information|Mainifest)/i', $fileName)
             || stripos($fileName, 'AJONEDDCPA') !== false
             || stripos($fileName, 'Mva-melding') !== false
+            || stripos($fileName, 'kontoudtog') !== false            
             || Str::startsWith(Str::lower($fileName), ['26dk', 'gls - '])
         ) return $grouped;
 
@@ -327,74 +328,78 @@ class MicrosoftMailService
         }
         else
         {
-            // Decide folder purely based on filename
-            $isCom = false;
-            foreach ($com_keywords as $word) {
-                if (stripos($fileName, $word) !== false) {
-                    $isCom = true;
-                    break;
-                }
-            }
-            
-            $isSales = false;        
-            foreach ($sales_keywords as $word) {
-                if (stripos($fileName, $word) !== false) {
-                    $isSales = true;
-                    break;
-                }
-            }
-            
-            //$folder = $isCom ? 'com' : 'sales';
-
-            $folder = ''; 
-            if($isCom)
-                $folder = 'com';   
-
-            if($isSales)
-            {                
-                $isSalesMultiple = false;        
-                foreach ($multiple_sales_keywords as $word) {
+            if(isset($attachment['prevFolder']))
+                $folder = $attachment['prevFolder'];
+            else
+            {
+                // Decide folder purely based on filename
+                $isCom = false;
+                foreach ($com_keywords as $word) {
                     if (stripos($fileName, $word) !== false) {
-                        $isSalesMultiple = true;
+                        $isCom = true;
                         break;
                     }
                 }
+                
+                $isSales = false;        
+                foreach ($sales_keywords as $word) {
+                    if (stripos($fileName, $word) !== false) {
+                        $isSales = true;
+                        break;
+                    }
+                }
+                
+                //$folder = $isCom ? 'com' : 'sales';
 
-                $folder = ($isSalesMultiple) ? 'multi-invoices' : 'sales';
-            }
-            
-            if(!$folder)
-            {                   
-                if (stripos($subject, "commercial_invoice_") !== false 
-                    || stripos($subject, "commercial-invoice-") !== false
-                    || stripos($subject, "ci-") !== false
-                    || stripos($subject, "c-i-") !== false
-                    || stripos($subject, "ci_") !== false
-                    || stripos($subject, "c_i_") !== false
-                    //|| stripos($subject, "no") !== false
-                    || stripos($fileName, "nos-") !== false
-                    || stripos($fileName, "nos ") !== false
-                    || stripos($fileName, "ic") !== false
-                    || Str::startsWith(Str::lower($fileName), ['no ', 'la_', 'haos_', 'nmd', 'ch ', 'uk ', 'gb ', 'invoices_for_commercial_invoice', 'ci', 'dhl', '980827682_mva_si_2610000'])
-                    || Str::startsWith(Str::lower($subject), ['no00'])
-                )
-                { 
-                    if(Str::startsWith(Str::lower($fileName), ['invoice'])
-                        || stripos($fileName, "_invoice_") !== false
+                $folder = ''; 
+                if($isCom)
+                    $folder = 'com';   
+
+                if($isSales)
+                {                
+                    $isSalesMultiple = false;        
+                    foreach ($multiple_sales_keywords as $word) {
+                        if (stripos($fileName, $word) !== false) {
+                            $isSalesMultiple = true;
+                            break;
+                        }
+                    }
+
+                    $folder = ($isSalesMultiple) ? 'multi-invoices' : 'sales';
+                }
+                
+                if(!$folder)
+                {                   
+                    if (stripos($subject, "commercial_invoice_") !== false 
+                        || stripos($subject, "commercial-invoice-") !== false
+                        || stripos($subject, "ci-") !== false
+                        || stripos($subject, "c-i-") !== false
+                        || stripos($subject, "ci_") !== false
+                        || stripos($subject, "c_i_") !== false
+                        //|| stripos($subject, "no") !== false
+                        || stripos($fileName, "nos-") !== false
+                        || stripos($fileName, "nos ") !== false
+                        || stripos($fileName, "ic") !== false
+                        || Str::startsWith(Str::lower($fileName), ['no ', 'la_', 'haos_', 'nmd', 'ch ', 'uk ', 'gb ', 'invoices_for_commercial_invoice', 'ci', 'dhl', '980827682_mva_si_2610000'])
+                        || Str::startsWith(Str::lower($subject), ['no00'])
                     )
-                        $folder = 'sales';
-                    else
-                        $folder = 'com';
+                    { 
+                        if(Str::startsWith(Str::lower($fileName), ['invoice'])
+                            || stripos($fileName, "_invoice_") !== false
+                        )
+                            $folder = 'sales';
+                        else
+                            $folder = 'com';
+                    }
+                    else 
+                    {
+                        if(Str::startsWith(Str::lower($fileName), ['1005']))
+                            $folder = 'com';
+                        else    
+                            $folder = 'sales';
+                    }
                 }
-                else 
-                {
-                    if(Str::startsWith(Str::lower($fileName), ['1005']))
-                        $folder = 'com';
-                    else    
-                        $folder = 'sales';
-                }
-            }
-
+            }    
             // $azureService = new AzureStorageService();
             // $azurePath = $folder . '/' . $baseName . $extension;
             // $file_exists = $azureService->checkFile($azurePath);

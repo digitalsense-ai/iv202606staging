@@ -30,14 +30,19 @@ class CustomSalesInvoiceMapper
         $supplierName = $doc ? ($doc['Client Name']['valueString'] ?? '') : '';    
         $orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $supplierName);
 
+        if(!$orgNo)
+            $orgNo = OrgNoNormalizer::normalize(($doc['Client Vat Number']['valueString'] ?? null), $supplierName);
+
         $client_result = app(ClientResolver::class)->resolve(
             $clients,
             $supplierName,
             $orgNo,
             null
         );
+        
         $client_name = $client_result['name'] ?? null;
         $client_no   = $client_result['org_no'] ?? null; 
+        $extracted_client_no = $client_result['og_org_no'] ?? null; 
 
         $invoiceDate = DateHelper::parseInvoiceDate(
             $doc['Invoice Date']['content'] ?? null
@@ -106,7 +111,7 @@ class CustomSalesInvoiceMapper
         [$total_currency, $total_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Total Amount']['valueString'] ?? null,
             $currency ?? null
-        );
+        );        
        
         $net_amount = EuropeanNumberHelper::normalize(
             $net_amount ?? null
@@ -133,8 +138,32 @@ class CustomSalesInvoiceMapper
         );
 
         $parseNetAmount = EuropeanNumberHelper::toFloat($net_amount);
+        $parseAdditionalCharges = EuropeanNumberHelper::toFloat($additional_charges);
+        $parseVariance = EuropeanNumberHelper::toFloat($variance);
+        $parseDiscountAmount = EuropeanNumberHelper::toFloat($discount_amount);
         $parseVatAmount = EuropeanNumberHelper::toFloat($vat_amount);
         $parseTotalAmount = EuropeanNumberHelper::toFloat($total_amount);
+
+        $calcParseNetAmount = ($parseNetAmount + $parseAdditionalCharges + $parseVariance) - $parseDiscountAmount;
+        
+        /**
+         * Net amount should never be greater than total amount.
+         * If it is, OCR likely swapped them.
+         */
+        if(!$credit_note)
+        {
+            if ($calcParseNetAmount > $parseTotalAmount) {
+                [$parseNetAmount, $parseTotalAmount] = [
+                    $parseTotalAmount,
+                    $parseNetAmount
+                ];
+
+                [$net_amount, $total_amount] = [
+                    $total_amount,
+                    $net_amount
+                ];
+            }
+        }
 
         if (
             $parseVatAmount > 0  && $parseTotalAmount > 0 && abs($parseTotalAmount - $parseVatAmount) < 0.01
@@ -149,17 +178,131 @@ class CustomSalesInvoiceMapper
         $exchange_vat_amount = EuropeanNumberHelper::normalize(
             $exchange_vat_amount ?? null
         );
-        
+
         $vat_rate = VatRateHelper::resolve(
             $doc['Vat Rate']['valueString'] ?? null,
-            $parseNetAmount,
+            $calcParseNetAmount,
             $parseVatAmount
         );
-
+ 
+        $parseExchangeVatAmount = EuropeanNumberHelper::toFloat($exchange_vat_amount);
+        
         $exchange_rate = ExchangeRateHelper::normalize(
             $doc['Exchange Rate']['valueString'] ?? null
         );
 
+        $effectiveExchangeCurrency = $exchange_currency;
+        // fallback:
+        // if exchange currency missing and invoice currency is foreign,
+        // assume NOK local currency
+        if (
+            empty($effectiveExchangeCurrency) &&
+            $currency &&
+            $currency !== 'NOK'
+        ) {
+            $effectiveExchangeCurrency = 'NOK';
+        }    
+
+        $isForeignInvoice =
+            $currency &&
+            $effectiveExchangeCurrency &&
+            $currency !== $effectiveExchangeCurrency;
+
+        // $isEligibleVatFx =
+        //     $currency === 'EUR' &&
+        //     $effectiveExchangeCurrency === 'NOK' &&
+        //     $parseVatAmount > 0 &&
+        //     $parseExchangeVatAmount > 0;
+
+        $isEligibleVatFx =
+            $currency &&
+            $effectiveExchangeCurrency &&
+            $currency !== $effectiveExchangeCurrency &&
+            $effectiveExchangeCurrency === 'NOK' &&
+            $parseVatAmount > 0 &&
+            $parseExchangeVatAmount > 0;    
+
+        if ($isForeignInvoice && $isEligibleVatFx) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate exchange rate ONLY if missing
+            |--------------------------------------------------------------------------
+            */
+            if (empty($exchange_rate)) {
+                
+                $exchange_rate = ExchangeRateHelper::calculateExchangeRateFromVat(
+                    $parseExchangeVatAmount,
+                    $parseVatAmount
+                );                
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate exchange net ONLY if missing
+            |--------------------------------------------------------------------------
+            */
+            if (
+                empty($exchange_net_amount) &&
+                $exchange_rate &&
+                $parseNetAmount > 0
+            ) {
+
+                $exchange_net_amount = number_format(
+                    $parseNetAmount * $exchange_rate,
+                    2,
+                    ',',
+                    '.'
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate exchange VAT ONLY if missing
+            |--------------------------------------------------------------------------
+            */
+            if (
+                empty($exchange_vat_amount) &&
+                $exchange_rate &&
+                $parseVatAmount > 0
+            ) {
+
+                $exchange_vat_amount = number_format(
+                    $parseVatAmount * $exchange_rate,
+                    2,
+                    ',',
+                    '.'
+                );
+            }            
+        }
+            
+        /*
+        |--------------------------------------------------------------------------
+        | Calculate exchange total ONLY if missing
+        |--------------------------------------------------------------------------
+        */
+        if (
+            empty($exchange_total_amount) &&
+            $exchange_net_amount &&
+            $exchange_vat_amount
+        ) {
+
+            $parseExchangeNetAmount = EuropeanNumberHelper::toFloat(
+                $exchange_net_amount
+            );
+
+            $parseExchangeVatAmount = EuropeanNumberHelper::toFloat(
+                $exchange_vat_amount
+            );
+
+            $exchange_total_amount = number_format(
+                $parseExchangeNetAmount + $parseExchangeVatAmount,
+                2,
+                ',',
+                '.'
+            );
+        }    
+       
         $mapresult = [
             'invoice_type' => $doc['Invoice Type']['valueString'] ?? null,
             'invoice_number' => $invoiceNumber ?? null,
@@ -172,6 +315,7 @@ class CustomSalesInvoiceMapper
                 'address' => $doc['Client Address']['valueString'] ?? null,               
                 'cvr_number'   => $doc['Client Vat Number']['valueString'] ?? null,
                 'org_number'   => $client_no ?? null,
+                'extracted_org_number' => $extracted_client_no,
             ] : null,                       
             'net_amount'   => $net_amount ?? null,
             'discount_amount'   => $discount_amount ?? null,
@@ -183,9 +327,10 @@ class CustomSalesInvoiceMapper
             'total_amount'   => $total_amount ?? null,          
             'credit_note'   => $credit_note,
             'exchange_rate'   => $exchange_rate ?? null,
-            'exchange_currency'   => $exchange_currency ?? null,
+            'exchange_currency' => $effectiveExchangeCurrency ?? null,
             'exchange_net_amount'   => $exchange_net_amount ?? null,
-            'exchange_vat_amount'   => $exchange_vat_amount ?? null            
+            'exchange_vat_amount'   => $exchange_vat_amount ?? null,
+            'exchange_total_amount'   => $exchange_total_amount ?? null            
         ];
 
         $error_message = '';
@@ -193,7 +338,12 @@ class CustomSalesInvoiceMapper
             $error_message .= "Client Name missing\n";
 
         if (!$client_no)
-            $error_message .= "Client No. missing\n";
+        {
+            if ($extracted_client_no)
+                $error_message .= "Client No. missing - Invalid Client No.\n";
+            else
+                $error_message .= "Client No. missing\n";                
+        }
         
         if (!$invoiceDate)
             $error_message .= "Invoice Date missing\n";
@@ -203,6 +353,17 @@ class CustomSalesInvoiceMapper
 
         if (!$currency)
             $error_message .= "Currency missing\n";
+
+        if ($currency != 'NOK' && $currency != 'CHF')
+        {
+            if(!$exchange_rate 
+                || !$effectiveExchangeCurrency 
+                || !$exchange_net_amount 
+                || !$exchange_vat_amount
+                || !$exchange_total_amount
+            )
+                $error_message .= "Exchange fields missing\n";
+        }
 
         if (!$net_amount)
             $error_message .= "Net Amount missing";        
