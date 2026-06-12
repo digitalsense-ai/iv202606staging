@@ -19,13 +19,17 @@ class OcrCorrectionFeedbackService
             return false;
         }
 
+        $original = $this->stringValue($originalValue);
+        $corrected = $this->stringValue($correctedValue);
+
         try {
             DB::table('dv_ocr_correction_feedback')->insert([
                 'invoice_id' => $invoiceId,
                 'client_id' => $clientId,
                 'field_name' => $field,
-                'original_value' => is_scalar($originalValue) ? (string) $originalValue : json_encode($originalValue),
-                'corrected_value' => is_scalar($correctedValue) ? (string) $correctedValue : json_encode($correctedValue),
+                'original_value' => $original,
+                'corrected_value' => $corrected,
+                'original_value_hash' => $this->hashValue($original),
                 'layout_fingerprint' => $layoutFingerprint,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -64,7 +68,7 @@ class OcrCorrectionFeedbackService
     {
         $query = DB::table('dv_ocr_correction_feedback')
             ->where('field_name', $field)
-            ->where('original_value', $value)
+            ->where('original_value_hash', $this->hashValue($value))
             ->orderByDesc('updated_at');
 
         if ($clientId) {
@@ -74,5 +78,19 @@ class OcrCorrectionFeedbackService
         $match = $query->first();
 
         return $match?->corrected_value;
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return is_scalar($value) ? (string) $value : json_encode($value);
+    }
+
+    private function hashValue(?string $value): ?string
+    {
+        return $value === null ? null : hash('sha256', $value);
     }
 }
