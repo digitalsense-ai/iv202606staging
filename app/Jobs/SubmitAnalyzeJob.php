@@ -77,6 +77,6 @@ class SubmitAnalyzeJob implements ShouldQueue
             $this->emailMessageId,
             now(),
             $this->prevCapture,
-        )->delay(now()->addSeconds(10))->onQueue('ocrpdfinvoices');
+        )->delay(now()->addSeconds(10))->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
     }
 }
