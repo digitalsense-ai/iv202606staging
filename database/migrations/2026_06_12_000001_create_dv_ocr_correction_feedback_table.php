@@ -15,11 +15,12 @@ return new class extends Migration
             $table->string('field_name')->index();
             $table->text('original_value')->nullable();
             $table->text('corrected_value')->nullable();
+            $table->string('original_value_hash', 64)->nullable()->index();
             $table->string('layout_fingerprint', 128)->nullable()->index();
             $table->timestamps();
 
             $table->index(['client_id', 'field_name']);
-            $table->index(['field_name', 'original_value'](191));
+            $table->index(['field_name', 'original_value_hash']);
         });
     }
 
