@@ -125,7 +125,7 @@ class SplitPdfJob implements ShouldQueue
                 $this->invoiceType,
                 $this->emailMessageId,
                 $this->prevCapture
-            )->onQueue('ocrpdfinvoices');
+            )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
             return;
         }
@@ -165,7 +165,7 @@ class SplitPdfJob implements ShouldQueue
                     $this->invoiceType,
                     $this->emailMessageId,
                     $this->prevCapture
-                )->onQueue('ocrpdfinvoices');
+                )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -263,7 +263,7 @@ class SplitPdfJob implements ShouldQueue
                 $this->invoiceType,
                 $this->emailMessageId,
                 $this->prevCapture
-            )->onQueue('ocrpdfinvoices');
+            )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
             $counter++;
         }
