@@ -20,7 +20,7 @@ use App\Models\VATRegistration;
 use App\Models\InvoiceOcrPdf;
 use App\Jobs\SplitPdfJob;
 use App\Services\AzureStorageService;
-
+use App\Services\OcrCorrectionFeedbackService;
 use App\Services\MicrosoftMailService;
 use App\Jobs\ProcessEmailJob;
 
@@ -611,34 +611,74 @@ class AnalyzePdfController extends Controller
         // Current JSON data
         $currentData = $invoice->extracted_data ?? [];
 
+        $feedback = app(OcrCorrectionFeedbackService::class);
+        $layoutFingerprint = $currentData['_ocr']['layout_fingerprint'] ?? null;
+        $feedbackItems = [];
+        
         // Check invoice_type
         if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
             $updates['invoice_type'] = $request->invoice_type;
+
+            $feedbackItems[] = [
+                'field' => 'invoice_type',
+                'original' => $currentData['invoice_type'] ?? null,
+                'corrected' => $request->invoice_type,
+            ];
         }
 
         // Check supplier org_number
         if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
             $updates['extracted_data->supplier->org_number'] = $request->client_no;
+
+            $feedbackItems[] = [
+                'field' => 'org_number',
+                'original' => $currentData['supplier']['org_number'] ?? null,
+                'corrected' => $request->client_no,
+            ];
         }
 
         // Check supplier name
         if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
             $updates['extracted_data->supplier->name'] = $request->client_name;
+
+            $feedbackItems[] = [
+                'field' => 'name',
+                'original' => $currentData['supplier']['name'] ?? null,
+                'corrected' => $request->client_name,
+            ];
         }
 
         // Check recipient org_number
         if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
             $updates['extracted_data->recipient->org_number'] = $request->client_no;
+
+            $feedbackItems[] = [
+                'field' => 'org_number',
+                'original' => $currentData['recipient']['org_number'] ?? null,
+                'corrected' => $request->client_no,
+            ];
         }
 
         // Check recipient name
         if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
             $updates['extracted_data->recipient->name'] = $request->client_name;
+
+            $feedbackItems[] = [
+                'field' => 'name',
+                'original' => $currentData['recipient']['name'] ?? null,
+                'corrected' => $request->client_name,
+            ];
         }
 
         // Check invoice_date
         if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
             $updates['extracted_data->invoice_date'] = $request->invoice_date;
+
+            $feedbackItems[] = [
+                'field' => 'invoice_date',
+                'original' => $currentData['invoice_date'] ?? null,
+                'corrected' => $request->invoice_date,
+            ];
         }
 
         if($request->client_name && (
@@ -656,6 +696,12 @@ class AnalyzePdfController extends Controller
             // Check invoice_number
             if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
                 $updates['extracted_data->invoice_number'] = $request->invoice_no;
+
+                $feedbackItems[] = [
+                    'field' => 'invoice_number',
+                    'original' => $currentData['invoice_number'] ?? null,
+                    'corrected' => $request->invoice_no,
+                ];
             }
         }
 
@@ -695,51 +741,111 @@ class AnalyzePdfController extends Controller
         // Check currency
         if (($currentData['currency'] ?? null) !== $currency) {
             $updates['extracted_data->currency'] = $currency;
+
+            $feedbackItems[] = [
+                'field' => 'currency',
+                'original' => $currentData['currency'] ?? null,
+                'corrected' => $currency,
+            ];
         }
 
         // Check net_amount
         if (($currentData['net_amount'] ?? null) !== $netAmount) {
             $updates['extracted_data->net_amount'] = $netAmount;
+
+            $feedbackItems[] = [
+                'field' => 'net_amount',
+                'original' => $currentData['net_amount'] ?? null,
+                'corrected' => $$netAmount,
+            ];
         }
 
         // Check vat_rate
         if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
             $updates['extracted_data->vat_rate'] = $request->vat_rate;
+
+            $feedbackItems[] = [
+                'field' => 'vat_rate',
+                'original' => $currentData['vat_rate'] ?? null,
+                'corrected' => $request->vat_rate,
+            ];
         }
 
         // Check vat_amount
         if (($currentData['vat_amount'] ?? null) !== $vatAmount) {
             $updates['extracted_data->vat_amount'] = $vatAmount;
+
+            $feedbackItems[] = [
+                'field' => 'vat_amount',
+                'original' => $currentData['vat_amount'] ?? null,
+                'corrected' => $$vatAmount,
+            ];
         }
 
         // Check total_amount
         if (($currentData['total_amount'] ?? null) !== $totalAmount) {
             $updates['extracted_data->total_amount'] = $totalAmount;
+
+            $feedbackItems[] = [
+                'field' => 'total_amount',
+                'original' => $currentData['total_amount'] ?? null,
+                'corrected' => $$totalAmount,
+            ];
         }
 
         // Check exchange_currency
         if (($currentData['exchange_currency'] ?? null) !== $exchangeCurrency) {
             $updates['extracted_data->exchange_currency'] = $exchangeCurrency;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_currency',
+                'original' => $currentData['exchange_currency'] ?? null,
+                'corrected' => $$exchangeCurrency,
+            ];
         }
 
         // Check exchange_rate
         if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
             $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_rate',
+                'original' => $currentData['exchange_rate'] ?? null,
+                'corrected' => $request->exchange_rate,
+            ];
         }
 
         // Check exchange_net_amount
         if (($currentData['exchange_net_amount'] ?? null) !== $exchangeNetAmount) {
             $updates['extracted_data->exchange_net_amount'] = $exchangeNetAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_net_amount',
+                'original' => $currentData['exchange_net_amount'] ?? null,
+                'corrected' => $$exchangeNetAmount,
+            ];
         }
 
         // Check exchange_vat_amount
         if (($currentData['exchange_vat_amount'] ?? null) !== $exchangeVatAmount) {
             $updates['extracted_data->exchange_vat_amount'] = $exchangeVatAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_vat_amount',
+                'original' => $currentData['exchange_vat_amount'] ?? null,
+                'corrected' => $$exchangeVatAmount,
+            ];
         }
 
         // Check exchange_total_amount
         if (($currentData['exchange_total_amount'] ?? null) !== $exchangeTotalAmount) {
             $updates['extracted_data->exchange_total_amount'] = $exchangeTotalAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_total_amount',
+                'original' => $currentData['exchange_total_amount'] ?? null,
+                'corrected' => $$exchangeTotalAmount,
+            ];
         }
 
       // // Check currency
@@ -812,6 +918,17 @@ class AnalyzePdfController extends Controller
             $updates['sync_status'] = 0;
             $updates['is_locked'] = 0;
 
+          foreach ($feedbackItems as $item) {
+                $feedback->capture(
+                    invoiceId: $invoice->id,
+                    field: $item['field'],
+                    originalValue: $item['original'],
+                    correctedValue: $item['corrected'],
+                    clientId: $invoice->client_id,
+                    layoutFingerprint: $layoutFingerprint
+                );
+         }
+          
           $invoice->update($updates);
 
           $allDocs = DB::table('dv_invoice_ocr_pdfs')->get();
