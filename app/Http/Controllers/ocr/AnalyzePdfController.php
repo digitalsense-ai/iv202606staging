@@ -756,7 +756,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'net_amount',
                 'original' => $currentData['net_amount'] ?? null,
-                'corrected' => $$netAmount,
+                'corrected' => $netAmount,
             ];
         }
 
@@ -778,7 +778,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'vat_amount',
                 'original' => $currentData['vat_amount'] ?? null,
-                'corrected' => $$vatAmount,
+                'corrected' => $vatAmount,
             ];
         }
 
@@ -789,7 +789,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'total_amount',
                 'original' => $currentData['total_amount'] ?? null,
-                'corrected' => $$totalAmount,
+                'corrected' => $totalAmount,
             ];
         }
 
@@ -800,7 +800,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'exchange_currency',
                 'original' => $currentData['exchange_currency'] ?? null,
-                'corrected' => $$exchangeCurrency,
+                'corrected' => $exchangeCurrency,
             ];
         }
 
@@ -822,7 +822,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'exchange_net_amount',
                 'original' => $currentData['exchange_net_amount'] ?? null,
-                'corrected' => $$exchangeNetAmount,
+                'corrected' => $exchangeNetAmount,
             ];
         }
 
@@ -833,7 +833,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'exchange_vat_amount',
                 'original' => $currentData['exchange_vat_amount'] ?? null,
-                'corrected' => $$exchangeVatAmount,
+                'corrected' => $exchangeVatAmount,
             ];
         }
 
@@ -844,7 +844,7 @@ class AnalyzePdfController extends Controller
             $feedbackItems[] = [
                 'field' => 'exchange_total_amount',
                 'original' => $currentData['exchange_total_amount'] ?? null,
-                'corrected' => $$exchangeTotalAmount,
+                'corrected' => $exchangeTotalAmount,
             ];
         }
 
