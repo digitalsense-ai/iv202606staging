@@ -23,6 +23,7 @@ use App\Services\AzureContentUnderstandingService;
 use App\Services\AzureDocumentIntelligenceService;
 use App\Services\MicrosoftMailService;
 use App\Services\AzureStorageService;
+use App\Services\OcrAccuracyService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 
@@ -130,7 +131,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $this->startedAt,
                     $this->prevCapture
                 )->delay(now()->addSeconds(10))
-                 ->onQueue('ocrpdfinvoices');
+                 ->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -155,7 +156,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $this->startedAt,
                     $this->prevCapture
                 )->delay(now()->addSeconds(5))
-                 ->onQueue('ocrpdfinvoices');
+                 ->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -227,6 +228,10 @@ class PollAnalyzeResultJob implements ShouldQueue
                 }
             }
 
+            if (is_array($normalized) && !isset($normalized['error'])) {
+                $normalized = app(OcrAccuracyService::class)->enrich($normalized, $result, $this->invoiceType);
+            }
+
             /**
              * -------------------------------------------------
              * 8. CLIENT MATCHING
@@ -270,7 +275,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     'status' => isset($normalized['error']) ? 'failed' : 'completed',
                     'error' => isset($normalized['error']) ? $normalized['error'] : null,
                     'extracted_data' => json_encode($normalized),
-                    'og_extracted_data' => null,
+                    'og_extracted_data' => json_encode($result),
                 ]);
 
             /**
@@ -395,7 +400,7 @@ class PollAnalyzeResultJob implements ShouldQueue
         }
 
         ValidateOcrInvoicesJob::dispatch($batchId)
-            ->onQueue('ocrpdfvalidateinvoices');
+            ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
 
         $cacheKey = "ocr_email_batch_finalized:{$batchId}";
 
@@ -426,7 +431,7 @@ class PollAnalyzeResultJob implements ShouldQueue
     //     if (file_exists($this->filePath)) {
     //         unlink($this->filePath);
     //     }
-        
+    //     
     //     if (!$this->emailMessageId) {
     //         return;
     //     }
