@@ -10,7 +10,7 @@ use App\Services\AzureStorageService;
 class InvoiceOcrPdf extends Model
 {
     use HasFactory;
-    
+
     /**
      * The table associated with the model.
      *
@@ -18,20 +18,25 @@ class InvoiceOcrPdf extends Model
      */
     protected $table = 'dv_invoice_ocr_pdfs';
 
-    protected $guarded = []; 
+    protected $guarded = [];
 
     protected $casts = [
         'azure_url' => 'encrypted',
         'extracted_data' => 'array'
-    ]; 
+    ];
+
+    public function getConnectionName()
+    {
+        return config('database.ocr_connection', 'ocr');
+    }
 
     /**
      * Get the client for the ocr pdf
      */
     public function client()
-    {        
+    {
         return $this->belongsTo('App\Models\Client', 'client_id');
-    } 
+    }
 
     // public function getAzureSignedUrlAttribute()
     // {
@@ -42,5 +47,5 @@ class InvoiceOcrPdf extends Model
     //     $azureService = new AzureStorageService();
 
     //     return $azureService->getSignedUrl($this->azure_url);
-    // }    
+    // }
 }
