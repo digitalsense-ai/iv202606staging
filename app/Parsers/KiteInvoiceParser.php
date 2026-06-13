@@ -2,8 +2,12 @@
 
 namespace App\Parsers;
 
+use App\Parsers\Concerns\ExtractsCommercialReferences;
+
 class KiteInvoiceParser implements ClientInvoiceParserInterface
 {
+    use ExtractsCommercialReferences;
+
     public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
         $name = strtolower(trim($clientName ?? ''));
@@ -14,55 +18,40 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
         $content = strtolower($result['analyzeResult']['content'] ?? '');
 
-        return str_contains($content, 'kite'); // FIXED (was wrong)
+        return str_contains($content, 'kite');
     }
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
-        $content = $result['analyzeResult']['content'] ?? '';
-
-        $header = "Order Number\nInvoice Number\nTracking Number";
-
-        $parts = explode($header, $content);
-
-        if (count($parts) <= 1) {
-            return [
-                'related_sales_invoices' => null,
-                'related_sales_orders' => null,
-                'related_shipment_nos' => null,
-            ];
-        }
-
-        array_shift($parts);
-
-        $content = implode("\n", $parts);
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $content))));
-
-        $data = [];
-        $current = [];
-
-        foreach ($lines as $line) {
-            if (!preg_match('/\d/', $line)) {
-                continue;
-            }
-
-            $current[] = $line;
-
-            if (count($current) === 3) {
-                $data[] = [
-                    'sales_order'   => $current[0],
-                    'sales_invoice' => $current[1],
-                    'shipment'      => explode(',', $current[2]),
-                ];
-
-                $current = [];
-            }
-        }
-
-        return [
-            'related_sales_invoices' => implode(', ', array_column($data, 'sales_invoice')),
-            'related_sales_orders'   => implode(', ', array_column($data, 'sales_order')),
-            'related_shipment_nos'   => implode(', ', array_merge(...array_column($data, 'shipment'))),
+        $azurePayload = [
+            'related_sales_invoices' => $doc['Related Sales Invoices']['valueString'] ?? null,
+            'related_sales_orders' => $doc['Related Sales Orders']['valueString'] ?? null,
+            'related_shipment_nos' => $doc['Related Shipment Numbers']['valueString'] ?? null,
         ];
+
+        $rows = $this->extractColumnAfterHeader(
+            $result,
+            "Order Number\nInvoice Number\nTracking Number",
+            3,
+            [
+                0 => 'sales_order',
+                1 => 'sales_invoice',
+                2 => 'shipment',
+            ]
+        );
+
+        $tablePayload = [
+            'related_sales_invoices' => $this->joinReferences(
+                $this->normalizeReferenceList(array_column($rows, 'sales_invoice'))
+            ),
+            'related_sales_orders' => $this->joinReferences(
+                $this->normalizeReferenceList(array_column($rows, 'sales_order'))
+            ),
+            'related_shipment_nos' => $this->joinReferences(
+                $this->normalizeReferenceList(array_column($rows, 'shipment'))
+            ),
+        ];
+
+        return $this->mergeReferencePayload($azurePayload, $tablePayload);
     }
 }
