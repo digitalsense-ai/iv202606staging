@@ -17,6 +17,8 @@ return [
 
     'default' => env('DB_CONNECTION', 'mysql'),
 
+    'ocr_connection' => env('OCR_DB_CONNECTION', 'ocr'),
+    
     /*
     |--------------------------------------------------------------------------
     | Database Connections
@@ -63,6 +65,26 @@ return [
             ]) : [],
         ],
 
+        'ocr' => [
+            'driver' => env('OCR_DB_DRIVER', 'mysql'),
+            'url' => env('OCR_DATABASE_URL'),
+            'host' => env('OCR_DB_HOST', '127.0.0.1'),
+            'port' => env('OCR_DB_PORT', '3306'),
+            'database' => env('OCR_DB_DATABASE', 'forge'),
+            'username' => env('OCR_DB_USERNAME', 'forge'),
+            'password' => env('OCR_DB_PASSWORD', ''),
+            'unix_socket' => env('OCR_DB_SOCKET', ''),
+            'charset' => env('OCR_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('OCR_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => env('OCR_DB_ENGINE', 'InnoDB'),
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('OCR_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+    
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),
