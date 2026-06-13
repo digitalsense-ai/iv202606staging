@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\OcrCorrectionFeedback;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -23,7 +24,7 @@ class OcrCorrectionFeedbackService
         $corrected = $this->stringValue($correctedValue);
 
         try {
-            DB::table('dv_ocr_correction_feedback')->insert([
+            OcrCorrectionFeedback::query()->create([
                 'invoice_id' => $invoiceId,
                 'client_id' => $clientId,
                 'field_name' => $field,
@@ -31,8 +32,6 @@ class OcrCorrectionFeedbackService
                 'corrected_value' => $corrected,
                 'original_value_hash' => $this->hashValue($original),
                 'layout_fingerprint' => $layoutFingerprint,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
 
             return true;
@@ -44,7 +43,7 @@ class OcrCorrectionFeedbackService
 
     public function commonCorrections(string $field, ?int $clientId = null, int $limit = 25): array
     {
-        $query = DB::table('dv_ocr_correction_feedback')
+        $query = OcrCorrectionFeedback::query()
             ->select('original_value', 'corrected_value', DB::raw('COUNT(*) as occurrences'))
             ->where('field_name', $field)
             ->groupBy('original_value', 'corrected_value')
@@ -66,7 +65,7 @@ class OcrCorrectionFeedbackService
 
     public function suggest(string $field, string $value, ?int $clientId = null): ?string
     {
-        $query = DB::table('dv_ocr_correction_feedback')
+        $query = OcrCorrectionFeedback::query()
             ->where('field_name', $field)
             ->where('original_value_hash', $this->hashValue($value))
             ->orderByDesc('updated_at');
