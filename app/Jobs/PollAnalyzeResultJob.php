@@ -24,6 +24,7 @@ use App\Services\AzureDocumentIntelligenceService;
 use App\Services\MicrosoftMailService;
 use App\Services\AzureStorageService;
 use App\Services\OcrAccuracyService;
+use App\Services\OcrParserStrategyService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 
@@ -229,7 +230,19 @@ class PollAnalyzeResultJob implements ShouldQueue
             }
 
             if (is_array($normalized) && !isset($normalized['error'])) {
-                $normalized = app(OcrAccuracyService::class)->enrich($normalized, $result, $this->invoiceType);
+
+                $normalized = app(OcrParserStrategyService::class)->apply(
+                    normalized: $normalized,
+                    azureResult: $result,
+                    clientId: null,
+                    invoiceType: $this->invoiceType
+                );
+            
+                $normalized = app(OcrAccuracyService::class)->enrich(
+                    $normalized,
+                    $result,
+                    $this->invoiceType
+                );
             }
 
             /**
