@@ -34,14 +34,21 @@ class BergToysInvoiceParser implements ClientInvoiceParserInterface
             return $azurePayload;
         }
 
-        $rows = $this->extractBergRows($result);
+        $tokens = $this->extractBergTokens($result);
+        $rows = $this->pairBergRows($tokens);
 
         $tablePayload = [
             'related_sales_invoices' => $this->joinReferences(
-                array_column($rows, 'sales_invoice')
+                array_merge(
+                    array_column($rows, 'sales_invoice'),
+                    $this->tokensByType($tokens, 'invoice')
+                )
             ),
             'related_sales_orders' => $this->joinReferences(
-                array_column($rows, 'sales_order')
+                array_merge(
+                    array_column($rows, 'sales_order'),
+                    $this->tokensByType($tokens, 'order')
+                )
             ),
             'related_shipment_nos' => null,
         ];
@@ -68,9 +75,8 @@ class BergToysInvoiceParser implements ClientInvoiceParserInterface
         ];
     }
 
-    private function extractBergRows(array $result): array
+    private function extractBergTokens(array $result): array
     {
-        $rows = [];
         $content = $this->commercialContent($result);
         $afterHeader = $content;
 
@@ -80,6 +86,8 @@ class BergToysInvoiceParser implements ClientInvoiceParserInterface
         }
 
         $tokens = [];
+        $position = 0;
+
         foreach (preg_split('/\R/', $afterHeader) ?: [] as $line) {
             $line = trim(preg_replace('/\s+/', ' ', (string) $line));
 
@@ -94,29 +102,86 @@ class BergToysInvoiceParser implements ClientInvoiceParserInterface
                     continue;
                 }
 
-                if ($this->isBergSalesInvoice($token) || $this->isBergSalesOrder($token)) {
-                    $tokens[] = $token;
+                foreach ($this->expandReferenceRanges($token) as $expandedToken) {
+                    if ($this->isBergSalesInvoice($expandedToken)) {
+                        $tokens[] = [
+                            'value' => $expandedToken,
+                            'type' => 'invoice',
+                            'position' => $position++,
+                        ];
+                        continue;
+                    }
+
+                    if ($this->isBergSalesOrder($expandedToken)) {
+                        $tokens[] = [
+                            'value' => $expandedToken,
+                            'type' => 'order',
+                            'position' => $position++,
+                        ];
+                    }
                 }
             }
         }
 
-        $currentInvoice = null;
+        return $tokens;
+    }
+
+    private function pairBergRows(array $tokens): array
+    {
+        $rows = [];
+        $pendingInvoices = [];
+        $pendingOrders = [];
+
         foreach ($tokens as $token) {
-            if ($this->isBergSalesInvoice($token)) {
-                $currentInvoice = $token;
+            if (($token['type'] ?? null) === 'invoice') {
+                if ($pendingOrders) {
+                    $rows[] = [
+                        'sales_invoice' => $token['value'],
+                        'sales_order' => array_shift($pendingOrders)['value'],
+                    ];
+                    continue;
+                }
+
+                $pendingInvoices[] = $token;
                 continue;
             }
 
-            if ($this->isBergSalesOrder($token)) {
-                $rows[] = [
-                    'sales_invoice' => $currentInvoice,
-                    'sales_order' => $token,
-                ];
-                $currentInvoice = null;
+            if (($token['type'] ?? null) === 'order') {
+                if ($pendingInvoices) {
+                    $rows[] = [
+                        'sales_invoice' => array_shift($pendingInvoices)['value'],
+                        'sales_order' => $token['value'],
+                    ];
+                    continue;
+                }
+
+                $pendingOrders[] = $token;
             }
         }
 
+        foreach ($pendingInvoices as $invoice) {
+            $rows[] = [
+                'sales_invoice' => $invoice['value'],
+                'sales_order' => null,
+            ];
+        }
+
+        foreach ($pendingOrders as $order) {
+            $rows[] = [
+                'sales_invoice' => null,
+                'sales_order' => $order['value'],
+            ];
+        }
+
         return $rows;
+    }
+
+    private function tokensByType(array $tokens, string $type): array
+    {
+        return array_values(array_map(
+            fn ($token) => $token['value'],
+            array_filter($tokens, fn ($token) => ($token['type'] ?? null) === $type)
+        ));
     }
 
     private function filterSalesInvoices(array $values): array
