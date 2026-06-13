@@ -330,7 +330,7 @@ class AnalyzePdfController extends Controller
                     null,
                     $emailMessageId,
                     $prevCapture
-                )->onQueue('ocrpdfinvoices');
+                )->onQueue(config('queue.ocr.split', 'ocrpdfinvoices'));
 
                 Log::info("Queued SplitPdfJob for {$originalName} in batch {$batchId}");
             } //allow
