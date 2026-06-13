@@ -19,17 +19,10 @@ trait ExtractsCommercialReferences
 
     protected function normalizeReferenceList(array|string|null $value, array $allowedPrefixes = [], array $blockedPrefixes = []): array
     {
-        if ($value === null || $value === '') {
-            return [];
-        }
-
-        $items = is_array($value)
-            ? $value
-            : preg_split('/[,;\n\r\t]+/', (string) $value);
-
+        $items = $this->expandReferenceRanges($value);
         $normalized = [];
 
-        foreach ($items ?: [] as $item) {
+        foreach ($items as $item) {
             $item = trim((string) $item);
             $item = trim($item, " \t\n\r\0\x0B,.;:");
 
@@ -49,6 +42,59 @@ trait ExtractsCommercialReferences
         }
 
         return array_values($normalized);
+    }
+
+    protected function expandReferenceRanges(array|string|null $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        $items = is_array($value)
+            ? $value
+            : preg_split('/[,;\n\r\t]+/', (string) $value);
+
+        $expanded = [];
+
+        foreach ($items ?: [] as $item) {
+            $parts = preg_split('/\s+/', trim((string) $item)) ?: [];
+
+            foreach ($parts as $part) {
+                $part = trim($part);
+                $part = trim($part, " \t\n\r\0\x0B,.;:");
+
+                if ($part === '') {
+                    continue;
+                }
+
+                if (preg_match('/^([A-Za-z]*)(\d+)\s*-\s*([A-Za-z]*)(\d+)$/', $part, $match)) {
+                    $prefixStart = $match[1];
+                    $startRaw = $match[2];
+                    $prefixEnd = $match[3];
+                    $endRaw = $match[4];
+
+                    $startNum = (int) $startRaw;
+                    $endNum = (int) $endRaw;
+
+                    if (strlen($endRaw) < strlen($startRaw)) {
+                        $endRaw = substr($startRaw, 0, strlen($startRaw) - strlen($endRaw)) . $endRaw;
+                        $endNum = (int) $endRaw;
+                    }
+
+                    if ($prefixStart === $prefixEnd && $startNum <= $endNum && ($endNum - $startNum) <= 500) {
+                        for ($i = $startNum; $i <= $endNum; $i++) {
+                            $expanded[] = $prefixStart . str_pad((string) $i, strlen($startRaw), '0', STR_PAD_LEFT);
+                        }
+
+                        continue;
+                    }
+                }
+
+                $expanded[] = $part;
+            }
+        }
+
+        return array_values(array_unique(array_filter($expanded)));
     }
 
     protected function joinReferences(array $values): ?string
