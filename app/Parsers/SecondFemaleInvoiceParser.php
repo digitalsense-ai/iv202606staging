@@ -8,7 +8,7 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 {
     use ExtractsCommercialReferences;
 
-    private const SALES_INVOICE_PREFIXES = ['NO', 'CH', 'UK'];
+    private const SALES_INVOICE_PREFIXES = ['NO', 'CH', 'UK', 'OSL'];
 
     public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
@@ -53,18 +53,23 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
     private function extractRowsFromContent(array $result): array
     {
         $content = $this->commercialContent($result);
-
-        if (preg_match('/This\s+Invoice\s+includes\s+the\s+following\s+deliveries\s*:/i', $content, $match, PREG_OFFSET_CAPTURE)) {
-            $content = substr($content, $match[0][1]);
-        }
-
         $rows = [];
         $current = null;
+        $insideDeliverySection = false;
 
         foreach (preg_split('/\R/', $content) ?: [] as $line) {
             $line = trim(preg_replace('/\s+/', ' ', (string) $line));
 
-            if ($line === '' || $this->isSecondFemaleHeaderOrNoise($line)) {
+            if ($line === '') {
+                continue;
+            }
+
+            if ($this->isDeliverySectionMarker($line)) {
+                $insideDeliverySection = true;
+                continue;
+            }
+
+            if ($this->isSecondFemaleHeaderOrNoise($line)) {
                 continue;
             }
 
@@ -72,6 +77,10 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
             $tokens = array_values(array_map(fn ($token) => strtoupper(ltrim(trim($token), '+')), $matches[0] ?? []));
 
             if (!$tokens) {
+                continue;
+            }
+
+            if (!$insideDeliverySection && !$this->lineLooksLikeDeliveryRow($tokens)) {
                 continue;
             }
 
@@ -161,12 +170,24 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
     {
         $invoicePrefixes = implode('|', self::SALES_INVOICE_PREFIXES);
 
-        return '/\+?SL\d+|(?:' . $invoicePrefixes . ')\d+|92\d{10,}/i';
+        return '/\+?SL\d+|(?:' . $invoicePrefixes . ')\d+|92\d{8,}/i';
+    }
+
+    private function isDeliverySectionMarker(string $line): bool
+    {
+        return (bool) preg_match('/this\s+invoice\s+includes\s+the\s+following\s+deliveries|deliveries\s*:/i', $line);
     }
 
     private function isSecondFemaleHeaderOrNoise(string $line): bool
     {
-        return (bool) preg_match('/^(this invoice includes|deliveries:?|org\. invoice no\. tracking no|org\.?\s+invoice\s+no\.?\s+tracking\s+no\.?)$/i', trim($line));
+        return (bool) preg_match('/^(page\s+\d+|continued|this invoice includes|deliveries:?|org\. invoice no\. tracking no|org\.?\s+invoice\s+no\.?\s+tracking\s+no\.?)$/i', trim($line));
+    }
+
+    private function lineLooksLikeDeliveryRow(array $tokens): bool
+    {
+        return (bool) array_filter($tokens, fn ($token) => $this->isSalesOrder((string) $token))
+            || ((bool) array_filter($tokens, fn ($token) => $this->isSalesInvoice((string) $token))
+                && (bool) array_filter($tokens, fn ($token) => $this->isShipment((string) $token)));
     }
 
     private function filterSalesOrders(array $values): array
@@ -198,6 +219,6 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function isShipment(string $value): bool
     {
-        return (bool) preg_match('/^92\d{10,}$/', trim($value));
+        return (bool) preg_match('/^92\d{8,}$/', trim($value));
     }
 }
