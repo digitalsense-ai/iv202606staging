@@ -30,7 +30,7 @@ use App\Models\ImportReconciliationComInvoices;
 use App\Models\ImportReconciliationSalesInvoices;
 use App\Models\ImportReconciliationFiles;
 use App\Models\ImportReconciliationSalesInvoicesData;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 use \App\Classes\CommonClass;
 use \App\Classes\ApiClass;
@@ -301,8 +301,8 @@ class TestSampleController extends Controller
                 $client = $vatregmain->client;                
                 $client_name = str_replace(' ', '', $this->commonClass->replaceSpecialCharForFolderName(strtolower($client->client_name)));
 
-                $create_email = $country . '.' . $client_name . '@intravat.cloud';
-                $password = '12345678';
+                $create_email = $country . '.' . $client_name . config('mail.intravatmail.domain');
+                $password = config('app.dv_user_password');
 
                 $email_exist = array_values(array_filter($email_lists, function ($email) use($create_email) {                    
                     return $create_email == $email;
@@ -338,9 +338,11 @@ class TestSampleController extends Controller
             $storage_path = storage_path('app/public/mailbox/');
 
             /* -- TEST CONNECTION -- */
-            $hostname = '{box.intravat.cloud:993/imap/ssl}INBOX';
-            $username = 'info@intravat.cloud';
-            $password = 'Urges905@';
+            $hostname = config('mail.intravatmail.host') . ':' . 
+                            config('mail.intravatmail.port') . '/imap/' .
+                            config('mail.intravatmail.encryption') . 'INBOX';
+            $username = config('mail.intravatmail.info.username');
+            $password = config('mail.intravatmail.info.password');
 
             // Try to connect
             $inbox = imap_open($hostname, $username, $password);
@@ -426,7 +428,7 @@ class TestSampleController extends Controller
     { 
         try 
         { 
-            //$email_lists[0] = 'ch.minimumas@intravat.cloud';
+            //$email_lists[0] = 'test' . config('mail.intravatmail.domain');
             //$system = $this->emailBoxApiClass->readEmailForCompany($this->authUser, $email_lists);
 
             $email_read = $this->emailBoxApiClass->readEmailForCompany($this->authUser);
@@ -1894,7 +1896,7 @@ dd($firstFile, $readcargofiles);
       //dd($invoiceData);
       */
 
-        $invoiceocrpdfs = InvoiceOcrPdf::with(['client'])
+        $ocrpdfs = OcrPdf::query()->with(['client'])
                             ->orderBy('id', 'DESC')            
                             ->get(); 
 
@@ -1903,7 +1905,7 @@ dd($firstFile, $readcargofiles);
           'pageConfigs' => $pageConfigs, 
           'authUser' => $this->authUser,
           'invoice' => isset($invoiceData) ? $invoiceData : NULL,
-          'invoiceocrpdfs' => isset($invoiceocrpdfs) ? (($invoiceocrpdfs) ? $invoiceocrpdfs : NULL) : NULL
+          'ocrpdfs' => isset($ocrpdfs) ? (($ocrpdfs) ? $ocrpdfs : NULL) : NULL
         ]);
         /* --end RETURN VIEW -- */
     }
@@ -2156,7 +2158,8 @@ dd($firstFile, $readcargofiles);
             //$path = $file->store('incoming');
             $path = $file->storeAs('ocr/' . $invoiceType, $file->getClientOriginalName(), 'public');
 
-            $docId = \DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+            //$docId = \DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+            $ocrPdf = OcrPdf::query()->create([
                 'client_id' => NULL,//$client->id,                
                 'batch_id'    => $batchId,
                 'invoice_type' => $invoiceType,
@@ -2165,6 +2168,7 @@ dd($firstFile, $readcargofiles);
                 'status' => 'queued',
                 'created_at' => now(),
             ]);
+            $docId = $ocrPdf->id;
 
             SubmitAnalyzeJob::dispatch(
                 $docId,
@@ -2189,21 +2193,21 @@ dd($firstFile, $readcargofiles);
 
     public function batchProgress(string $batchId)
     {
-        $total = DB::table('dv_invoice_ocr_pdfs')
+        $total = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->count();
 
-        $completed = DB::table('dv_invoice_ocr_pdfs')
+        $completed = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->whereIn('status', ['completed', 'failed'])
             ->count();
 
-        $invoiceocrpdfs = InvoiceOcrPdf::with(['client'])
+        $ocrpdfs = OcrPdf::query()->with(['client'])
                             ->orderBy('id', 'DESC')            
                             ->get();
 
         return response()->json([
-            'invoiceocrpdfs' => isset($invoiceocrpdfs) ? (($invoiceocrpdfs) ? $invoiceocrpdfs : NULL) : NULL,
+            'ocrpdfs' => isset($ocrpdfs) ? (($ocrpdfs) ? $ocrpdfs : NULL) : NULL,
             'total'     => $total,
             'completed' => $completed,
             'percent'   => $total === 0

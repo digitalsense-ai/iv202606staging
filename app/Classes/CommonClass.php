@@ -35,7 +35,7 @@ use App\Models\ImportReconciliationSalesInvoicesData;
 use App\Models\ImportVatComments;
 use App\Models\ImportVatFiles;
 use App\Models\Invoices;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 use App\Models\MailBoxFiles;
 use App\Models\NotificationSettings;
 use App\Models\PaymentInfo;
@@ -8197,11 +8197,11 @@ class CommonClass
 
             //$hasDispatchedAnyJobs = false;
 
-            InvoiceOcrPdf::where('sync_status', 0)
+            OcrPdf::query()->where('sync_status', 0)
               ->where('is_locked', 1)
               ->update(['is_locked' => 0]);
 
-            InvoiceOcrPdf::where('invoice_type', 'com')              
+            OcrPdf::query()->where('invoice_type', 'com')              
               ->where('is_locked', 1)
               ->update(['is_locked' => 0]);  
 
@@ -8211,10 +8211,11 @@ class CommonClass
                  * STEP 1: FETCH + LOCK 100 COM INVOICES
                  */
                 //$com_ids = DB::transaction(function () use ($org_no, $client_id, $invoice_no) {
-                $com_ids = DB::transaction(function () use ($org_no, $invoice_no) {
+                //$com_ids = DB::transaction(function () use ($org_no, $invoice_no) {
+                $com_ids = DB::connection(config('database.ocr_connection'))->transaction(function () use ($org_no, $invoice_no) {  
                   if($invoice_no)
                   {
-                    $rows = DB::select("
+                    $rows = DB::connection(config('database.ocr_connection'))->select("
                         SELECT id
                         FROM dv_invoice_ocr_pdfs
                         WHERE invoice_type = 'com'
@@ -8236,7 +8237,7 @@ class CommonClass
                   }
                   else
                   {
-                    $rows = DB::select("
+                    $rows = DB::connection(config('database.ocr_connection'))->sselect("
                         SELECT id
                         FROM dv_invoice_ocr_pdfs
                         WHERE invoice_type = 'com'
@@ -8260,7 +8261,7 @@ class CommonClass
                     if ($ids->isNotEmpty()) {
 
                         // Lock COM invoices
-                        DB::table('dv_invoice_ocr_pdfs')
+                        OcrPdf::query()
                             ->whereIn('id', $ids)
                             ->update([
                                 'is_locked' => 1,
@@ -8280,7 +8281,7 @@ class CommonClass
                 /**
                  * STEP 2: LOAD COM (ONLY REQUIRED FIELDS)
                  */
-                $comInvoices = InvoiceOcrPdf::whereIn('id', $com_ids)
+                $comInvoices = OcrPdf::query()->whereIn('id', $com_ids)
                     ->select('id', 'extracted_data')
                     ->get();
 
@@ -8337,7 +8338,7 @@ class CommonClass
                   {
                     if($invoice_no)
                     {
-                      $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])                           
+                      $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])                           
                           ->where('sync_status', 1)                         
                           ->where('is_deleted', 0)
                           ->where('status', 'completed')
@@ -8372,7 +8373,7 @@ class CommonClass
                     }
                     else
                     {
-                      $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])
+                      $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])
                           ->where('is_locked', 0)
                           ->where('sync_status', 0)
                           ->where('is_deleted', 0)
@@ -8501,7 +8502,7 @@ class CommonClass
                     } //in sales invoice data table
                     else
                     {
-                      DB::table('dv_invoice_ocr_pdfs')
+                      OcrPdf::query()
                           ->whereIn('id', $allSalesIds)
                           ->update([
                             'is_locked' => 1,
@@ -8540,28 +8541,7 @@ class CommonClass
 
                 gc_collect_cycles();
 
-            } while (true);
-
-            // if ($hasDispatchedAnyJobs) {
-
-            //     $logType = match($from) {
-            //         'ocr-search-refresh', 'specific-ocr-search-refresh'
-            //             => 'importreconcilation-ocr-search-refresh',
-            //         default
-            //             => 'importreconcilation-control-refresh',
-            //     };
-
-            //     $this->addLog($authUser, $logType, [
-            //         'status' => 'OCR sync completed',
-            //         'client' => $client_name,
-            //         'processed' => $totalProcessed
-            //     ]);
-
-            //     event(new OcrInvoicesSyncEvent(
-            //         $client_id,
-            //         'Synced the OCR invoices'
-            //     ));
-            // }
+            } while (true);            
 
             return [
                 'processed' => $totalProcessed
@@ -8572,365 +8552,6 @@ class CommonClass
             return $e->getMessage();
         }
     }
-
-//   public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $full_refresh = false, $invoice_name = null, $invoice_no = null)
-//     {
-//         try 
-//         {
-//           $client_id = $vatreg->client_id;
-//           $client_name = $vatreg->client->client_name;
-//           $vat_reg_main_id = $vatreg->vat_reg_main_id;
-
-//           $vatregmain = $vatreg->vatregmain;
-
-//           $org_no = ($vatregmain->country == 'NO')
-//               ? $vatregmain->org_no
-//               : str_replace(['.', '-'], '', $vatregmain->vat_no);
-
-//           $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
-
-//           /**
-//            * STEP 1: FETCH ONLY COM INVOICES (LIMIT 100)
-//            */
-//           $com_ids = DB::transaction(function () use ($org_no, $client_id) {
-//             $rows = DB::select("
-//                 SELECT id
-//                 FROM dv_invoice_ocr_pdfs
-//                 WHERE invoice_type = 'com'
-//                   AND is_locked = 0
-//                   AND (
-//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-//                     OR
-//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-//                     OR
-//                     REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-//                   )
-//                 LIMIT 100
-//                 FOR UPDATE SKIP LOCKED
-//             ", [$org_no, $org_no, $org_no]);
-
-//             $ids = collect($rows)->pluck('id');
-
-//             if ($ids->isNotEmpty()) {
-//                 DB::table('dv_invoice_ocr_pdfs')
-//                     ->whereIn('id', $ids)
-//                     ->update(['is_locked' => 1]);
-
-//                 // update client_id correctly
-//                 InvoiceOcrPdf::whereIn('id', $ids)
-//                     ->whereNull('client_id')
-//                     ->update([
-//                         'client_id' => $client_id,
-//                         'updated_at' => now()
-//                     ]);   
-//             }
-
-//             return $ids;
-//           });
-
-//           if ($com_ids->isEmpty()) {
-//               return 0;
-//           }
-
-//           /**
-//            * STEP 2: FETCH COM INVOICES
-//            */
-//           $comInvoices = InvoiceOcrPdf::whereIn('id', $com_ids)
-//               ->orderBy('id', 'ASC')
-//               ->get();
-
-//           /**
-//            * STEP 3: COLLECT RELATED SALES NUMBERS
-//            */
-//           $allRelatedNumbers = collect();
-
-//           foreach ($comInvoices as $com) {
-//               $data = is_string($com->extracted_data)
-//                   ? json_decode($com->extracted_data, true)
-//                   : $com->extracted_data;
-
-//               $relatedRaw = $data['related_sales_invoices'] ?? '';
-//               $related = $this->parseRelatedInvoices($relatedRaw);
-
-//               $allRelatedNumbers = $allRelatedNumbers->merge($related);
-//           }
-
-//           $allRelatedNumbers = $allRelatedNumbers->unique()->values();
-
-//           /**
-//            * STEP 4: FETCH MATCHING SALES INVOICES
-//            */
-//           $salesInvoices = collect();
-
-//           if ($allRelatedNumbers->isNotEmpty()) {
-//               $salesInvoices = InvoiceOcrPdf::whereIn('invoice_type', ['sales', 'multi-invoices'])
-//                   ->where(function ($q) use ($allRelatedNumbers, $client_name) {
-
-//                       foreach ($allRelatedNumbers as $num) {
-
-//                           if (str_contains(strtolower($client_name), 'rainwear')) {
-//                               $q->orWhereRaw("
-//                                   JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')) = ?
-//                               ", [$num]);
-//                           } else {
-//                               $q->orWhereRaw("
-//                                   JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')) = ?
-//                               ", [$num]);
-//                           }
-//                       }
-//                   })
-//                   ->get();
-//           }
-
-//           /**
-//            * STEP 5: GROUP SALES BY INVOICE NUMBER (FAST LOOKUP)
-//            */
-//           $salesMap = [];
-
-//           foreach ($salesInvoices as $sale) {
-//               $data = is_string($sale->extracted_data)
-//                   ? json_decode($sale->extracted_data, true)
-//                   : $sale->extracted_data;
-
-//               $key = str_contains(strtolower($client_name), 'rainwear')
-//                   ? ltrim($data['no_invoice_number'] ?? '', '#')
-//                   : ltrim($data['invoice_number'] ?? '', '#');
-
-//               if ($key) {
-//                   $salesMap[$key][] = $sale;
-//               }
-//           }
-
-//           /**
-//            * STEP 6: BUILD FINAL STRUCTURE
-//            */
-//           $final = $comInvoices->map(function ($com) use ($salesMap) {
-
-//               $data = is_string($com->extracted_data)
-//                   ? json_decode($com->extracted_data, true)
-//                   : $com->extracted_data;
-
-//               $relatedNumbers = $this->parseRelatedInvoices($data['related_sales_invoices'] ?? '');
-
-//               $matchedSales = collect();
-
-//               foreach ($relatedNumbers as $num) {
-//                   if (isset($salesMap[$num])) {
-//                       $matchedSales = $matchedSales->merge($salesMap[$num]);
-//                   }
-//               }
-
-//               return [
-//                   'com_invoice' => $com,
-//                   'sales_invoices' => $matchedSales->values()
-//               ];
-//           })
-//           ->filter(fn($item) => $item['sales_invoices']->isNotEmpty())
-//           ->values();
-// dd($final);
-//           if ($final->isEmpty()) {
-//               return 0;
-//           }
-
-//           /**
-//            * STEP 7: FETCH VAT REGS
-//            */
-//           $vatregs = $this->getLazy(
-//               'vatreg',
-//               ['client'],
-//               ['vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]],
-//               [],
-//               ['id' => 'DESC'],
-//               'get'
-//           );
-
-//           /**
-//            * STEP 8: CHUNK + DISPATCH
-//            */
-//           $chunks = $final->chunk(100);
-
-//           $jobs = [];
-//           foreach ($chunks as $chunk) {
-//               $jobs[] = new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from);
-//           }
-
-//           $batch = Bus::batch($jobs)
-//               ->onQueue('ocrpdfsyncinvoices')
-//               ->catch(function ($batch, $e) {
-//                   Log::error('OCR SYNC batch failed: ' . $e->getMessage());
-//               })
-//               ->dispatch();
-
-//           return [
-//               'insert_invoices' => $batch->id,
-//               'result' => $final,
-//           ];
-
-//         } catch (\Exception $e) {
-//             Log::error('OCR Load Failed: ' . $e->getMessage());
-//             return $e->getMessage();
-//         }
-//     }
-
-  /*
-    public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $full_refresh = false, $invoice_name = null, $invoice_no = null)
-    {
-      try
-      {
-        $client_id = $vatreg->client_id;
-        $vat_reg_id = $vatreg->id;
-
-        $vatregmain = $vatreg->vatregmain; 
-        $vat_reg_main_id = $vatreg->vat_reg_main_id;
-
-        if($vatregmain->country == 'NO')
-          $org_no = $vatregmain->org_no;        
-        else
-          $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
-
-        $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
-        
-        $result_ids = DB::transaction(function () use ($org_no) {
-            $rows = DB::select("
-                SELECT id
-                FROM dv_invoice_ocr_pdfs
-                WHERE ((invoice_type = 'com') OR (invoice_type != 'com' AND sync_status = 0 AND is_locked = 0))
-                  AND (
-                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                    OR
-                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                    OR
-                    REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                  )" .
-                //LIMIT 100
-               " FOR UPDATE SKIP LOCKED
-            ", [$org_no, $org_no, $org_no]);
-
-            $ids = collect($rows)->pluck('id');
-
-            if ($ids->isNotEmpty()) {
-                DB::table('dv_invoice_ocr_pdfs')
-                    ->whereIn('id', $ids)
-                    ->update(['is_locked' => 1]);
-            }
-
-            return $ids;
-        });
-
-        // Update client_id for the results
-        $updateClientId = InvoiceOcrPdf::whereIn('id', $result_ids)
-                            ->whereNull('client_id')
-                            ->update([
-                              'client_id' => $client_id,
-                              'updated_at' => now()
-                            ]);
-
-        // Now fetch full models with relations
-        $result = InvoiceOcrPdf::with('client')
-                    ->whereIn('id', $result_ids)
-                    ->orderBy('id', 'ASC')
-                    ->get();
-
-        $grouped = $result->groupBy('invoice_type');
-
-        $comInvoices   = $grouped->get('com', collect());
-        $salesInvoices = $grouped->get('sales', collect())
-            ->merge($grouped->get('multi-invoices', collect()));
-
-        $final = $comInvoices->map(function ($com) use ($salesInvoices, $client_name) {
-
-            $extracted = $com->extracted_data;
-
-            // Convert JSON string → array if needed
-            if (is_string($extracted)) {
-                $extracted = json_decode($extracted, true);
-            }
-            
-            $relatedRaw = $extracted['related_sales_invoices'] ?? '';           
-
-            $relatedNumbers = $this->parseRelatedInvoices($relatedRaw);
-
-            // Match with sales invoices
-            $matchedSales = $salesInvoices->filter(function ($sale) use ($relatedNumbers, $client_name) {
-
-                $saleData = is_string($sale->extracted_data)
-                    ? json_decode($sale->extracted_data, true)
-                    : $sale->extracted_data;
-
-                if(str_contains(strtolower($client_name), 'rainwear'))
-                  return in_array(ltrim($saleData['no_invoice_number'] ?? '', '#'), $relatedNumbers->toArray());
-                else
-                  return in_array(ltrim($saleData['invoice_number'] ?? '', '#'), $relatedNumbers->toArray());
-            })->values();
-
-            return [
-                'com_invoice'   => $com,
-                'sales_invoices'=> $matchedSales
-            ];
-        })
-        ->filter(function ($item) {
-            return $item['sales_invoices']->isNotEmpty();
-        })
-        ->values(); // optional: reindex
-
-        if(count($final) > 0)
-        {
-          //GET All VATreg. based on vat_reg_main_id
-          $_with = ['client'];
-          $_where = [
-            'vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]
-          ];
-          $_whereHas = [];      
-          $_orderBy = [
-            'id' => 'DESC'
-          ];  
-          $_final = 'get';        
-          $vatregs = $this->getLazy('vatreg', $_with, $_where, $_whereHas, $_orderBy, $_final); 
-          //GET All VATreg. based on vat_reg_main_id  
-
-          //$chunks = array_chunk($final, 100); // Divide your data array into chunks     
-          $chunks = $final->chunk(100);
-
-          // Create a batch and add jobs to it.
-          $jobs = [];
-          foreach ($chunks as $chunk) {
-            $jobs[] = new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from);
-          }
-
-          // // Dispatch all jobs in the batch.    
-          $batch = Bus::batch($jobs)
-            ->onQueue('ocrpdfsyncinvoices')
-            ->then(function ($batch) {            
-              //\Log::info('All jobs completed successfully.');
-            })
-            ->catch(function ($batch, $e) {            
-              //\Log::error('Some jobs failed: ' . $e->getMessage());
-            })
-            ->finally(function ($batch) use($jobs) {
-              //\Log::info('Batch finished. Finally callback triggered.', ['batch' => $batch]);
-            })
-            ->dispatch();
-
-          // Get the batch ID
-          $batchId = $batch->id;    
-
-          //return $batchId;
-          return [
-            'insert_invoices' => $batchId,
-            'result' => $final,
-          ];
-        }
-        else
-          return 0;  
-      }
-      catch (\Exception $e) 
-      {    dd($e);    
-        $errorMessage = $e->getMessage(); 
-
-        return $errorMessage;  
-      }
-    }
-    */
 
     /*  DON'T USE THIS METHOD */
     public function loadImportReconciliationDatasFromFtp($authUser, $vatreg, $system = null, $refresh = false, $from = 'ftp', $which_folder = 'main')
@@ -11035,8 +10656,7 @@ dd($matches);
         // $user1 = "user123";
         // $user2 = "user234";
         // $user3 = "user345";
-        //$rootpassword = "dinV@13at";
-
+       
         $usernames = "user321 test45454 okhujj";
 
         // Execute the script

@@ -16,7 +16,7 @@ use App\Services\ValidateOcrInvoiceDuplicateService;
 use App\Jobs\ValidateOcrCommercialInvoiceJob;
 use App\Jobs\ValidateOcrSalesInvoiceJob;
 
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 class ValidateOcrInvoicesJob implements ShouldQueue
 {
@@ -37,7 +37,7 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 
         $service = app(ValidateOcrInvoiceDuplicateService::class);
 
-        $baseQuery = InvoiceOcrPdf::query();
+        $baseQuery = OcrPdf::query();
 
         if (!empty($this->invoiceIds)) {
             $baseQuery->whereIn('id', $this->invoiceIds);
@@ -47,17 +47,14 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         |-------------------------------------------------
         | STEP 1: Generate duplicate_hash (ALL invoices)
         |-------------------------------------------------
-        */
-        //InvoiceOcrPdf::where('status', 'completed')
+        */        
         $query = clone $baseQuery;
 
         $query->where('status', 'completed')
             //->whereNull('duplicate_hash')
             ->when($this->batchId, fn ($query) => $query->where('batch_id', $this->batchId))
             ->chunkById(500, function ($invoices) use ($service) {
-                \Log::info('Validation OCR invoice', [
-                        'count' => count($invoices)
-                    ]);
+
                 foreach ($invoices as $invoice) {
 
                     // \Log::info('Validation OCR invoice', [
@@ -90,8 +87,7 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         |-------------------------------------------------
         | STEP 2: Mark duplicates per invoice_type
         |-------------------------------------------------
-        */
-        //$duplicates = InvoiceOcrPdf::select('invoice_type', 'duplicate_hash')
+        */        
         $duplicatesQuery = clone $baseQuery;
 
         $duplicates = $duplicatesQuery->select('invoice_type', 'duplicate_hash')
@@ -100,12 +96,10 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             ->groupBy('invoice_type', 'duplicate_hash')
             ->havingRaw('COUNT(*) > 1')
             ->get();
-// \Log::info('Validation OCR Duplicate invoices', [    
-//     'total' => count($duplicates)
-// ]);
+
         foreach ($duplicates as $duplicate) {
 
-            $invoices = InvoiceOcrPdf::where('invoice_type', $duplicate->invoice_type)
+            $invoices = OcrPdf::query()->where('invoice_type', $duplicate->invoice_type)
                 ->where('duplicate_hash', $duplicate->duplicate_hash)
                 ->where('status', 'completed')
                 // ->when(!empty($this->invoiceIds), function ($query) {
@@ -159,8 +153,7 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         | STEP 3: Dispatch processing jobs
         |-------------------------------------------------
         */
-
-        //InvoiceOcrPdf::where('status', 'completed')
+        
         //->where('status', '!=', 'duplicate')
         $query = clone $baseQuery;
 

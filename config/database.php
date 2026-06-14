@@ -17,6 +17,10 @@ return [
 
     'default' => env('DB_CONNECTION', 'mysql'),
 
+    'ocr_connection' => env('OCR_DB_CONNECTION', 'ocr'),
+
+    'ocr_source_environment' => env('OCR_SOURCE_ENV', env('APP_ENV', 'local')),
+
     /*
     |--------------------------------------------------------------------------
     | Database Connections
@@ -63,6 +67,26 @@ return [
             ]) : [],
         ],
 
+        'ocr' => [
+            'driver' => env('OCR_DB_DRIVER', 'mysql'),
+            'url' => env('OCR_DATABASE_URL'),
+            'host' => env('OCR_DB_HOST', '127.0.0.1'),
+            'port' => env('OCR_DB_PORT', '3306'),
+            'database' => env('OCR_DB_DATABASE', 'forge'),
+            'username' => env('OCR_DB_USERNAME', 'forge'),
+            'password' => env('OCR_DB_PASSWORD', ''),
+            'unix_socket' => env('OCR_DB_SOCKET', ''),
+            'charset' => env('OCR_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('OCR_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => env('OCR_DB_ENGINE', 'InnoDB'),
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('OCR_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),
@@ -93,11 +117,11 @@ return [
 
         'azure_sql' => [
             'driver' => 'sqlsrv',
-            'host' => env('AZURE_DB_HOST', '20.218.149.177'),
-            'port' => env('AZURE_DB_PORT', '1433'),
-            'database' => env('AZURE_DB_DATABASE', 'intravat'),
-            'username' => env('AZURE_DB_USERNAME', 'sa'),
-            'password' => env('AZURE_DB_PASSWORD', 'r1o9ot@43'),
+            'host' => env('AZURE_DB_HOST'),
+            'port' => env('AZURE_DB_PORT'),
+            'database' => env('AZURE_DB_DATABASE'),
+            'username' => env('AZURE_DB_USERNAME'),
+            'password' => env('AZURE_DB_PASSWORD'),
             'charset' => 'utf8',
             'prefix' => '',
             'collation' => 'utf8_general_ci',

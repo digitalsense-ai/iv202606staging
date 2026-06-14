@@ -193,7 +193,7 @@ class CompanyController extends Controller
             $user = User::create([
                 'name' => $request->client_name,
                 'email' => $request->email,
-                'password' => Hash::make('12345678'),
+                'password' => Hash::make(config('app.dv_user_password')),
             ])->assignRole(['client-user']);
             */
 

@@ -190,8 +190,8 @@ class EmailBoxApiClass
       /* --end LIST -- */ 
 
       foreach($email_lists as $key => $email)
-      {
-        if($email != 'info@intravat.cloud' && $email != 'import@intravat.cloud' && $email != 'notifications@intravat.cloud')
+      {       
+        if($email != config('mail.intravatmail.info.username') && $email != config('mail.intravatmail.import.username') && $email != config('mail.intravatmail.notification.username'))
         {
           echo "Email: " . htmlspecialchars($email) . "<br>"; 
 
@@ -206,12 +206,12 @@ class EmailBoxApiClass
          
           //Create a temporary configuration array for each email account
           $config = [
-              'host'          => 'box.intravat.cloud',
-              'port'          => '993',
-              'encryption'    => 'ssl',
+              'host'          => config('mail.intravatmail.host'),
+              'port'          => config('mail.intravatmail.port'),
+              'encryption'    => config('mail.intravatmail.encryption'),
               'validate_cert' => true,
               'username'      => $email,
-              'password'      => '12345678',
+              'password'      => config('mail.intravatmail.password'),
               'protocol'      => 'imap',
               'fetch'         => [
                   'fetch'  => 'Fast',
@@ -310,16 +310,16 @@ class EmailBoxApiClass
       $system = $commonClass->getSystemInfoLazy(); 
       $systemapi = $system->systemapi->first();
 
-      $email = 'import@intravat.cloud';     
-      $storage_path = 'mailbox/cargodeclarationfiles/';
+      $email = g('mail.intravatmail.import.username'); 
+      $storage_path = 'mailbox/cargodeclarationfiles/';     
 
       $config = [
-          'host'          => 'box.intravat.cloud',
-          'port'          => '993',
-          'encryption'    => 'ssl',
+          'host'          => config('mail.intravatmail.host'),
+          'port'          => config('mail.intravatmail.port'),
+          'encryption'    => config('mail.intravatmail.encryption'),
           'validate_cert' => true,
-          'username'      => $email,
-          'password'      => 'Urges905@',
+          'username'      => config('mail.intravatmail.import.username'),
+          'password'      => config('mail.intravatmail.import.password'),
           'protocol'      => 'imap',
           'fetch'         => [
               'fetch'  => 'Fast',
@@ -538,15 +538,15 @@ class EmailBoxApiClass
   {
     try 
     {           
-      $email = 'notifications@intravat.cloud';     
-      
+      $email = config('mail.intravatmail.notification.username');
+            
       $config = [
-          'host'          => 'box.intravat.cloud',
-          'port'          => '993',
-          'encryption'    => 'ssl',
+          'host'          => config('mail.intravatmail.host'),
+          'port'          => config('mail.intravatmail.port'),
+          'encryption'    => config('mail.intravatmail.encryption'),
           'validate_cert' => true,
-          'username'      => $email,
-          'password'      => 'pjXT7vTESHgh',
+          'username'      => config('mail.intravatmail.notification.username'),
+          'password'      => config('mail.intravatmail.notification.password'),
           'protocol'      => 'imap',
           'fetch'         => [
               'fetch'  => 'Fast',

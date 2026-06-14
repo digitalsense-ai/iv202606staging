@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 
 use App\Adapters\ValidateOcrSalesAdapter;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 use App\Mappers\CustomSalesInvoiceMapper;
 use App\Services\ValidateOcrInvoiceUpdateService;
 
@@ -23,7 +23,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
 
     public function handle()
     {
-        $invoice = InvoiceOcrPdf::find($this->invoiceId);
+        $invoice = OcrPdf::query()->find($this->invoiceId);
 
         if (!$invoice) return;
        

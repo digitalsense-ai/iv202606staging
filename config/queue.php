@@ -17,6 +17,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | OCR Queue Names
+    |--------------------------------------------------------------------------
+    |
+    | Keep OCR stages on explicit queue names so slow polling, PDF splitting,
+    | and validation do not block each other. Defaults preserve the current
+    | production queue names until workers are reconfigured.
+    |
+    */
+
+    'ocr' => [
+        'inbox' => env('OCR_INBOX_QUEUE', 'ocrpdfinvoices'),
+        'split' => env('OCR_SPLIT_QUEUE', 'ocrpdfinvoices'),
+        'submit' => env('OCR_SUBMIT_QUEUE', 'ocrpdfinvoices'),
+        'poll' => env('OCR_POLL_QUEUE', 'ocrpdfinvoices'),
+        'validate' => env('OCR_VALIDATE_QUEUE', 'ocrpdfvalidateinvoices'),
+    ],
+    
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |

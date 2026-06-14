@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 use App\Classes\CommonClass;
 
@@ -23,6 +23,8 @@ use App\Services\AzureContentUnderstandingService;
 use App\Services\AzureDocumentIntelligenceService;
 use App\Services\MicrosoftMailService;
 use App\Services\AzureStorageService;
+use App\Services\OcrAccuracyService;
+use App\Services\OcrParserStrategyService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 
@@ -51,7 +53,7 @@ class PollAnalyzeResultJob implements ShouldQueue
          * 1. Prevent re-processing completed/failed jobs
          * -------------------------------------------------
          */
-        $status = DB::table('dv_invoice_ocr_pdfs')
+        $status = OcrPdf::query()
             ->where('id', $this->documentId)
             ->value('status');
 
@@ -67,7 +69,7 @@ class PollAnalyzeResultJob implements ShouldQueue
          * -------------------------------------------------
          */
         if (now()->diffInSeconds($this->startedAt) > 300) {
-            DB::table('dv_invoice_ocr_pdfs')
+            OcrPdf::query()
                 ->where('id', $this->documentId)
                 ->update([
                     'status' => 'timeout',
@@ -83,14 +85,8 @@ class PollAnalyzeResultJob implements ShouldQueue
          * -------------------------------------------------
          * 3. ATOMIC DB LOCK (NO RACE CONDITION)
          * -------------------------------------------------
-         */
-        // $locked = DB::update("
-        //     UPDATE dv_invoice_ocr_pdfs
-        //     SET polling_locked_at = NOW()
-        //     WHERE id = ?
-        //     AND polling_locked_at IS NULL
-        // ", [$this->documentId]);
-        $locked = DB::table('dv_invoice_ocr_pdfs')
+         */        
+        $locked = OcrPdf::query()
                     ->where('id', $this->documentId)
                     ->where(function ($query) {
                         $query->whereNull('polling_locked_at')
@@ -130,7 +126,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $this->startedAt,
                     $this->prevCapture
                 )->delay(now()->addSeconds(10))
-                 ->onQueue('ocrpdfinvoices');
+                 ->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -155,7 +151,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $this->startedAt,
                     $this->prevCapture
                 )->delay(now()->addSeconds(5))
-                 ->onQueue('ocrpdfinvoices');
+                 ->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -166,7 +162,7 @@ class PollAnalyzeResultJob implements ShouldQueue
              * -------------------------------------------------
              */
             if ($status !== 'succeeded') {
-                DB::table('dv_invoice_ocr_pdfs')
+                OcrPdf::query()
                     ->where('id', $this->documentId)
                     ->update([
                         'status' => 'failed',
@@ -229,6 +225,26 @@ class PollAnalyzeResultJob implements ShouldQueue
 
             /**
              * -------------------------------------------------
+             * 7a. ACCURACY SERVICE
+             * -------------------------------------------------
+             */
+            if (is_array($normalized) && !isset($normalized['error'])) {
+                $normalized = app(OcrParserStrategyService::class)->apply(
+                    normalized: $normalized,
+                    azureResult: $result,
+                    clientId: null,
+                    invoiceType: $this->invoiceType
+                );
+
+                $normalized = app(OcrAccuracyService::class)->enrich(
+                    $normalized,
+                    $result,
+                    $this->invoiceType
+                );
+            }
+
+            /**
+             * -------------------------------------------------
              * 8. CLIENT MATCHING
              * -------------------------------------------------
              */
@@ -263,14 +279,14 @@ class PollAnalyzeResultJob implements ShouldQueue
              * 9. SAVE RESULT
              * -------------------------------------------------
              */
-            DB::table('dv_invoice_ocr_pdfs')
+            OcrPdf::query()
                 ->where('id', $this->documentId)
                 ->update([
                     'client_id' => $client_id,
                     'status' => isset($normalized['error']) ? 'failed' : 'completed',
                     'error' => isset($normalized['error']) ? $normalized['error'] : null,
                     'extracted_data' => json_encode($normalized),
-                    'og_extracted_data' => null,
+                    'og_extracted_data' => json_encode($result),
                 ]);
 
             /**
@@ -289,32 +305,7 @@ class PollAnalyzeResultJob implements ShouldQueue
              * 11. EMAIL PROCESSING
              * -------------------------------------------------
              */
-            if ($this->emailMessageId) {
-
-                // $batchId = DB::table('dv_invoice_ocr_pdfs')
-                //     ->where('id', $this->documentId)
-                //     ->value('batch_id');
-
-                // $remaining = DB::table('dv_invoice_ocr_pdfs')
-                //     ->where('batch_id', $batchId)
-                //     //->whereNotIn('status', ['completed', 'failed'])
-                //     ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
-                //     ->count();
-
-                // // Cache::increment('inbox_completed', 1);
-
-                // if ($remaining === 0) {
-
-                //     $mailService = app(MicrosoftMailService::class);
-
-                //     $mailService->addCategory($this->emailMessageId);
-                //     $mailService->markEmailAsRead($this->emailMessageId);
-                //     $mailService->moveEmailToFolder($this->emailMessageId);
-
-                //     ValidateOcrInvoicesJob::dispatch($batchId)
-                //         ->onQueue('ocrpdfvalidateinvoices');
-                // }
-
+            if ($this->emailMessageId) {                
                 $this->finalizeEmailBatchIfComplete();
             }
             else
@@ -332,26 +323,12 @@ class PollAnalyzeResultJob implements ShouldQueue
 
                     Log::info("Azure file deleted {$blobPath}");
 
-                    $invoice = InvoiceOcrPdf::where('id', $prevId)->first();
+                    $invoice = OcrPdf::query()->where('id', $prevId)->first();
                     $invoice->azure_sas_url = null;
                     $invoice->azure_sas_expiry = null;
                     $invoice->save();
 
-                    $this->finalizeEmailBatchIfComplete();
-                    //                             
-                    // if ($this->invoiceType == 'multi-invoices')
-                    // {
-                    //     $prevocrpdf = InvoiceOcrPdf::where('id', $prevId)->first();
-
-                    //     if($prevocrpdf)
-                    //     {
-                    //         $prevFileName = preg_replace('/_\d+\.pdf$/', '', $prevocrpdf->file_name);
-
-                    //         //Delete prev row from database
-                    //         $already_exist = InvoiceOcrPdf::where('invoice_type', $this->invoiceType)
-                    //                             ->where('file_name', 'LIKE', $prevFileName . '%\.pdf')->delete();
-                    //     }
-                    // }
+                    $this->finalizeEmailBatchIfComplete();                    
                 }
             }
 
@@ -362,7 +339,7 @@ class PollAnalyzeResultJob implements ShouldQueue
              * 12. SAFE UNLOCK (IMPORTANT)
              * -------------------------------------------------
              */
-            DB::table('dv_invoice_ocr_pdfs')
+            OcrPdf::query()
                 ->where('id', $this->documentId)
                 ->whereNotNull('polling_locked_at')
                 ->update([
@@ -377,7 +354,7 @@ class PollAnalyzeResultJob implements ShouldQueue
             unlink($this->filePath);
         }
 
-        $batchId = DB::table('dv_invoice_ocr_pdfs')
+        $batchId = OcrPdf::query()
             ->where('id', $this->documentId)
             ->value('batch_id');
 
@@ -385,7 +362,7 @@ class PollAnalyzeResultJob implements ShouldQueue
             return;
         }
 
-        $remaining = DB::table('dv_invoice_ocr_pdfs')
+        $remaining = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
             ->count();
@@ -395,7 +372,7 @@ class PollAnalyzeResultJob implements ShouldQueue
         }
 
         ValidateOcrInvoicesJob::dispatch($batchId)
-            ->onQueue('ocrpdfvalidateinvoices');
+            ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
 
         $cacheKey = "ocr_email_batch_finalized:{$batchId}";
 
@@ -419,54 +396,4 @@ class PollAnalyzeResultJob implements ShouldQueue
             throw $e;
         }
     }
-    
-    // private function finalizeEmailBatchIfComplete(): void
-    // {
-    //     // Delete local file
-    //     if (file_exists($this->filePath)) {
-    //         unlink($this->filePath);
-    //     }
-        
-    //     if (!$this->emailMessageId) {
-    //         return;
-    //     }
-
-    //     $batchId = DB::table('dv_invoice_ocr_pdfs')
-    //         ->where('id', $this->documentId)
-    //         ->value('batch_id');
-
-    //     if (!$batchId) {
-    //         return;
-    //     }
-
-    //     $remaining = DB::table('dv_invoice_ocr_pdfs')
-    //         ->where('batch_id', $batchId)
-    //         ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
-    //         ->count();
-
-    //     if ($remaining !== 0) {
-    //         return;
-    //     }
-
-    //     $cacheKey = "ocr_email_batch_finalized:{$batchId}";
-
-    //     if (!Cache::add($cacheKey, true, now()->addHours(6))) {
-    //         return;
-    //     }
-
-    //     try {
-    //         $mailService = app(MicrosoftMailService::class);
-
-    //         $mailService->addCategory($this->emailMessageId);
-    //         $mailService->markEmailAsRead($this->emailMessageId);
-    //         $mailService->moveEmailToFolder($this->emailMessageId);
-
-    //         ValidateOcrInvoicesJob::dispatch($batchId)
-    //             ->onQueue('ocrpdfvalidateinvoices');
-    //     } catch (\Throwable $e) {
-    //         Cache::forget($cacheKey);
-
-    //         throw $e;
-    //     }
-    // }
 }

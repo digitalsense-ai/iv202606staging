@@ -14,10 +14,28 @@ class ValidateOcrInvoiceUpdateService
         $current = $invoice->extracted_data ?? [];
 
         $changed = false;
+        $originalOcrMeta = $current['_ocr'] ?? [];
+        $layoutFingerprint = $originalOcrMeta['layout_fingerprint'] ?? null;
 
         foreach ($mapped as $key => $value) {
 
-            if (($current[$key] ?? null) !== $value) {
+            if ($key === '_ocr') {
+                continue;
+            }
+
+            $oldValue = $current[$key] ?? null;
+
+            if ($oldValue !== $value) {
+                app(OcrCorrectionFeedbackService::class)->capture(
+                    (int) $invoice->id,
+                    (string) $key,
+                    $oldValue,
+                    $value,
+                    $invoice->client_id ? (int) $invoice->client_id : null,
+                    $layoutFingerprint
+                );
+
+            //if (($current[$key] ?? null) !== $value) {
 
                 // Log::info('Field changed', [
                 //     'invoice_id' => $invoice->id,
@@ -39,11 +57,7 @@ class ValidateOcrInvoiceUpdateService
                 $invoice->og_extracted_data = $invoice->extracted_data ?? [];      
 
             $invoice->extracted_data = $current;
-
-            // $invoice->duplicate_hash = app(
-            //     \App\Services\ValidateOcrInvoiceDuplicateService::class
-            // )->generateHash($current);                
-
+            
             $duplicateService = app(
                 \App\Services\ValidateOcrInvoiceDuplicateService::class
             );

@@ -125,6 +125,12 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
+    'omit_email_list' => array_filter(
+        array_map('trim', explode(',', env('OMIT_EMAIL_LIST', '')))
+    ), 
+
+    'dv_user_password' => env('DV_USER_PASSWORD', '12345678'),    
+    
     // 'dynamic_365_api_url' => env('APP_DYNMAIC_365_API_URL'),
     // 'dynamic_365_environment' => env('APP_DYNMAIC_365_ENVIRONMENT'),
     // 'dynamic_365_tenant_id' => env('APP_DYNMAIC_365_TENANT_ID'),

@@ -25,7 +25,7 @@ use App\Models\ImportReconciliationSalesInvoices;
 use App\Models\ImportReconciliationSalesInvoicesData;
 use App\Models\Invoices;
 use App\Models\VATReturns;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 use \App\Classes\CommonClass;
 
@@ -75,7 +75,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
             ->unique();
 
         // Fetch only required columns (important for memory)
-        $comInvoices = InvoiceOcrPdf::whereIn('id', $comIds)
+        $comInvoices = OcrPdf::query()->whereIn('id', $comIds)
                         ->select('id', 'client_id', 'extracted_data', 'created_at', 'updated_at')
                         ->get()
                         ->keyBy('id');
@@ -136,7 +136,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
         } //in sales invoice data table
         else
         {
-            $salesInvoices = InvoiceOcrPdf::whereIn('id', $salesIds)
+            $salesInvoices = OcrPdf::query()->whereIn('id', $salesIds)
                                 ->select('id', 'extracted_data', 'created_at', 'updated_at')
                                 ->get()
                                 ->keyBy('id'); 
@@ -328,7 +328,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                 ]
                             );
 
-                            InvoiceOcrPdf::where('id', $com_invoice->id)
+                            OcrPdf::query()->where('id', $com_invoice->id)
                                 ->update(['sync_status' => 1, 'is_locked' => 0]);
 
                             //if(count($sales_invoices) > 0)
@@ -428,7 +428,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                     {
                                     }
                                     else
-                                      InvoiceOcrPdf::where('id', $sales_invoice->id)
+                                      OcrPdf::query()->where('id', $sales_invoice->id)
                                           ->update(['sync_status' => 1, 'is_locked' => 0]);
                                   }
                               } // end sales loop
@@ -438,7 +438,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                             //   Log::info('NO Sales Invoices from OCR');
                             // }
                         } else {
-                            InvoiceOcrPdf::where('id', $com_invoice->id)
+                            OcrPdf::query()->where('id', $com_invoice->id)
                                 ->update(['sync_status' => 0, 'is_locked' => 0]);
                         }
                     }

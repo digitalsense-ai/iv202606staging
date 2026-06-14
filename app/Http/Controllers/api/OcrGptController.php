@@ -8,7 +8,7 @@ use Illuminate\Http\JsonResponse;
 
 use App\Http\Controllers\api\BaseController as BaseController;
 
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 
 class OcrGptController extends BaseController
@@ -27,7 +27,7 @@ class OcrGptController extends BaseController
   {
       $normalizedOrgNo = str_replace(' ', '', $org_no);
     // Fetch invoices by supplier or recipient org_number
-      $invoices = InvoiceOcrPdf::select('extracted_data')
+      $invoices = OcrPdf::select('extracted_data')
                   //->where('extracted_data->supplier->org_number', $org_no)
                   //->orWhere('extracted_data->recipient->org_number', $org_no)
                   ->whereRaw(
@@ -55,24 +55,10 @@ dd($invoices);
       if (!$request->user()->tokenCan('ocr-read')) {
           return response()->json(['error'=>'Forbidden'], 403);
       }
-
-      /*
-      // Fetch invoices by supplier or recipient org_number
-      $invoices = InvoiceOcrPdf::select('extracted_data')
-                  ->where('extracted_data->supplier->org_number', $org_no)
-                  ->orWhere('extracted_data->recipient->org_number', $org_no)
-                  ->get();
-
-      $flattened = $invoices->map(function($item) {
-          return json_decode($item->extracted_data, true); // return only decoded array
-      });
       
-      return response()->json($flattened);
-      */
-
       $normalizedOrgNo = str_replace(' ', '', $org_no);
 
-      $query = InvoiceOcrPdf::where(function($q) use ($normalizedOrgNo) {
+      $query = OcrPdf::where(function($q) use ($normalizedOrgNo) {
           $q->whereRaw(
               "REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), ' ', '') = ?",
               [$normalizedOrgNo]

@@ -550,8 +550,8 @@ class VATRegistrationMainController extends Controller
                     $client = $vatregmain->client;                
                     $client_name = str_replace(' ', '', $this->commonClass->replaceSpecialCharForFolderName(strtolower($client->client_name)));
 
-                    $create_email = $country . '.' . $client_name . '@intravat.cloud';
-                    $password = '12345678';
+                    $create_email = $country . '.' . $client_name . config('mail.intravatmail.domain');
+                    $password = config('app.dv_user_password');
 
                     $email_exist = array_values(array_filter($email_lists, function ($email) use($create_email) {
                         return $create_email == $email;

@@ -41,7 +41,7 @@ $(function () {
     window.dt_ocrinvoicepdf_files = null;
     window.ocrinvoicepdffile_datas = [];   
    
-    var result = { 'invoiceocrpdfs': {!! json_encode($invoiceocrpdfs) !!} };    
+    var result = { 'ocrpdfs': {!! json_encode($ocrpdfs) !!} };    
     var ocrinvoicepdffile_datas = drawDtTable(result, 'ocrinvoicepdf');    
 });
 </script>
@@ -184,7 +184,7 @@ async function pollProgress(batchId) {
     </div>
 
     {{-- Extracted Data's --}}
-    @if($invoiceocrpdfs)
+    @if($ocrpdfs)
     <div id="rxtracted-datas" class="card mt-4">
         <div class="card-body p-0 pb-3">
             <h5 class="m-0 p-3">Extracted Data's</h5>

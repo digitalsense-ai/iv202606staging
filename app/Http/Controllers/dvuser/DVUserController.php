@@ -485,7 +485,7 @@ class DVUserController extends Controller
         {     
           /* -- CREATE PASSWORD -- */
           if($request->role == 'client-user')
-            $newpassword = "12345678";
+            $newpassword = config('app.dv_user_password');
           else
             $newpassword = Str::random(8);
           /* --end CREATE PASSWORD -- */

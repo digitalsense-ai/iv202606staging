@@ -77,6 +77,28 @@ return [
                 'log',
             ],
         ],
+
+        'intravatmail' => [
+            'domain' => env('INTRAVAT_MAIL_DOMAIN'),
+            'transport' => env('INTRAVAT_MAIL_TRANSPORT'),
+            'host' => env('INTRAVAT_MAIL_HOST'),
+            'port' => env('INTRAVAT_MAIL_PORT'),
+            'encryption' => env('INTRAVAT_MAIL_ENCRYPTION'),
+            'password' => env('INTRAVAT_MAIL_PASSWORD'),
+
+            'info' => [                          
+                'username' => env('INTRAVAT_INFO_MAIL_USERNAME'),
+                'password' => env('INTRAVAT_INFO_MAIL_PASSWORD')
+            ],
+            'import' => [               
+                'username' => env('INTRAVAT_IMPORT_MAIL_USERNAME'),
+                'password' => env('INTRAVAT_IMPORT_MAIL_PASSWORD')
+            ],
+            'notification' => [               
+                'username' => env('INTRAVAT_NOTIFICATION_MAIL_USERNAME'),
+                'password' => env('INTRAVAT_NOTIFICATION_MAIL_PASSWORD')
+            ]
+        ],
     ],
 
     /*

@@ -2000,6 +2000,9 @@ console.log("LOADING--------: " + total);
           let total = 0;
           let completed = 0;
 
+          let recapturePoll = null;
+          let pollingStopped = false;
+
           myDropzone.on("addedfiles", function (file) {              
             $("#ocr-bulk-upload .card-bulk-upload").hide();
             var total_files = myDropzone.files.length;   
@@ -2028,10 +2031,7 @@ console.log("LOADING--------: " + total);
 
             // =========================================
             // REPLACE OLD setInterval BLOCK WITH THIS
-            // =========================================
-
-            let recapturePoll = null;
-            let pollingStopped = false;
+            // =========================================            
 
             async function pollProgress() {
 

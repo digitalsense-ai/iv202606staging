@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 use App\Services\AzureStorageService;
 
-class InvoiceOcrPdf extends Model
+class OcrPdf extends Model
 {
     use HasFactory;
     
@@ -16,7 +16,7 @@ class InvoiceOcrPdf extends Model
      *
      * @var string
      */
-    protected $table = 'dv_invoice_ocr_pdfs';
+    protected $table = 'dv_ocr_pdfs';
 
     protected $guarded = []; 
 
@@ -24,6 +24,11 @@ class InvoiceOcrPdf extends Model
         'azure_url' => 'encrypted',
         'extracted_data' => 'array'
     ]; 
+
+    public function getConnectionName()
+    {
+        return config('database.ocr_connection', 'ocr');
+    }
 
     /**
      * Get the client for the ocr pdf

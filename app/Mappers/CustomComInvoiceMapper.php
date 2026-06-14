@@ -66,13 +66,13 @@ class CustomComInvoiceMapper
         $finalRelatedSalesInvoices = $related['related_sales_invoices'] ?? null;
         $finalRelatedSalesOrders   = $related['related_sales_orders'] ?? null;
         $finalRelatedShipments     = $related['related_shipment_nos'] ?? null;
-       
+
         [$og_currency, $net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
         );
         $currency = CurrencyHelper::parseCurrency($og_currency);
-       
+
         [$og_exchange_currency, $exchange_net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Exchange Net Amount']['valueString'] ?? null,
             $doc['Exchange Currency']['valueString'] ?? null
@@ -82,7 +82,7 @@ class CustomComInvoiceMapper
         $net_amount = EuropeanNumberHelper::normalize(
             $net_amount ?? null
         );
-        
+
         $exchange_net_amount = EuropeanNumberHelper::normalize(
             $exchange_net_amount ?? null
         );  

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\RateLimiter;
 
 use App\Jobs\PollAnalyzeResultJob;
 
+use App\Models\OcrPdf;
 
 class SubmitAnalyzeJob implements ShouldQueue
 {
@@ -53,12 +54,12 @@ class SubmitAnalyzeJob implements ShouldQueue
             $this->analyzerId
         );
 
-        DB::table('dv_invoice_ocr_pdfs')->where('id', $this->documentId)->update([
+        OcrPdf::query()->where('id', $this->documentId)->update([
             'operation_url' => $operationUrl,
             'status' => 'processing',
         ]);
 
-        $updated = DB::table('dv_invoice_ocr_pdfs')
+        $updated = OcrPdf::query()
                     ->where('id', $this->documentId)
                     ->where('status', 'processing')
                     ->update(['status' => 'polling']);
@@ -77,6 +78,6 @@ class SubmitAnalyzeJob implements ShouldQueue
             $this->emailMessageId,
             now(),
             $this->prevCapture,
-        )->delay(now()->addSeconds(10))->onQueue('ocrpdfinvoices');
+        )->delay(now()->addSeconds(10))->onQueue(config('queue.ocr.poll', 'ocrpdfinvoices'));
     }
 }

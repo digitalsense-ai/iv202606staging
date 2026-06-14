@@ -15,9 +15,6 @@ use setasign\Fpdi\Fpdi;
 
 use \App\Classes\CommonClass;
 
-// use App\Models\InvoiceOcrPdf;
-// use App\Jobs\SubmitAnalyzeJob;
-
 class SplitPdfController extends Controller
 {
     public $authUser;

@@ -17,10 +17,10 @@ use \App\Classes\FtpClass;
 use App\Models\Client;
 use App\Models\VATRegistrationMain;
 use App\Models\VATRegistration;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 use App\Jobs\SplitPdfJob;
 use App\Services\AzureStorageService;
-
+use App\Services\OcrCorrectionFeedbackService;
 use App\Services\MicrosoftMailService;
 use App\Jobs\ProcessEmailJob;
 
@@ -29,6 +29,7 @@ use App\Repositories\ClientRepository;
 use App\Jobs\ValidateOcrInvoicesJob;
 
 use App\Helpers\DateHelper;
+use App\Helpers\EuropeanNumberHelper;
 
 class AnalyzePdfController extends Controller
 {
@@ -58,11 +59,19 @@ class AnalyzePdfController extends Controller
         // );
         // dd($invoiceDate);
 
+//         $netAmount = EuropeanNumberHelper::normalize(
+//             '243.378,59
+// 248.178,59'
+//         );
+//         dd($netAmount);
+
+        Cache::forget('inbox_completed');
+
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
 
-        $analyzepdfs = InvoiceOcrPdf::
+        $analyzepdfs = OcrPdf::query()->
         //with(['client', 'client.vatregmain'])
                             orderBy('id', 'DESC')            
                             ->get(); 
@@ -114,7 +123,7 @@ class AnalyzePdfController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf-search');      
         /* --end PAGE CONFIG -- */
 
-        $analyzepdfs = InvoiceOcrPdf::
+        $analyzepdfs = OcrPdf::query()->
         //with(['client'])
                             where('status', 'completed')
                             ->where('is_deleted', 0)
@@ -134,46 +143,7 @@ class AnalyzePdfController extends Controller
         ]);
         /* --end RETURN VIEW -- */
     }
-    /* --end GET /analyzepdf/search -- */
-
-    /* -- GET /fetchinbox -- */
-    // public function fetchInbox()
-    // {
-    //     /* -- PAGE CONFIG -- */
-    //     $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
-    //     /* --end PAGE CONFIG -- */
-
-    //     $mailService = new MicrosoftMailService();
-
-    //     // Fetch all unread emails
-    //     $emails = $mailService->getAllInboxEmails();
-
-    //     foreach ($emails as &$email) {
-
-    //         // Queue the processing instead of running it directly
-    //         ProcessEmailJob::dispatch($email['id'], $email['subject'] ?? '')->onQueue('ocrpdfinvoices');
-            
-    //         // You can optionally mark that it is queued
-    //         $email['attachments'] = ['status' => 'queued'];
-    //     }
-
-    //     $analyzepdfs = InvoiceOcrPdf::with(['client'])
-    //                         ->orderBy('id', 'DESC')            
-    //                         ->get(); 
-      
-    //     $vatregmains = VATRegistrationMain::with(['client'])
-    //                     ->orderBy('id', 'ASC')
-    //                     ->get();
-
-    //     /* -- RETURN VIEW -- */
-    //     return view('content.ocr.analyze', [
-    //       'pageConfigs' => $pageConfigs, 
-    //       'authUser' => $this->authUser,  
-    //       'vatregmains' => $vatregmains,          
-    //       'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL
-    //     ]);
-    //     /* --end RETURN VIEW -- */
-    // }
+    /* --end GET /analyzepdf/search -- */    
 
     public function fetchInbox()
     {
@@ -193,8 +163,8 @@ class AnalyzePdfController extends Controller
 
         foreach ($emails as &$email) {
 
-            if (stripos($email['subject'], "second female") !== false &&
-                $email['sender']['emailAddress']['address'] == "tina.elsborg@intravat.com"
+            if (stripos($email['subject'], "second female") !== false &&               
+                in_array($email['sender']['emailAddress']['address'], config('app.omit_email_list'))
             ) 
             { 
                 // Mark as remove
@@ -206,8 +176,8 @@ class AnalyzePdfController extends Controller
             else
             {
                 // Queue email processing job
-                ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '')
-                    ->onQueue('ocrpdfinvoices');
+                ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '')                    
+                    ->onQueue(config('queue.ocr.inbox', 'ocrpdfinvoices'));
 
                 // // Increment total count for progress bar
                 // Cache::increment('inbox_total');
@@ -216,24 +186,7 @@ class AnalyzePdfController extends Controller
                 $email['attachments'] = ['status' => 'queued'];
             }
         }
-
-        // $analyzepdfs = InvoiceOcrPdf::with(['client'])
-        //                     ->orderBy('id', 'DESC')            
-        //                     ->get(); 
-      
-        // $vatregmains = VATRegistrationMain::with(['client'])
-        //                 ->orderBy('id', 'ASC')
-        //                 ->get();
-
-        // /* -- RETURN VIEW -- */
-        // return view('content.ocr.analyze', [
-        //   'pageConfigs' => $pageConfigs, 
-        //   'authUser' => $this->authUser,  
-        //   'vatregmains' => $vatregmains,          
-        //   'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL
-        // ]);
-        // /* --end RETURN VIEW -- */        
-
+        
         // Remove emails marked as 'remove'
         $emails = array_values(array_filter($emails, function ($email) {
             return empty($email['remove']);
@@ -294,7 +247,7 @@ class AnalyzePdfController extends Controller
             $allow = true;
             if($invoiceType == 'multi-invoices')
             {
-                $already_exist = InvoiceOcrPdf::where('invoice_type', $invoiceType)
+                $already_exist = OcrPdf::query()->where('invoice_type', $invoiceType)
                                     ->where('file_name', 'LIKE', $originalName . '%\.pdf')
                                     ->where('status', 'completed')
                                     ->count();
@@ -306,7 +259,7 @@ class AnalyzePdfController extends Controller
                     $allow = true;
                 else
                 {
-                    $already_exist = InvoiceOcrPdf::where('invoice_type', $invoiceType)
+                    $already_exist = OcrPdf::query()->where('invoice_type', $invoiceType)
                                         ->where('file_name', $originalName . '.pdf')
                                         ->where('status', 'completed')
                                         ->count();                    
@@ -317,7 +270,8 @@ class AnalyzePdfController extends Controller
             if($allow)
             {
                 // Increment total count for progress bar
-                Cache::increment('inbox_total');                
+                if(!$bulk)
+                    Cache::increment('inbox_total');                
 
                 SplitPdfJob::dispatch(
                     $clients,
@@ -330,7 +284,7 @@ class AnalyzePdfController extends Controller
                     null,
                     $emailMessageId,
                     $prevCapture
-                )->onQueue('ocrpdfinvoices');
+                )->onQueue(config('queue.ocr.split', 'ocrpdfinvoices'));
 
                 Log::info("Queued SplitPdfJob for {$originalName} in batch {$batchId}");
             } //allow
@@ -355,26 +309,9 @@ class AnalyzePdfController extends Controller
     {
         // Count jobs that are completed for this batch
         $total = Cache::get('inbox_total', 0);
-        $completed = Cache::get('inbox_completed', 0);
+        $completed = Cache::get('inbox_completed', 0);        
 
-        // $allDocs = DB::table('dv_invoice_ocr_pdfs')
-        //             ->where('batch_id', $batchId)
-        //             ->get();
-
-        // $total = $allDocs->count();
-        // $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
-
-        // // Collect error documents
-        // $errorDocs = $allDocs
-        //     ->where('status', 'failed')
-        //     ->map(fn($doc) => [
-        //         'document_id' => $doc->id,
-        //         'file_name'   => $doc->file_name,
-        //         'error'       => $doc->error,
-        //     ])
-        //     ->values();
-
-        $analyzepdfs = InvoiceOcrPdf::
+        $analyzepdfs = OcrPdf::query()->
         //with(['client'])
                         orderBy('id', 'DESC')            
                         ->get();
@@ -391,178 +328,10 @@ class AnalyzePdfController extends Controller
         ]);
     }
 
-    // /* -- POST /analyzepdf -- */
-    // public function analyze(Request $request)
-    // {
-    //     /* ---------------- VALIDATION ---------------- */
-    //     $baseRules = [
-    //         'pdf_invoice_type' => 'required|string',
-    //         //'email_message_id' => 'nullable|string'
-    //     ];
-
-    //     if ($request->pdf_invoice_type === 'multi-invoices') {
-    //         $rules = array_merge($baseRules, [
-    //             'pdf_file'    => 'required|file|mimes:pdf|max:65536',
-    //             'page_ranges' => 'nullable|string',
-    //         ]);
-    //     } else {
-    //         // if ($request->filled('pdf_paths')) 
-    //         // {
-
-    //         // }
-    //         // else
-    //         // {
-    //             $rules = array_merge($baseRules, [
-    //                 'pdfs'   => 'required|array|min:1',
-    //                 'pdfs.*' => 'file|mimes:pdf|max:65536',
-    //             ]);                
-    //         //}
-    //     }
-
-    //     $request->validate($rules);
-
-    //     /* ---------------- COMMON SETUP ---------------- */
-    //     $invoiceType = $request->pdf_invoice_type;
-    //     //$emailMessageId = $request->email_message_id;
-    //     $batchId     = (string) Str::uuid();
-
-    //     $whichStudio = 'model';
-
-    //     $analyzerId = match ($invoiceType) {
-    //         'sales', 'multi-invoices' => 'sales_invoice_analyzer_v7',
-    //         'com' => 'com_invoice_analyzer_v8',
-    //         default => 'sales_invoice_analyzer_v7',
-    //     };
-
-    //     $modelId = match ($invoiceType) {
-    //         'sales', 'multi-invoices' => 'custom_sales_invoice_v12',
-    //         'com' => 'custom_com_invoice_v9',
-    //         default => 'custom_sales_invoice_v12',
-    //     };        
-
-    //     /* ---------------- MULTI-INVOICE ---------------- */
-    //     if ($invoiceType === 'multi-invoices') {
-
-    //         $file = $request->file('pdf_file');
-
-    //         $originalName = pathinfo(
-    //             $file->getClientOriginalName(),
-    //             PATHINFO_FILENAME
-    //         );
-           
-    //         // Store in storage/app/public/ocr/{invoice_type}
-    //         $storedPath = $file->storeAs(
-    //             'ocr/' . $invoiceType,
-    //             $originalName.'.pdf',
-    //             'public'
-    //         );
-    //         $fullPath = storage_path('app/public/' . $storedPath);
-
-    //         SplitPdfJob::dispatch(
-    //             $fullPath,
-    //             $originalName,
-    //             $invoiceType,
-    //             $batchId,
-    //             $whichStudio,
-    //             ($whichStudio === 'model') ? $modelId : $analyzerId,
-    //             $request->page_ranges,
-    //             //$emailMessageId
-    //         )->onQueue('ocrpdfinvoices');
-    //     }
-
-    //     /* ---------------- SALES / COM ---------------- */
-    //     else {
-
-    //         // $pdfFiles = [];
-
-    //         // // Use already stored PDFs if provided
-    //         // if ($request->filled('pdf_paths')) {
-    //         //     foreach ($request->pdf_paths as $path) {
-    //         //         $fullPath = storage_path('app/' . $path);
-
-    //         //         if (!file_exists($fullPath)) {
-    //         //             Log::warning("PDF not found: {$fullPath}");
-    //         //             continue;
-    //         //         }
-
-    //         //         $pdfFiles[] = $fullPath;
-    //         //     }
-    //         // }
-    //         // // Otherwise use uploaded files
-    //         // elseif ($request->hasFile('pdfs')) {
-    //         //     foreach ($request->file('pdfs') as $file) {
-    //         //         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-    //         //         $storedPath = $file->storeAs('ocr/' . $invoiceType, $originalName.'.pdf', 'public');
-    //         //         $pdfFiles[] = storage_path('app/public/' . $storedPath);
-    //         //     }
-    //         // }
-
-    //         // foreach ($pdfFiles as $fullPath) {
-    //         //     $originalName = pathinfo($fullPath, PATHINFO_FILENAME);
-
-    //         //     Log::info("Queued PDF for analyze: {$originalName}");
-
-    //         //     SplitPdfJob::dispatch(
-    //         //         $fullPath,
-    //         //         $originalName,
-    //         //         $invoiceType,
-    //         //         $batchId,
-    //         //         $whichStudio,
-    //         //         ($whichStudio === 'model') ? $modelId : $analyzerId,
-    //         //         null,
-    //         //         $emailMessageId
-    //         //     )->onQueue('ocrpdfinvoices');
-    //         // }
-
-    //         foreach ($request->file('pdfs') as $file) {
-
-    //             $originalName = pathinfo(
-    //                 $file->getClientOriginalName(),
-    //                 PATHINFO_FILENAME
-    //             );
-              
-    //             // if ($request->filled('pdf_paths')) 
-    //             // {
-    //             //     // Determine full path from file object (for local storage, should exist already)
-    //             //     $fullPath = $file->getRealPath();
-    //             // }
-    //             // else
-    //             // {
-    //                 // Store in storage/app/public/ocr/{invoice_type}
-    //                 $storedPath = $file->storeAs(
-    //                     'ocr/' . $invoiceType,
-    //                     $originalName.'.pdf',
-    //                     'public'
-    //                 );            
-    //                 $fullPath = storage_path('app/public/ocr/' . $invoiceType . '/' . $originalName . '.pdf');
-    //             //}
-
-    //             Log::info('Uploaded file for analyse: '. $originalName);
-
-    //             // Reuse SplitPdfJob but WITHOUT page ranges
-    //             SplitPdfJob::dispatch(
-    //                 $fullPath,
-    //                 $originalName,
-    //                 $invoiceType,
-    //                 $batchId,
-    //                 $whichStudio,
-    //                 ($whichStudio === 'model') ? $modelId : $analyzerId,
-    //                 null,
-    //                 //$emailMessageId
-    //             )->onQueue('ocrpdfinvoices');
-    //         }
-    //     }
-
-    //     return response()->json([
-    //         'batch_id' => $batchId,
-    //         'message'  => 'PDF processing queued',
-    //     ], 202);
-    // }
-
     /* -- GET /analyzepdf/batch/{batch}/progress -- */
     public function batchProgress(string $batchId)
     {
-        $allDocs = DB::table('dv_invoice_ocr_pdfs')
+        $allDocs = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->get();
 
@@ -579,7 +348,7 @@ class AnalyzePdfController extends Controller
             ])
             ->values();
 
-        $analyzepdfs = InvoiceOcrPdf::
+        $analyzepdfs = OcrPdf::query()->
         //with(['client'])
                         orderBy('id', 'DESC')            
                         ->get();
@@ -602,7 +371,7 @@ class AnalyzePdfController extends Controller
     /* -- PUT /analyzepdf/{analyze_id} -- */
     public function analyzeUpdate(Request $request)
     {     
-        $invoice = InvoiceOcrPdf::find($request->analyzepdf_id);
+        $invoice = OcrPdf::query()->find($request->analyzepdf_id);
 
         if (!$invoice)
             return;
@@ -611,34 +380,74 @@ class AnalyzePdfController extends Controller
         // Current JSON data
         $currentData = $invoice->extracted_data ?? [];
 
+        $feedback = app(OcrCorrectionFeedbackService::class);
+        $layoutFingerprint = $currentData['_ocr']['layout_fingerprint'] ?? null;
+        $feedbackItems = [];
+
         // Check invoice_type
         if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
             $updates['invoice_type'] = $request->invoice_type;
+
+            $feedbackItems[] = [
+                'field' => 'invoice_type',
+                'original' => $currentData['invoice_type'] ?? null,
+                'corrected' => $request->invoice_type,
+            ];
         }
 
         // Check supplier org_number
         if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
             $updates['extracted_data->supplier->org_number'] = $request->client_no;
+
+            $feedbackItems[] = [
+                'field' => 'org_number',
+                'original' => $currentData['supplier']['org_number'] ?? null,
+                'corrected' => $request->client_no,
+            ];
         }
 
         // Check supplier name
         if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
             $updates['extracted_data->supplier->name'] = $request->client_name;
+
+            $feedbackItems[] = [
+                'field' => 'name',
+                'original' => $currentData['supplier']['name'] ?? null,
+                'corrected' => $request->client_name,
+            ];
         }
 
         // Check recipient org_number
         if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
             $updates['extracted_data->recipient->org_number'] = $request->client_no;
+
+            $feedbackItems[] = [
+                'field' => 'org_number',
+                'original' => $currentData['recipient']['org_number'] ?? null,
+                'corrected' => $request->client_no,
+            ];
         }
 
         // Check recipient name
         if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
             $updates['extracted_data->recipient->name'] = $request->client_name;
+
+            $feedbackItems[] = [
+                'field' => 'name',
+                'original' => $currentData['recipient']['name'] ?? null,
+                'corrected' => $request->client_name,
+            ];
         }
 
         // Check invoice_date
         if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
             $updates['extracted_data->invoice_date'] = $request->invoice_date;
+
+            $feedbackItems[] = [
+                'field' => 'invoice_date',
+                'original' => $currentData['invoice_date'] ?? null,
+                'corrected' => $request->invoice_date,
+            ];
         }
 
         if($request->client_name && (
@@ -656,6 +465,12 @@ class AnalyzePdfController extends Controller
             // Check invoice_number
             if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
                 $updates['extracted_data->invoice_number'] = $request->invoice_no;
+
+                $feedbackItems[] = [
+                    'field' => 'invoice_number',
+                    'original' => $currentData['invoice_number'] ?? null,
+                    'corrected' => $request->invoice_no,
+                ];
             }
         }
 
@@ -695,51 +510,111 @@ class AnalyzePdfController extends Controller
         // Check currency
         if (($currentData['currency'] ?? null) !== $currency) {
             $updates['extracted_data->currency'] = $currency;
+
+            $feedbackItems[] = [
+                'field' => 'currency',
+                'original' => $currentData['currency'] ?? null,
+                'corrected' => $currency,
+            ];
         }
 
         // Check net_amount
         if (($currentData['net_amount'] ?? null) !== $netAmount) {
             $updates['extracted_data->net_amount'] = $netAmount;
+
+            $feedbackItems[] = [
+                'field' => 'net_amount',
+                'original' => $currentData['net_amount'] ?? null,
+                'corrected' => $netAmount,
+            ];
         }
 
         // Check vat_rate
         if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
             $updates['extracted_data->vat_rate'] = $request->vat_rate;
+
+            $feedbackItems[] = [
+                'field' => 'vat_rate',
+                'original' => $currentData['vat_rate'] ?? null,
+                'corrected' => $request->vat_rate,
+            ];
         }
 
         // Check vat_amount
         if (($currentData['vat_amount'] ?? null) !== $vatAmount) {
             $updates['extracted_data->vat_amount'] = $vatAmount;
+
+            $feedbackItems[] = [
+                'field' => 'vat_amount',
+                'original' => $currentData['vat_amount'] ?? null,
+                'corrected' => $vatAmount,
+            ];
         }
 
         // Check total_amount
         if (($currentData['total_amount'] ?? null) !== $totalAmount) {
             $updates['extracted_data->total_amount'] = $totalAmount;
+
+            $feedbackItems[] = [
+                'field' => 'total_amount',
+                'original' => $currentData['total_amount'] ?? null,
+                'corrected' => $totalAmount,
+            ];
         }
 
         // Check exchange_currency
         if (($currentData['exchange_currency'] ?? null) !== $exchangeCurrency) {
             $updates['extracted_data->exchange_currency'] = $exchangeCurrency;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_currency',
+                'original' => $currentData['exchange_currency'] ?? null,
+                'corrected' => $exchangeCurrency,
+            ];
         }
 
         // Check exchange_rate
         if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
             $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_rate',
+                'original' => $currentData['exchange_rate'] ?? null,
+                'corrected' => $request->exchange_rate,
+            ];
         }
 
         // Check exchange_net_amount
         if (($currentData['exchange_net_amount'] ?? null) !== $exchangeNetAmount) {
             $updates['extracted_data->exchange_net_amount'] = $exchangeNetAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_net_amount',
+                'original' => $currentData['exchange_net_amount'] ?? null,
+                'corrected' => $exchangeNetAmount,
+            ];
         }
 
         // Check exchange_vat_amount
         if (($currentData['exchange_vat_amount'] ?? null) !== $exchangeVatAmount) {
             $updates['extracted_data->exchange_vat_amount'] = $exchangeVatAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_vat_amount',
+                'original' => $currentData['exchange_vat_amount'] ?? null,
+                'corrected' => $exchangeVatAmount,
+            ];
         }
 
         // Check exchange_total_amount
         if (($currentData['exchange_total_amount'] ?? null) !== $exchangeTotalAmount) {
             $updates['extracted_data->exchange_total_amount'] = $exchangeTotalAmount;
+
+            $feedbackItems[] = [
+                'field' => 'exchange_total_amount',
+                'original' => $currentData['exchange_total_amount'] ?? null,
+                'corrected' => $exchangeTotalAmount,
+            ];
         }
 
       // // Check currency
@@ -812,40 +687,51 @@ class AnalyzePdfController extends Controller
             $updates['sync_status'] = 0;
             $updates['is_locked'] = 0;
 
-          $invoice->update($updates);
+            foreach ($feedbackItems as $item) {
+                $feedback->capture(
+                    invoiceId: $invoice->id,
+                    field: $item['field'],
+                    originalValue: $item['original'],
+                    correctedValue: $item['corrected'],
+                    clientId: $invoice->client_id,
+                    layoutFingerprint: $layoutFingerprint
+                );
+            }
 
-          $allDocs = DB::table('dv_invoice_ocr_pdfs')->get();
+            $invoice->update($updates);
 
-          $total = $allDocs->count();
-          $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
+            $allDocs = OcrPdf::query()->get();
 
-          // Collect error documents
-          $errorDocs = $allDocs
-              ->where('status', 'failed')
-              ->map(fn($doc) => [
-                  'document_id' => $doc->id,
-                  'file_name'   => $doc->file_name,
-                  'error'       => $doc->error,
-              ])
-              ->values();
+            $total = $allDocs->count();
+            $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
 
-          $analyzepdfs = InvoiceOcrPdf::
-          //with(['client'])
+            // Collect error documents
+            $errorDocs = $allDocs
+                ->where('status', 'failed')
+                ->map(fn($doc) => [
+                    'document_id' => $doc->id,
+                    'file_name'   => $doc->file_name,
+                    'error'       => $doc->error,
+                ])
+            ->values();
+
+            $analyzepdfs = OcrPdf::query()->
+            //with(['client'])
                           orderBy('id', 'DESC')            
                           ->get();
 
-          $vatregmains = VATRegistrationMain::with(['client'])
+            $vatregmains = VATRegistrationMain::with(['client'])
                           ->orderBy('id', 'ASC')
                           ->get();
 
-          return response()->json([
-              'analyzepdfs' => $analyzepdfs,
-              'vatregmains' => $vatregmains,
-              'total'       => $total,
-              'completed'   => $completed,
-              'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
-              'error_docs'  => $errorDocs,
-          ]);
+            return response()->json([
+                'analyzepdfs' => $analyzepdfs,
+                'vatregmains' => $vatregmains,
+                'total'       => $total,
+                'completed'   => $completed,
+                'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
+                'error_docs'  => $errorDocs,
+            ]);
       }
     }
     /* --end PUT /analyzepdf/{analyze_id} -- */
@@ -853,7 +739,7 @@ class AnalyzePdfController extends Controller
     /* -- GET /analyzepdf/{analyze_id}/sas-url -- */
     public function getSasUrl($id, $type = null)
     {
-        $invoice = InvoiceOcrPdf::findOrFail($id);
+        $invoice = OcrPdf::query()->findOrFail($id);
 
         if (!$invoice->azure_url) {
             return response()->json(['error' => 'PDF not available'], 404);
@@ -906,7 +792,7 @@ class AnalyzePdfController extends Controller
 
             foreach (explode(',', $selected_analyze_ids) as $analyze_id)
             {
-                $invoice = InvoiceOcrPdf::findOrFail($analyze_id);
+                $invoice = OcrPdf::query()->findOrFail($analyze_id);
 
                 $invoice->is_deleted = 1;  
                 $invoice->deleted_reason = $request->analyzepdf_delete_reason_quill;
@@ -922,7 +808,7 @@ class AnalyzePdfController extends Controller
                 );
             }
 
-            $analyzepdfs = InvoiceOcrPdf::
+            $analyzepdfs = OcrPdf::query()->
             //with(['client'])
                               orderBy('id', 'DESC')            
                               ->get();
@@ -1230,7 +1116,7 @@ class AnalyzePdfController extends Controller
         ];
         foreach (explode(',', $selected_analyze_ids) as $id)
         {            
-            $invoice = InvoiceOcrPdf::findOrFail($id);
+            $invoice = OcrPdf::query()->findOrFail($id);
 
             $invoice->sync_status = 0;
             $invoice->is_locked = 0;
@@ -1331,8 +1217,9 @@ class AnalyzePdfController extends Controller
         $files = $request->file('file');
         $folder = $request->bulk_pdf_invoice_type;
         $total_uploaded_files = $request->bulk_total_uploads;
-        $total_uploaded_files = $request->bulk_total_uploads;
-       
+        
+        Cache::put('inbox_total', $total_uploaded_files); 
+
         if($files && $folder)   
         {   
             $clients = app(ClientRepository::class)->all();
@@ -1402,16 +1289,16 @@ class AnalyzePdfController extends Controller
             
             if($id == 'all')
             {
-                $selected_analyze_ids = [];//41, 27281
+                $selected_analyze_ids = [];
 
-                $selected_analyze_ids = InvoiceOcrPdf::where('status', 'completed')
+                $selected_analyze_ids = OcrPdf::query()->where('status', 'completed')
                                 ->where('invoice_type', 'com')                                
                                 ->where('extracted_data', 'LIKE', '%932337274%')  
                                 ->orderBy('id', 'ASC')            
                                 ->pluck('id')
                                 ->toArray(); 
 
-                //dd($selected_analyze_ids);
+                dd("change the query");
             }
             else
             {

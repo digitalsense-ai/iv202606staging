@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Client as GuzzleClient;
 use setasign\Fpdi\Fpdi;
 use App\Services\AzureStorageService;
-use App\Models\InvoiceOcrPdf;
+use App\Models\OcrPdf;
 
 use Imagick;
 
@@ -40,7 +40,7 @@ class SplitPdfJob implements ShouldQueue
         if ($fileSizeMB > $maxSizeMB) {
             if($this->prevCapture)
             {
-                $ocrpdf = InvoiceOcrPdf::where('id', $this->prevCapture['prevId'])->first();
+                $ocrpdf = OcrPdf::query()->where('id', $this->prevCapture['prevId'])->first();
 
                 $ocrpdf->client_id = null;
                 $ocrpdf->batch_id = $this->batchId;
@@ -54,7 +54,8 @@ class SplitPdfJob implements ShouldQueue
                 $ocrpdf->save();
             }
             else    
-                DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+                //DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+                OcrPdf::query()->create([
                     'client_id' => null,
                     'batch_id' => $this->batchId,
                     'invoice_type' => $this->invoiceType,
@@ -63,6 +64,7 @@ class SplitPdfJob implements ShouldQueue
                     'status' => 'failed',
                     'error' => "File too large ({$fileSizeMB}MB) for PDF processing",
                     'created_at' => now(),
+                    'source_environment' => config('database.ocr_source_environment')
                 ]);
 
             if (file_exists($this->fullPath)) unlink($this->fullPath);
@@ -76,7 +78,8 @@ class SplitPdfJob implements ShouldQueue
             if($this->prevCapture)
                 $docId = $this->prevCapture['prevId'];
             else
-                $docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+                $ocrPdf = OcrPdf::query()->create([
+                //$docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
                     'client_id'   => null,
                     'batch_id'    => $this->batchId,
                     'invoice_type'=> $this->invoiceType,
@@ -84,18 +87,17 @@ class SplitPdfJob implements ShouldQueue
                     'analyzer_id' => $this->analyzerId,
                     'status'      => 'queued',
                     'created_at'  => now(),
+                    'source_environment' => config('database.ocr_source_environment')
                 ]);
+                $docId = $ocrPdf->id;
 
             //Store in azure storage blob
             $azureService = new AzureStorageService();
             $azurePath = $this->invoiceType . '/' . $this->originalName . '.pdf';
             $azureUrl = $azureService->uploadFile($this->fullPath, $azurePath);
 
-            // Update record
-            // DB::table('dv_invoice_ocr_pdfs')->where('id', $docId)->update([
-            //     'azure_url' => $azureUrl,
-            // ]);
-            $ocrpdf = InvoiceOcrPdf::where('id', $docId)->first();
+            // Update record            
+            $ocrpdf = OcrPdf::query()->where('id', $docId)->first();
             $ocrpdf->azure_url = $azureUrl;
             if($this->prevCapture)
             {
@@ -125,7 +127,7 @@ class SplitPdfJob implements ShouldQueue
                 $this->invoiceType,
                 $this->emailMessageId,
                 $this->prevCapture
-            )->onQueue('ocrpdfinvoices');
+            )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
             return;
         }
@@ -141,7 +143,7 @@ class SplitPdfJob implements ShouldQueue
                 $azureUrl = $azureService->uploadFile($this->fullPath, $azurePath);
 
                 // Update record            
-                $ocrpdf = InvoiceOcrPdf::where('id', $docId)->first();
+                $ocrpdf = OcrPdf::query()->where('id', $docId)->first();
                 $ocrpdf->azure_url = $azureUrl;
                 if($this->prevCapture)
                 {
@@ -165,7 +167,7 @@ class SplitPdfJob implements ShouldQueue
                     $this->invoiceType,
                     $this->emailMessageId,
                     $this->prevCapture
-                )->onQueue('ocrpdfinvoices');
+                )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
                 return;
             }
@@ -210,11 +212,36 @@ class SplitPdfJob implements ShouldQueue
             $pdfSplit = new Fpdi();
             $pageCount = $pdfSplit->setSourceFile($this->fullPath);
 
+            $rangeLayout = [];
+
+            // for ($page = $start; $page <= $end; $page++) {
+            //     if ($page > $pageCount) break;
+            //     $pdfSplit->AddPage();
+            //     $tpl = $pdfSplit->importPage($page);
+            //     $pdfSplit->useTemplate($tpl);
+            // }
+
             for ($page = $start; $page <= $end; $page++) {
-                if ($page > $pageCount) break;
-                $pdfSplit->AddPage();
+                if ($page > $pageCount) {
+                    break;
+                }
+
                 $tpl = $pdfSplit->importPage($page);
-                $pdfSplit->useTemplate($tpl);
+                $size = $pdfSplit->getTemplateSize($tpl);
+
+                $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
+                $width = (float) ($size['width'] ?? 0);
+                $height = (float) ($size['height'] ?? 0);
+
+                $pdfSplit->AddPage($orientation, [$width, $height]);
+                $pdfSplit->useTemplate($tpl, 0, 0, $width, $height, true);
+
+                $rangeLayout[] = [
+                    'page' => $page,
+                    'width' => $width,
+                    'height' => $height,
+                    'orientation' => $orientation,
+                ];
             }
 
             $splitPath = $outputDir.'/'.$this->originalName.'_'.$counter.'.pdf';
@@ -222,7 +249,8 @@ class SplitPdfJob implements ShouldQueue
             unset($pdfSplit);
 
             // Queue OCR job            
-            $docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+            //$docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
+            $ocrPdf = OcrPdf::query()->create([
                 'client_id' => null,
                 'batch_id' => $this->batchId,
                 'invoice_type' => $this->invoiceType,
@@ -231,19 +259,30 @@ class SplitPdfJob implements ShouldQueue
                 'status' => 'queued',
                 'start_pageno' => $start,
                 'end_pageno' => $end,
+                'layout_metadata' => json_encode([
+                    'source_file' => $this->originalName . '.pdf',
+                    'range' => [
+                        'start' => $start,
+                        'end' => $end,
+                    ],
+                    'pages' => $rangeLayout,
+                    'orientation_summary' => collect($rangeLayout)
+                        ->pluck('orientation')
+                        ->countBy()
+                        ->toArray(),
+                ]),
                 'created_at' => now(),
+                'source_environment' => config('database.ocr_source_environment')
             ]);
+            $docId = $ocrPdf->id;
 
             //Store in azure storage blob
             $azureService = new AzureStorageService();
             $azurePath = $this->invoiceType . '/' . $this->originalName . '_' . $counter . '.pdf';
             $azureUrl = $azureService->uploadFile($splitPath, $azurePath);
 
-            // Update record with Azure URL
-            // DB::table('dv_invoice_ocr_pdfs')->where('id', $docId)->update([
-            //     'azure_url' => $azureUrl,
-            // ]);
-            $ocrpdf = InvoiceOcrPdf::where('id', $docId)->first();
+            // Update record with Azure URL           
+            $ocrpdf = OcrPdf::query()->where('id', $docId)->first();
             $ocrpdf->azure_url = $azureUrl;            
             $ocrpdf->save();
 
@@ -263,7 +302,7 @@ class SplitPdfJob implements ShouldQueue
                 $this->invoiceType,
                 $this->emailMessageId,
                 $this->prevCapture
-            )->onQueue('ocrpdfinvoices');
+            )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
             $counter++;
         }
@@ -294,7 +333,17 @@ class SplitPdfJob implements ShouldQueue
             $fpdi->setSourceFile($this->fullPath);
             $fpdi->AddPage();
             $tpl = $fpdi->importPage($pageNo);
-            $fpdi->useTemplate($tpl);
+            //$fpdi->useTemplate($tpl);
+            
+            $size = $fpdi->getTemplateSize($tpl);
+
+            $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
+            $width = (float) ($size['width'] ?? 0);
+            $height = (float) ($size['height'] ?? 0);
+
+            $fpdi->AddPage($orientation, [$width, $height]);
+            $fpdi->useTemplate($tpl, 0, 0, $width, $height, true);
+
             $fpdi->Output('F', $tmpPdf);
             unset($fpdi);
 
