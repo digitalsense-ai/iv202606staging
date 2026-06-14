@@ -21,8 +21,16 @@ class OcrCorrectionFeedbackService
             return false;
         }
 
+        if (!$this->isUsefulCorrectionValue($originalValue) || !$this->isUsefulCorrectionValue($correctedValue)) {
+            return false;
+        }
+
         $original = $this->stringValue($originalValue);
         $corrected = $this->stringValue($correctedValue);
+
+        if ($original === null || $corrected === null || trim($original) === '' || trim($corrected) === '') {
+            return false;
+        }
 
         try {
             OcrCorrectionFeedback::query()->insert([
@@ -49,6 +57,12 @@ class OcrCorrectionFeedbackService
         $query = OcrCorrectionFeedback::query()
             ->select('original_value', 'corrected_value', DB::raw('COUNT(*) as occurrences'))
             ->where('field_name', $field)
+            ->whereNotNull('original_value')
+            ->whereNotNull('corrected_value')
+            ->where('original_value', '!=', '')
+            ->where('corrected_value', '!=', '')
+            ->where('corrected_value', 'not like', '{%')
+            ->where('corrected_value', 'not like', '[%')
             ->groupBy('original_value', 'corrected_value')
             ->orderByDesc('occurrences')
             ->limit($limit);
@@ -71,6 +85,10 @@ class OcrCorrectionFeedbackService
         $query = OcrCorrectionFeedback::query()
             ->where('field_name', $field)
             ->where('original_value_hash', $this->hashValue($value))
+            ->whereNotNull('corrected_value')
+            ->where('corrected_value', '!=', '')
+            ->where('corrected_value', 'not like', '{%')
+            ->where('corrected_value', 'not like', '[%')
             ->orderByDesc('updated_at');
 
         if ($clientId) {
@@ -82,13 +100,18 @@ class OcrCorrectionFeedbackService
         return $match?->corrected_value;
     }
 
+    private function isUsefulCorrectionValue(mixed $value): bool
+    {
+        return $value === null || is_scalar($value);
+    }
+
     private function stringValue(mixed $value): ?string
     {
         if ($value === null) {
             return null;
         }
 
-        return is_scalar($value) ? (string) $value : json_encode($value);
+        return is_scalar($value) ? trim((string) $value) : null;
     }
 
     private function hashValue(?string $value): ?string
