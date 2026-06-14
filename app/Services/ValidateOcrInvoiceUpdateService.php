@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
-
-use App\Services\ValidateOcrInvoiceDuplicateService;
+use Illuminate\Support\Facades\Log;
 
 class ValidateOcrInvoiceUpdateService
 {
@@ -14,17 +12,25 @@ class ValidateOcrInvoiceUpdateService
         $current = $invoice->extracted_data ?? [];
 
         $changed = false;
+        $originalOcrMeta = $current['_ocr'] ?? [];
+        $layoutFingerprint = $originalOcrMeta['layout_fingerprint'] ?? null;
 
         foreach ($mapped as $key => $value) {
+            if ($key === '_ocr') {
+                continue;
+            }
 
-            if (($current[$key] ?? null) !== $value) {
+            $oldValue = $current[$key] ?? null;
 
-                // Log::info('Field changed', [
-                //     'invoice_id' => $invoice->id,
-                //     'field' => $key,
-                //     'old' => $current[$key] ?? null,
-                //     'new' => $value,
-                // ]);
+            if ($oldValue !== $value) {
+                app(OcrCorrectionFeedbackService::class)->capture(
+                    (int) $invoice->id,
+                    (string) $key,
+                    $oldValue,
+                    $value,
+                    $invoice->client_id ? (int) $invoice->client_id : null,
+                    $layoutFingerprint
+                );
 
                 $current[$key] = $value;
                 $changed = true;
@@ -36,13 +42,9 @@ class ValidateOcrInvoiceUpdateService
             Cache::increment('inbox_completed', 1);
 
             if($invoice->validation_status == 'not_yet_validated')
-                $invoice->og_extracted_data = $invoice->extracted_data ?? [];      
+                $invoice->og_extracted_data = $invoice->extracted_data ?? [];
 
             $invoice->extracted_data = $current;
-
-            // $invoice->duplicate_hash = app(
-            //     \App\Services\ValidateOcrInvoiceDuplicateService::class
-            // )->generateHash($current);                
 
             $duplicateService = app(
                 \App\Services\ValidateOcrInvoiceDuplicateService::class
