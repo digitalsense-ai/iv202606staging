@@ -18,11 +18,13 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
             return true;
         }
 
-        $content = strtolower($result['analyzeResult']['content'] ?? '');
+        $content = $this->normalizeHeaderText($result['analyzeResult']['content'] ?? '');
 
         return str_contains($content, 'secondfemale')
             || str_contains($content, 'second female')
-            || str_contains($content, 'org. invoice no. tracking no');
+            || str_contains($content, 'org invoice no tracking no')
+            || str_contains($content, 'opr fakturanr tracking no')
+            || str_contains($content, 'fakturaen daekker over foelgende leverancer');
     }
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
@@ -175,12 +177,48 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function isDeliverySectionMarker(string $line): bool
     {
-        return (bool) preg_match('/this\s+invoice\s+includes\s+the\s+following\s+deliveries|deliveries\s*:/i', $line);
+        $line = $this->normalizeHeaderText($line);
+
+        return str_contains($line, 'this invoice includes the following deliveries')
+            || str_contains($line, 'deliveries')
+            || str_contains($line, 'fakturaen daekker over foelgende')
+            || str_contains($line, 'leverancer')
+            || str_contains($line, 'opr fakturanr tracking no')
+            || str_contains($line, 'org invoice no tracking no');
     }
 
     private function isSecondFemaleHeaderOrNoise(string $line): bool
     {
-        return (bool) preg_match('/^(page\s+\d+|continued|this invoice includes|deliveries:?|org\. invoice no\. tracking no|org\.?\s+invoice\s+no\.?\s+tracking\s+no\.?)$/i', trim($line));
+        $normalized = $this->normalizeHeaderText($line);
+
+        if (preg_match('/^(page\s+\d+|continued)$/i', $normalized)) {
+            return true;
+        }
+
+        return str_contains($normalized, 'this invoice includes')
+            || str_contains($normalized, 'fakturaen daekker')
+            || str_contains($normalized, 'following deliveries')
+            || str_contains($normalized, 'foelgende leverancer')
+            || str_contains($normalized, 'deliveries')
+            || str_contains($normalized, 'leverancer')
+            || str_contains($normalized, 'org invoice no tracking no')
+            || str_contains($normalized, 'opr fakturanr tracking no');
+    }
+
+    private function normalizeHeaderText(string $value): string
+    {
+        $value = strtolower(trim($value));
+        $value = strtr($value, [
+            'æ' => 'ae',
+            'ø' => 'oe',
+            'å' => 'aa',
+            '^' => 'ae',
+            '0' => 'o',
+            '.' => '',
+            ':' => '',
+        ]);
+
+        return trim(preg_replace('/\s+/', ' ', $value));
     }
 
     private function lineLooksLikeDeliveryRow(array $tokens): bool
