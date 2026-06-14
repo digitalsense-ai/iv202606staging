@@ -78,7 +78,8 @@ class SplitPdfJob implements ShouldQueue
             if($this->prevCapture)
                 $docId = $this->prevCapture['prevId'];
             else
-                $ocrPdf = OcrPdf::query()->create([
+            {
+                $ocrPdfId = OcrPdf::query()->create([
                 //$docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
                     'client_id'   => null,
                     'batch_id'    => $this->batchId,
@@ -89,7 +90,8 @@ class SplitPdfJob implements ShouldQueue
                     'created_at'  => now(),
                     'source_environment' => config('database.ocr_source_environment')
                 ]);
-                $docId = $ocrPdf->id;
+                $docId = $ocrPdfId->id;
+            }
 
             //Store in azure storage blob
             $azureService = new AzureStorageService();
@@ -250,7 +252,7 @@ class SplitPdfJob implements ShouldQueue
 
             // Queue OCR job            
             //$docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
-            $ocrPdf = OcrPdf::query()->create([
+            $ocrPdfId = OcrPdf::query()->create([
                 'client_id' => null,
                 'batch_id' => $this->batchId,
                 'invoice_type' => $this->invoiceType,
@@ -274,7 +276,7 @@ class SplitPdfJob implements ShouldQueue
                 'created_at' => now(),
                 'source_environment' => config('database.ocr_source_environment')
             ]);
-            $docId = $ocrPdf->id;
+            $docId = $ocrPdfId->id;
 
             //Store in azure storage blob
             $azureService = new AzureStorageService();
