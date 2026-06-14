@@ -54,77 +54,53 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function extractRowsFromContent(array $result): array
     {
-        $content = $this->commercialContent($result);
         $rows = [];
         $current = null;
-        $insideDeliverySection = false;
 
-        foreach (preg_split('/\R/', $content) ?: [] as $line) {
+        foreach (preg_split('/\R/', $this->commercialContent($result)) ?: [] as $line) {
             $line = trim(preg_replace('/\s+/', ' ', (string) $line));
 
-            if ($line === '') {
+            if ($line === '' || $this->isSecondFemaleHeaderOrNoise($line)) {
                 continue;
             }
 
-            if ($this->isDeliverySectionMarker($line)) {
-                $insideDeliverySection = true;
+            $tokens = $this->tokensFromLine($line);
+
+            if (!$this->lineLooksLikeDeliveryRow($tokens)) {
                 continue;
             }
 
-            if ($this->isSecondFemaleHeaderOrNoise($line)) {
-                continue;
-            }
+            $lineOrders = $this->filterSalesOrders($tokens);
+            $lineInvoices = $this->filterSalesInvoices($tokens);
+            $lineShipments = $this->filterShipments($tokens);
 
-            preg_match_all($this->referencePattern(), $line, $matches);
-            $tokens = array_values(array_map(fn ($token) => strtoupper(ltrim(trim($token), '+')), $matches[0] ?? []));
-
-            if (!$tokens) {
-                continue;
-            }
-
-            if (!$insideDeliverySection && !$this->lineLooksLikeDeliveryRow($tokens)) {
-                continue;
-            }
-
-            foreach ($tokens as $token) {
-                if ($this->isSalesOrder($token)) {
-                    if ($current) {
-                        $rows[] = $current;
-                    }
-
-                    $current = [
-                        'sales_order' => $token,
-                        'sales_invoice' => null,
-                        'shipments' => [],
-                    ];
-                    continue;
+            if ($lineOrders) {
+                if ($current) {
+                    $rows[] = $current;
                 }
 
-                if ($this->isSalesInvoice($token)) {
-                    if (!$current) {
-                        $current = [
-                            'sales_order' => null,
-                            'sales_invoice' => null,
-                            'shipments' => [],
-                        ];
-                    }
+                $current = [
+                    'sales_order' => $lineOrders[0],
+                    'sales_invoice' => $lineInvoices[0] ?? null,
+                    'shipments' => $lineShipments,
+                ];
 
-                    $current['sales_invoice'] = $token;
-                    continue;
-                }
-
-                if ($this->isShipment($token)) {
-                    if (!$current) {
-                        $current = [
-                            'sales_order' => null,
-                            'sales_invoice' => null,
-                            'shipments' => [],
-                        ];
-                    }
-
-                    $current['shipments'][] = $token;
-                }
+                continue;
             }
+
+            if (!$current) {
+                $current = [
+                    'sales_order' => null,
+                    'sales_invoice' => $lineInvoices[0] ?? null,
+                    'shipments' => [],
+                ];
+            }
+
+            if (($current['sales_invoice'] ?? null) === null && $lineInvoices) {
+                $current['sales_invoice'] = $lineInvoices[0];
+            }
+
+            $current['shipments'] = array_merge($current['shipments'] ?? [], $lineShipments);
         }
 
         if ($current) {
@@ -132,6 +108,16 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
         }
 
         return $this->dedupeRows($rows);
+    }
+
+    private function tokensFromLine(string $line): array
+    {
+        preg_match_all($this->referencePattern(), $line, $matches);
+
+        return array_values(array_unique(array_map(
+            fn ($token) => strtoupper(ltrim(trim($token), '+')),
+            $matches[0] ?? []
+        )));
     }
 
     private function dedupeRows(array $rows): array
@@ -175,18 +161,6 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
         return '/\+?SL\d+|(?:' . $invoicePrefixes . ')\d+|92\d{8,}/i';
     }
 
-    private function isDeliverySectionMarker(string $line): bool
-    {
-        $line = $this->normalizeHeaderText($line);
-
-        return str_contains($line, 'this invoice includes the following deliveries')
-            || str_contains($line, 'deliveries')
-            || str_contains($line, 'fakturaen daekker over foelgende')
-            || str_contains($line, 'leverancer')
-            || str_contains($line, 'opr fakturanr tracking no')
-            || str_contains($line, 'org invoice no tracking no');
-    }
-
     private function isSecondFemaleHeaderOrNoise(string $line): bool
     {
         $normalized = $this->normalizeHeaderText($line);
@@ -223,9 +197,14 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function lineLooksLikeDeliveryRow(array $tokens): bool
     {
+        if (!$tokens) {
+            return false;
+        }
+
         return (bool) array_filter($tokens, fn ($token) => $this->isSalesOrder((string) $token))
             || ((bool) array_filter($tokens, fn ($token) => $this->isSalesInvoice((string) $token))
-                && (bool) array_filter($tokens, fn ($token) => $this->isShipment((string) $token)));
+                && (bool) array_filter($tokens, fn ($token) => $this->isShipment((string) $token)))
+            || count(array_filter($tokens, fn ($token) => $this->isShipment((string) $token))) > 0;
     }
 
     private function filterSalesOrders(array $values): array
