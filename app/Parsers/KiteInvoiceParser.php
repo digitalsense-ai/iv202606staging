@@ -23,12 +23,6 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
-        $azurePayload = [
-            'related_sales_invoices' => $doc['Related Sales Invoices']['valueString'] ?? null,
-            'related_sales_orders' => $doc['Related Sales Orders']['valueString'] ?? null,
-            'related_shipment_nos' => $doc['Related Shipment Numbers']['valueString'] ?? null,
-        ];
-
         $rows = $this->extractColumnAfterHeader(
             $result,
             "Order Number\nInvoice Number\nTracking Number",
@@ -40,18 +34,66 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
             ]
         );
 
-        $tablePayload = [
-            'related_sales_invoices' => $this->joinReferences(
-                $this->normalizeReferenceList(array_column($rows, 'sales_invoice'))
-            ),
-            'related_sales_orders' => $this->joinReferences(
-                $this->normalizeReferenceList(array_column($rows, 'sales_order'))
-            ),
-            'related_shipment_nos' => $this->joinReferences(
-                $this->normalizeReferenceList(array_column($rows, 'shipment'))
-            ),
-        ];
+        $tokens = array_merge(
+            $this->extractKiteTokens($doc['Related Sales Orders']['valueString'] ?? null),
+            $this->extractKiteTokens($doc['Related Sales Invoices']['valueString'] ?? null),
+            $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null),
+            $this->extractKiteTokens(array_column($rows, 'sales_order')),
+            $this->extractKiteTokens(array_column($rows, 'sales_invoice')),
+            $this->extractKiteTokens(array_column($rows, 'shipment'))
+        );
 
-        return $this->mergeReferencePayload($azurePayload, $tablePayload);
+        return [
+            'related_sales_invoices' => $this->joinReferences($this->filterKiteSalesInvoices($tokens)),
+            'related_sales_orders' => $this->joinReferences($this->filterKiteSalesOrders($tokens)),
+            'related_shipment_nos' => $this->joinReferences($this->filterKiteShipments($tokens)),
+        ];
+    }
+
+    private function extractKiteTokens(array|string|null $value): array
+    {
+        $tokens = [];
+
+        foreach ($this->expandReferenceRanges($value) as $item) {
+            foreach (preg_split('/\s+/', (string) $item) ?: [] as $token) {
+                $token = trim($token, " \t\n\r\0\x0B,.;:");
+
+                if ($token !== '') {
+                    $tokens[] = $token;
+                }
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    private function filterKiteSalesOrders(array $values): array
+    {
+        return array_values(array_filter($values, fn ($value) => $this->isKiteSalesOrder((string) $value)));
+    }
+
+    private function filterKiteSalesInvoices(array $values): array
+    {
+        return array_values(array_filter($values, fn ($value) => $this->isKiteSalesInvoice((string) $value)));
+    }
+
+    private function filterKiteShipments(array $values): array
+    {
+        return array_values(array_filter($values, fn ($value) => $this->isKiteShipment((string) $value)));
+    }
+
+    private function isKiteSalesOrder(string $value): bool
+    {
+        return (bool) preg_match('/^25\d{9}$/', trim($value));
+    }
+
+    private function isKiteSalesInvoice(string $value): bool
+    {
+        return (bool) preg_match('/^\d{6}$/', trim($value));
+    }
+
+    private function isKiteShipment(string $value): bool
+    {
+        return (bool) preg_match('/^92\d{9}$/', trim($value));
     }
 }
