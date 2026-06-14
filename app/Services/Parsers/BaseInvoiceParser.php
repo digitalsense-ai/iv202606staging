@@ -21,7 +21,7 @@ abstract class BaseInvoiceParser implements OcrInvoiceParser
 
         $normalized = $this->normalizeCommonFields($normalized);
         $normalized = $this->applyProfileCandidates($normalized, $azureResult, $clientId);
-        $normalized = $this->applyFeedbackCorrections($normalized, $clientId);
+        $normalized = $this->recordFeedbackSuggestions($normalized, $clientId);
 
         return $normalized;
     }
@@ -80,23 +80,23 @@ abstract class BaseInvoiceParser implements OcrInvoiceParser
         return $data;
     }
 
-    protected function applyFeedbackCorrections(array $data, ?int $clientId): array
+    protected function recordFeedbackSuggestions(array $data, ?int $clientId): array
     {
         foreach ($this->correctableFields() as $field) {
             $current = data_get($data, $field);
 
-            if ($current === null || $current === '') {
+            if ($current === null || $current === '' || !is_scalar($current)) {
                 continue;
             }
 
             $suggested = $this->feedback->suggest($field, (string) $current, $clientId);
 
             if ($suggested !== null && $suggested !== (string) $current) {
-                data_set($data, $field, $suggested);
-                data_set($data, '_ocr.parser_corrections.' . str_replace('.', '_', $field), [
-                    'from' => $current,
-                    'to' => $suggested,
+                data_set($data, '_ocr.feedback_suggestions.' . str_replace('.', '_', $field), [
+                    'current' => $current,
+                    'suggested' => $suggested,
                     'source' => 'feedback_history',
+                    'applied' => false,
                 ]);
             }
         }
