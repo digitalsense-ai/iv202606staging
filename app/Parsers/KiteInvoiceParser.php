@@ -23,24 +23,11 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
-        $rows = $this->extractColumnAfterHeader(
-            $result,
-            "Order Number\nInvoice Number\nTracking Number",
-            3,
-            [
-                0 => 'sales_order',
-                1 => 'sales_invoice',
-                2 => 'shipment',
-            ]
-        );
-
         $tokens = array_merge(
             $this->extractKiteTokens($doc['Related Sales Orders']['valueString'] ?? null),
             $this->extractKiteTokens($doc['Related Sales Invoices']['valueString'] ?? null),
             $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null),
-            $this->extractKiteTokens(array_column($rows, 'sales_order')),
-            $this->extractKiteTokens(array_column($rows, 'sales_invoice')),
-            $this->extractKiteTokens(array_column($rows, 'shipment'))
+            $this->tokensFromContent($result['analyzeResult']['content'] ?? '')
         );
 
         return [
@@ -48,54 +35,13 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
             'related_sales_orders' => $this->joinReferences($this->filterKiteSalesOrders($tokens)),
             'related_shipment_nos' => $this->joinReferences($this->filterKiteShipments($tokens)),
         ];
-        
-        /*
-        $content = $result['analyzeResult']['content'] ?? '';
+    }
 
-        $header = "Order Number\nInvoice Number\nTracking Number";
+    private function tokensFromContent(string $content): array
+    {
+        preg_match_all('/(?:25\d{9}|10\d{9}|\d{6}|92\d{9})/', $content, $matches);
 
-        $parts = explode($header, $content);
-
-        if (count($parts) <= 1) {
-            return [
-                'related_sales_invoices' => null,
-                'related_sales_orders' => null,
-                'related_shipment_nos' => null
-            ];
-        }
-
-        array_shift($parts);
-
-        $content = implode("\n", $parts);
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $content))));
-
-        $data = [];
-        $current = [];
-
-        foreach ($lines as $line) {
-            if (!preg_match('/\d/', $line)) {
-                continue;
-            }
-
-            $current[] = $line;
-
-            if (count($current) === 3) {
-                $data[] = [
-                    'sales_order'   => $current[0],
-                    'sales_invoice' => $current[1],
-                    'shipment'      => explode(',', $current[2]),
-                ];
-
-                $current = [];
-            }
-        }
-
-        return [
-            'related_sales_invoices' => implode(', ', array_column($data, 'sales_invoice')),
-            'related_sales_orders'   => implode(', ', array_column($data, 'sales_order')),
-            'related_shipment_nos'   => implode(', ', array_merge(...array_column($data, 'shipment'))),
-        ];
-        */        
+        return array_values(array_unique($matches[0] ?? []));
     }
 
     private function extractKiteTokens(array|string|null $value): array
