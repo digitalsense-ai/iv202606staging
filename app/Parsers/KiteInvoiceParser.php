@@ -23,12 +23,14 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
-        $tokens = array_merge(
+        $tableTokens = $this->tokensFromOrderTables($result['analyzeResult']['content'] ?? '');
+        $fieldTokens = array_merge(
             $this->extractKiteTokens($doc['Related Sales Orders']['valueString'] ?? null),
             $this->extractKiteTokens($doc['Related Sales Invoices']['valueString'] ?? null),
-            $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null),
-            $this->tokensFromContent($result['analyzeResult']['content'] ?? '')
+            $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null)
         );
+
+        $tokens = $tableTokens ?: $fieldTokens;
 
         return [
             'related_sales_invoices' => $this->joinReferences($this->filterKiteSalesInvoices($tokens)),
@@ -37,11 +39,98 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
         ];
     }
 
-    private function tokensFromContent(string $content): array
+    private function tokensFromOrderTables(string $content): array
     {
-        preg_match_all('/(?:25\d{9}|10\d{9}|\d{6}|92\d{9})/', $content, $matches);
+        $tokens = [];
 
-        return array_values(array_unique($matches[0] ?? []));
+        foreach ($this->kiteOrderTableSections($content) as $section) {
+            preg_match_all('/(?:25\d{9}|10\d{9}|92\d{9}|\d{6})/', $section, $matches);
+
+            foreach ($matches[0] ?? [] as $token) {
+                $tokens[] = $token;
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    private function kiteOrderTableSections(string $content): array
+    {
+        $sections = [];
+        $lines = preg_split('/\R/', $content) ?: [];
+        $collecting = false;
+        $current = [];
+        $headerScore = 0;
+
+        foreach ($lines as $line) {
+            $line = trim(preg_replace('/\s+/', ' ', (string) $line));
+            $normalized = strtolower($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (str_contains($normalized, 'order number')) {
+                if ($current) {
+                    $sections[] = implode("\n", $current);
+                    $current = [];
+                }
+
+                $collecting = true;
+                $headerScore = 1;
+                continue;
+            }
+
+            if ($collecting && $headerScore > 0 && $headerScore < 3) {
+                if (str_contains($normalized, 'invoice number') || str_contains($normalized, 'tracking number')) {
+                    $headerScore++;
+                    continue;
+                }
+            }
+
+            if (!$collecting) {
+                continue;
+            }
+
+            if ($this->isKiteTableEndLine($line)) {
+                if ($current) {
+                    $sections[] = implode("\n", $current);
+                    $current = [];
+                }
+
+                $collecting = false;
+                $headerScore = 0;
+                continue;
+            }
+
+            if (preg_match('/(?:25\d{9}|10\d{9}|92\d{9}|\d{6})/', $line)) {
+                $current[] = $line;
+            }
+        }
+
+        if ($current) {
+            $sections[] = implode("\n", $current);
+        }
+
+        return $sections;
+    }
+
+    private function isKiteTableEndLine(string $line): bool
+    {
+        $normalized = strtolower(trim($line));
+
+        if (preg_match('/^\d+$/', $normalized)) {
+            return false;
+        }
+
+        return str_contains($normalized, 'total')
+            || str_contains($normalized, 'subtotal')
+            || str_contains($normalized, 'vat')
+            || str_contains($normalized, 'cvr')
+            || str_contains($normalized, 'invoice date')
+            || str_contains($normalized, 'payment')
+            || str_contains($normalized, 'the exporter')
+            || str_contains($normalized, 'kite');
     }
 
     private function extractKiteTokens(array|string|null $value): array
