@@ -60,7 +60,7 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
             return [
                 'related_sales_invoices' => null,
                 'related_sales_orders' => null,
-                'related_shipment_nos' => null,
+                'related_shipment_nos' => null
             ];
         }
 
@@ -132,7 +132,7 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     private function isKiteSalesOrder(string $value): bool
     {
-        return (bool) preg_match('/^25\d{9}$/', trim($value));
+        return (bool) preg_match('/^(?:25\d{9}|10\d{9})$/', trim($value));
     }
 
     private function isKiteSalesInvoice(string $value): bool
