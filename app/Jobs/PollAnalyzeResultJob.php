@@ -25,8 +25,11 @@ use App\Services\MicrosoftMailService;
 use App\Services\AzureStorageService;
 use App\Services\OcrAccuracyService;
 use App\Services\OcrParserStrategyService;
+use App\Services\OcrAnalyzeService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
+
+//use App\Http\Controllers\ocr\AnalyzePdfController;
 
 class PollAnalyzeResultJob implements ShouldQueue
 {
@@ -192,6 +195,40 @@ class PollAnalyzeResultJob implements ShouldQueue
 
                 if($normalized)
                 {
+                    if(isset($normalized['change_invoice_type']))
+                    {
+                        if($normalized['change_invoice_type'])
+                        {
+                            //$controller = app(AnalyzePdfController::class);
+
+                            $changeType = OcrPdf::query()->where('id', $this->documentId)->first();
+                            $changeType->sync_status = 0;
+                            $changeType->is_locked = 0;
+                            $changeType->save();
+
+                            $folder = 'com';                            
+                            $batchId = $changeType->batch_id;
+                            
+                            //Get file from Azure storage
+                            $sasPaths = $controller->getSasUrl($this->documentId, 'recapture');
+                            $sasUrl = $sasPaths['signedUrl'];
+                            $blobPath = $sasPaths['blobPath'];
+
+                            $prevCaptures = [[
+                                'prevId' => $this->documentId,
+                                'sasUrl' => $sasUrl,
+                                'blobPath' => $blobPath
+                            ]];                            
+                            
+                            //$controller->analyzeStoredPdfs($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures);
+                            
+                            $ocrAnalyzeService = new OcrAnalyzeService();
+                            $ocrAnalyzeService->analyze($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures); 
+
+                            return;
+                        }
+                    }
+
                     if(isset($normalized['error']))
                     {
                     }
@@ -229,18 +266,26 @@ class PollAnalyzeResultJob implements ShouldQueue
              * -------------------------------------------------
              */
             if (is_array($normalized) && !isset($normalized['error'])) {
-                $normalized = app(OcrParserStrategyService::class)->apply(
-                    normalized: $normalized,
-                    azureResult: $result,
-                    clientId: null,
-                    invoiceType: $this->invoiceType
-                );
+                // $normalized = app(OcrParserStrategyService::class)->apply(
+                //     normalized: $normalized,
+                //     azureResult: $result,
+                //     clientId: null,
+                //     invoiceType: $this->invoiceType
+                // );
 
                 $normalized = app(OcrAccuracyService::class)->enrich(
                     $normalized,
                     $result,
                     $this->invoiceType
                 );
+            }
+
+            $hasNormalizedError = is_array($normalized)
+                && array_key_exists('error', $normalized)
+                && filled($normalized['error']);
+
+            if ($hasNormalizedError) {
+                $client_id = null;
             }
 
             /**
@@ -279,12 +324,20 @@ class PollAnalyzeResultJob implements ShouldQueue
              * 9. SAVE RESULT
              * -------------------------------------------------
              */
+            $hasNormalizedError = is_array($normalized)
+                && array_key_exists('error', $normalized)
+                && filled($normalized['error']);
+
+            $finalStatus = $hasNormalizedError ? 'failed' : 'completed';
+
             OcrPdf::query()
                 ->where('id', $this->documentId)
                 ->update([
                     'client_id' => $client_id,
-                    'status' => isset($normalized['error']) ? 'failed' : 'completed',
-                    'error' => isset($normalized['error']) ? $normalized['error'] : null,
+                    //'status' => isset($normalized['error']) ? 'failed' : 'completed',
+                    //'error' => isset($normalized['error']) ? $normalized['error'] : null,
+                    'status' => $finalStatus,
+                    'error' => $hasNormalizedError ? $normalized['error'] : null,
                     'extracted_data' => json_encode($normalized),
                     'og_extracted_data' => json_encode($result),
                 ]);
@@ -317,11 +370,19 @@ class PollAnalyzeResultJob implements ShouldQueue
                     $sasUrl = $this->prevCapture['sasUrl'];
                     $blobPath = $this->prevCapture['blobPath'];
 
-                    //Delete prev file from Azure Blob Storage
-                    $azureService = app(AzureStorageService::class);
-                    $azureService->deleteFile($blobPath);
+                    //Delete prev file from Azure Blob Storage                   
+                    if ($finalStatus === 'completed') {
+                        $azureService = app(AzureStorageService::class);
+                        $azureService->deleteFile($blobPath);
 
-                    Log::info("Azure file deleted {$blobPath}");
+                        Log::info("Azure file deleted {$blobPath}");
+                    } else {
+                        Log::warning("Recapture failed; old Azure file kept {$blobPath}", [
+                            'document_id' => $this->documentId,
+                            'prev_id' => $prevId,
+                            //'error' => $finalError,
+                        ]);
+                    }
 
                     $invoice = OcrPdf::query()->where('id', $prevId)->first();
                     $invoice->azure_sas_url = null;

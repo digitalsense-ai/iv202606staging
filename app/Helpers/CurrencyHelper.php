@@ -127,11 +127,13 @@ class CurrencyHelper
 
         $currency = $fallbackCurrency;
 
-        foreach ([
-            '£' => 'GBP',
-            '$' => 'USD',
-            '€' => 'EUR',
-        ] as $symbol => $iso) {
+        // foreach ([
+        //     '£' => 'GBP',
+        //     '$' => 'USD',
+        //     '€' => 'EUR',
+        // ] as $symbol => $iso) {
+
+        foreach (self::MAP as $symbol => $iso) {
             if (stripos($amount, $symbol) !== false) {
                 $currency = $iso;
                 $amount = str_replace($symbol, '', $amount);

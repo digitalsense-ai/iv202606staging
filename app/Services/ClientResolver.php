@@ -24,9 +24,11 @@ class ClientResolver
         if ($orgNo) {
             foreach ($clients as $client) {
                 if ($this->clientHasOrg($client, $orgNo)) {
+                    $resolve_org = $this->resolveOrg($client, $orgNo, null);
                     return [
                         'name'   => $client->name,
-                        'org_no' => $orgNo,
+                        'org_no' => ($resolve_org) ? $resolve_org['orgNo'] : null,
+                        'country_code' => ($resolve_org) ? $resolve_org['countryCode'] : null,
                     ];
                 }
             }
@@ -39,6 +41,7 @@ class ClientResolver
             return [
                 'name'   => $name,
                 'org_no' => null,
+                'country_code' => ($countryCode) ?? null,
                 'og_org_no' => $orgNo,
             ];
         }
@@ -48,10 +51,12 @@ class ClientResolver
          */
         if ($nameLower) {
             foreach ($clients as $client) {
-                if ($client->hasKey($nameLower)) {                    
+                if ($client->hasKey($nameLower)) { 
+                    $resolve_org = $this->resolveOrg($client, null, $countryCode);                   
                     return [
-                        'name'   => $client->name,
-                        'org_no' => $this->resolveOrg($client, null, $countryCode),
+                        'name'   => $client->name,                       
+                        'org_no' => ($resolve_org) ? $resolve_org['orgNo'] : null,
+                        'country_code' => ($resolve_org) ? $resolve_org['countryCode'] : null,
                     ];
                 }
             }
@@ -63,21 +68,28 @@ class ClientResolver
         return [
             'name'   => $name,
             'org_no' => null,
+            'country_code' => ($countryCode) ?? null
         ];
     }
 
-    private function resolveOrg(ClientDTO $client, ?string $orgNo, ?string $countryCode): ?string
+    private function resolveOrg(ClientDTO $client, ?string $orgNo, ?string $countryCode): ?array
     {
         foreach ($client->vatRegs as $vat) {
             if ($orgNo && $vat->orgNo === $orgNo) {
-                return $vat->orgNo;
+                return [
+                    'orgNo' => $vat->orgNo,
+                    'countryCode' => $vat->countryCode
+                ];
             }
         }
 
         if ($countryCode) {
             foreach ($client->vatRegs as $vat) {
                 if ($vat->countryCode === $countryCode) {
-                    return $vat->orgNo;
+                    return [
+                        'orgNo' => $vat->orgNo,
+                        'countryCode' => $vat->countryCode
+                    ];
                 }
             }
         }

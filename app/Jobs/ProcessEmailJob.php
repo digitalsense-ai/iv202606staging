@@ -11,7 +11,8 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 
 use App\Services\MicrosoftMailService;
-use App\Http\Controllers\ocr\AnalyzePdfController;
+use App\Services\OcrAnalyzeService;
+//use App\Http\Controllers\ocr\AnalyzePdfController;
 
 class ProcessEmailJob implements ShouldQueue
 {
@@ -38,28 +39,31 @@ class ProcessEmailJob implements ShouldQueue
             Log::warning("No PDF attachments found for email {$this->emailId}");
             return;
         }
-        Log::info("SUBJECT " . $this->subject);  
+        //Log::info("SUBJECT " . $this->subject);  
+
+        $ocrAnalyzeService = new OcrAnalyzeService();
         foreach ($attachments as $folder => $items) {
             if (!empty($items)) {
                 // Trigger analysis for stored PDFs
                 // $controller = app(AnalyzePdfController::class);
                
-                // $paths = [];
-                // $prevCaptures = [];
-                // foreach ($items as $item) 
-                // {
-                //     $paths[] = $item['path'];
-                //     $prevCaptures[] = $item['prevCapture'];
-                // }
-                // $controller->analyzeStoredPdfs($this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
-
+                $paths = [];
+                $prevCaptures = [];
                 foreach ($items as $item) 
-                {   
-                    $fullPath = $item['path'];
-                    Log::info("Queued PDF folder " . strtoupper($folder) . " with paths {$fullPath}");               
+                {
+                    $paths[] = $item['path'];
+                    $prevCaptures[] = $item['prevCapture'];
                 }
-                Log::info("--------------- END ---------------");
-                Log::info("                                                               ");
+                // $controller->analyzeStoredPdfs($this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
+                $ocrAnalyzeService->analyze($this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
+
+                // foreach ($items as $item) 
+                // {   
+                //     $fullPath = $item['path'];
+                //     Log::info("Queued PDF folder " . strtoupper($folder) . " with paths {$fullPath}");               
+                // }
+                // Log::info("--------------- END ---------------");
+                // Log::info("                                                               ");
             }
         }
 

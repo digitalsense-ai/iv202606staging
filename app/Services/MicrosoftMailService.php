@@ -5,13 +5,14 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
-use App\Http\Controllers\ocr\AnalyzePdfController;
+//use App\Http\Controllers\ocr\AnalyzePdfController;
 use Illuminate\Support\Facades\Log;
 
 use Str;
 use setasign\Fpdi\Fpdi;
 
 use App\Services\AzureStorageService;
+use App\Services\OcrAnalyzeService;
 
 class MicrosoftMailService
 {

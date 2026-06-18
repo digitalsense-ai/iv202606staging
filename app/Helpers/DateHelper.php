@@ -131,7 +131,7 @@ class DateHelper
       $value = trim($value);
       
       // Remove trailing dot(s) or spaces
-      $value = rtrim($value, ". \t\n\r\0\x0B");
+      $value = rtrim($value, ".: \t\n\r\0\x0B");
       
       /*
       |--------------------------------------------------------------------------

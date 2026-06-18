@@ -22,11 +22,12 @@ use App\Jobs\SplitPdfJob;
 use App\Services\AzureStorageService;
 use App\Services\OcrCorrectionFeedbackService;
 use App\Services\MicrosoftMailService;
-use App\Jobs\ProcessEmailJob;
+use App\Services\OcrAnalyzeService;
 
 use App\Repositories\ClientRepository;
 
 use App\Jobs\ValidateOcrInvoicesJob;
+use App\Jobs\ProcessEmailJob;
 
 use App\Helpers\DateHelper;
 use App\Helpers\EuropeanNumberHelper;
@@ -71,10 +72,30 @@ class AnalyzePdfController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
 
-        $analyzepdfs = OcrPdf::query()->
-        //with(['client', 'client.vatregmain'])
-                            orderBy('id', 'DESC')            
-                            ->get(); 
+        $analyzepdfs = OcrPdf::query()
+                        ->select([
+                            'id',   
+                            //'client_id',                         
+                            'invoice_type',
+                            'file_name',
+                            'start_pageno',
+                            'end_pageno',                           
+                            'status',
+                            'sync_status',
+                            'is_deleted',
+                            'deleted_reason',
+                            'is_locked',
+                            'extracted_data',             
+                            'validation_status',
+                            'duplicate_message',
+                            'error',
+                            'azure_url',
+                            'azure_sas_url',               
+                            'created_at',
+                            'updated_at'                           
+                        ])
+                        ->orderBy('id', 'DESC')            
+                        ->get(); 
       
         $vatregmains = VATRegistrationMain::with(['client'])
                         ->orderBy('id', 'ASC')
@@ -123,12 +144,32 @@ class AnalyzePdfController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf-search');      
         /* --end PAGE CONFIG -- */
 
-        $analyzepdfs = OcrPdf::query()->
-        //with(['client'])
-                            where('status', 'completed')
-                            ->where('is_deleted', 0)
-                            ->orderBy('id', 'ASC')            
-                            ->get(); 
+        $analyzepdfs = OcrPdf::query()
+                        ->select([
+                            'id',   
+                            //'client_id',                         
+                            'invoice_type',
+                            'file_name',
+                            'start_pageno',
+                            'end_pageno',                           
+                            'status',
+                            'sync_status',
+                            'is_deleted',
+                            'deleted_reason',
+                            'is_locked',
+                            'extracted_data',             
+                            'validation_status',
+                            'duplicate_message',
+                            'error',
+                            'azure_url',
+                            'azure_sas_url',               
+                            'created_at',
+                            'updated_at'                           
+                        ])    
+                        ->where('status', 'completed')
+                        ->where('is_deleted', 0)
+                        ->orderBy('id', 'ASC')            
+                        ->get(); 
       
         $vatregmains = VATRegistrationMain::with(['client'])
                         ->orderBy('id', 'ASC')
@@ -199,6 +240,7 @@ class AnalyzePdfController extends Controller
     }
     /* --end GET /fetchinbox -- */
 
+/*
     public function analyzeStoredPdfs(array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
     {        
         $invoiceType = $folder; // 'sales' or 'com'
@@ -304,16 +346,36 @@ class AnalyzePdfController extends Controller
             } //not allow
         }
     }
-
+*/
     public function inboxProgress()
     {
         // Count jobs that are completed for this batch
         $total = Cache::get('inbox_total', 0);
         $completed = Cache::get('inbox_completed', 0);        
 
-        $analyzepdfs = OcrPdf::query()->
-        //with(['client'])
-                        orderBy('id', 'DESC')            
+        $analyzepdfs = OcrPdf::query()
+                        ->select([
+                            'id',   
+                            //'client_id',                         
+                            'invoice_type',
+                            'file_name',
+                            'start_pageno',
+                            'end_pageno',                           
+                            'status',
+                            'sync_status',
+                            'is_deleted',
+                            'deleted_reason',
+                            'is_locked',
+                            'extracted_data',             
+                            'validation_status',
+                            'duplicate_message',
+                            'error',
+                            'azure_url',
+                            'azure_sas_url',               
+                            'created_at',
+                            'updated_at'                           
+                        ])
+                        ->orderBy('id', 'DESC')            
                         ->get();
 
         $vatregmains = VATRegistrationMain::with(['client'])
@@ -348,9 +410,29 @@ class AnalyzePdfController extends Controller
             ])
             ->values();
 
-        $analyzepdfs = OcrPdf::query()->
-        //with(['client'])
-                        orderBy('id', 'DESC')            
+        $analyzepdfs = OcrPdf::query()
+                        ->select([
+                            'id',   
+                            //'client_id',                         
+                            'invoice_type',
+                            'file_name',
+                            'start_pageno',
+                            'end_pageno',                           
+                            'status',
+                            'sync_status',
+                            'is_deleted',
+                            'deleted_reason',
+                            'is_locked',
+                            'extracted_data',             
+                            'validation_status',
+                            'duplicate_message',
+                            'error',
+                            'azure_url',
+                            'azure_sas_url',               
+                            'created_at',
+                            'updated_at'                           
+                        ])
+                        ->orderBy('id', 'DESC')            
                         ->get();
 
         $vatregmains = VATRegistrationMain::with(['client'])
@@ -715,9 +797,29 @@ class AnalyzePdfController extends Controller
                 ])
             ->values();
 
-            $analyzepdfs = OcrPdf::query()->
-            //with(['client'])
-                          orderBy('id', 'DESC')            
+            $analyzepdfs = OcrPdf::query()
+                            ->select([
+                                'id',   
+                                //'client_id',                         
+                                'invoice_type',
+                                'file_name',
+                                'start_pageno',
+                                'end_pageno',                           
+                                'status',
+                                'sync_status',
+                                'is_deleted',
+                                'deleted_reason',
+                                'is_locked',
+                                'extracted_data',             
+                                'validation_status',
+                                'duplicate_message',
+                                'error',
+                                'azure_url',
+                                'azure_sas_url',               
+                                'created_at',
+                                'updated_at'                           
+                            ])
+                          ->orderBy('id', 'DESC')            
                           ->get();
 
             $vatregmains = VATRegistrationMain::with(['client'])
@@ -808,10 +910,30 @@ class AnalyzePdfController extends Controller
                 );
             }
 
-            $analyzepdfs = OcrPdf::query()->
-            //with(['client'])
-                              orderBy('id', 'DESC')            
-                              ->get();
+            $analyzepdfs = OcrPdf::query()
+                            ->select([
+                                'id',   
+                                //'client_id',                         
+                                'invoice_type',
+                                'file_name',
+                                'start_pageno',
+                                'end_pageno',                           
+                                'status',
+                                'sync_status',
+                                'is_deleted',
+                                'deleted_reason',
+                                'is_locked',
+                                'extracted_data',             
+                                'validation_status',
+                                'duplicate_message',
+                                'error',
+                                'azure_url',
+                                'azure_sas_url',               
+                                'created_at',
+                                'updated_at'                           
+                            ])
+                            ->orderBy('id', 'DESC')            
+                            ->get();
 
             $vatregmains = VATRegistrationMain::with(['client'])
                               ->orderBy('id', 'ASC')
@@ -1109,6 +1231,23 @@ class AnalyzePdfController extends Controller
         Cache::forget('inbox_total');
 
         $selected_analyze_ids = ($id == '0') ? $request->selected_analyzepdf_id : $id;
+
+        // $analyzepdfs = OcrPdf::query()
+        //                 ->select([
+        //                     'id', 
+        //                     'file_name',
+        //                     'extracted_data'
+        //                 ])                        
+        //                 ->whereIn('status', ['completed', 'failed'])
+        //                 ->where('is_deleted', 0)
+        //                 ->whereNull('og_extracted_data')
+        //                 ->orderBy('id', 'DESC')            
+        //                 ->get(); 
+        // $arr_selected_analyze_ids = $analyzepdfs->pluck('id')->toArray();
+        // unset($arr_selected_analyze_ids[16]);
+        // $arr_selected_analyze_ids = array_values($arr_selected_analyze_ids);
+        // $selected_analyze_ids = implode(',', $arr_selected_analyze_ids);
+
         $attachments = [];
         $grouped = [
             'sales' => [],
@@ -1118,57 +1257,83 @@ class AnalyzePdfController extends Controller
         {            
             $invoice = OcrPdf::query()->findOrFail($id);
 
-            $invoice->sync_status = 0;
-            $invoice->is_locked = 0;
-            $invoice->save();
+            // if($invoice->og_extracted_data)
+            // {                
+            //     ValidateOcrInvoicesJob::dispatch(null, [$id])
+            //         ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
+            // }
+            // else
+            // {
+                $invoice->sync_status = 0;
+                $invoice->is_locked = 0;
+                $invoice->save();
 
-            //Get file from Azure storage
-            $sasPaths = $this->getSasUrl($id, 'recapture');
+                //Get file from Azure storage
+                $sasPaths = $this->getSasUrl($id, 'recapture');
 
-            $sasUrl = $sasPaths['signedUrl'];
-            $blobPath = $sasPaths['blobPath'];
-            
-            $prevCapture = [
-                'prevId' => $id,
-                'sasUrl' => $sasUrl,
-                'blobPath' => $blobPath
-            ];
+                $sasUrl = $sasPaths['signedUrl'];
+                $blobPath = $sasPaths['blobPath'];
+                
+                $prevCapture = [
+                    'prevId' => $id,
+                    'sasUrl' => $sasUrl,
+                    'blobPath' => $blobPath
+                ];
 
-            //Save it in local
-            $sasUrl = html_entity_decode($sasUrl);
-            $sasUrl = str_replace(' ', '%20', $sasUrl);
+                //Save it in local
+                $sasUrl = html_entity_decode($sasUrl);
+                // $sasUrl = str_replace(' ', '%20', $sasUrl);
+                
+                // $stream = fopen($sasUrl, 'r');
 
-            $stream = fopen($sasUrl, 'r');
-            $fileName = basename($invoice->file_name);
-            //Storage::disk('public')->put('ocr/' . $fileName, $stream);
-            Storage::disk('local')->put('ocr/' . $fileName, $stream);
+                // Encode only unsafe characters in path
+                $parts = parse_url($sasUrl);
 
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-            //$fullPath = storage_path('app/public/ocr/' . $fileName);            
-            $fullPath = storage_path('app/ocr/' . $fileName);            
+                $path = implode('/',
+                    array_map(function ($segment) {
+                        return rawurlencode(rawurldecode($segment));
+                    }, explode('/', $parts['path']))
+                );
 
-            // Unique batch ID for this email
-            $batchId = (string) Str::uuid();
-            
-            $mailService = new MicrosoftMailService();            
+                $rebuiltUrl =
+                    $parts['scheme'] . '://' .
+                    $parts['host'] .
+                    $path .
+                    (isset($parts['query']) ? '?' . $parts['query'] : '');
+                
+                $stream = fopen($rebuiltUrl, 'r');
 
-            $content = file_get_contents($fullPath);
-            $contentBytes = base64_encode($content);
+                $fileName = basename($invoice->file_name);
+                
+                Storage::disk('local')->put('ocr/' . $fileName, $stream);
 
-            // Safe deletion
-            if (file_exists($fullPath)) {
-                unlink($fullPath);
-            }
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                //$fullPath = storage_path('app/public/ocr/' . $fileName);            
+                $fullPath = storage_path('app/ocr/' . $fileName);            
 
-            $attachment = [
-                'name' => $fileName,
-                'contentBytes' => $contentBytes,
-                'prevCapture' => $prevCapture,
-                'prevFolder' => $invoice->invoice_type
-            ];
-            $grouped = $mailService->groupFiles($attachment, null, $grouped);            
+                // Unique batch ID for this email
+                $batchId = (string) Str::uuid();
+                
+                $mailService = new MicrosoftMailService();            
+
+                $content = file_get_contents($fullPath);
+                $contentBytes = base64_encode($content);
+
+                // Safe deletion
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
+                }
+
+                $attachment = [
+                    'name' => $fileName,
+                    'contentBytes' => $contentBytes,
+                    'prevCapture' => $prevCapture,
+                    'prevFolder' => $invoice->invoice_type
+                ];
+                $grouped = $mailService->groupFiles($attachment, null, $grouped); 
+            //} //og_extracted_data
         }
             
         // Safety check: skip if no attachments
@@ -1178,6 +1343,8 @@ class AnalyzePdfController extends Controller
         }
 
         $clients = app(ClientRepository::class)->all();
+
+        $ocrAnalyzeService = new OcrAnalyzeService();
 
         foreach ($grouped as $folder => $items) {
             if (!empty($items)) {
@@ -1191,7 +1358,8 @@ class AnalyzePdfController extends Controller
                     $prevCaptures[] = $item['prevCapture'];
                 }
 
-                $this->analyzeStoredPdfs($clients, $paths, $folder, $batchId, null, $prevCaptures);
+                //$this->analyzeStoredPdfs($clients, $paths, $folder, $batchId, null, $prevCaptures);
+                $ocrAnalyzeService->analyze($clients, $paths, $folder, $batchId, null, $prevCaptures);
             }
         }
 
@@ -1233,8 +1401,11 @@ class AnalyzePdfController extends Controller
             // }
             // else
             // {                
-                $this->analyzeStoredPdfs($clients, $files, $folder, $batchId, null, [], true);   
+            //    $this->analyzeStoredPdfs($clients, $files, $folder, $batchId, null, [], true);   
             //}
+
+            $ocrAnalyzeService = new OcrAnalyzeService();
+            $ocrAnalyzeService->analyze($clients, $files, $folder, $batchId, null, [], true);   
            
             return response()->json([
                 'total' => $total_uploaded_files,//count($files),
@@ -1307,7 +1478,10 @@ class AnalyzePdfController extends Controller
                     : [$id];
             }
 
-            dispatch((new ValidateOcrInvoicesJob(null, $selected_analyze_ids))->onQueue('ocrpdfvalidateinvoices'));
+            //dispatch((new ValidateOcrInvoicesJob(null, $selected_analyze_ids))->onQueue('ocrpdfvalidateinvoices'));
+
+            ValidateOcrInvoicesJob::dispatch(null, $selected_analyze_ids)
+                     ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
            
             return response()->json([
                 'status'=> 'success', 

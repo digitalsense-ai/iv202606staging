@@ -2,7 +2,7 @@
 
 namespace App\Mappers;
 
-//use Carbon\Carbon;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 use App\Helpers\CreditNoteHelper;
@@ -13,12 +13,11 @@ use App\Helpers\EuropeanNumberHelper;
 use App\Helpers\VatRateHelper;
 use App\Helpers\ExchangeRateHelper;
 
-
 use App\Services\ClientResolver;
 
 class CustomSalesInvoiceMapper
 {
-    public static function map(array $result, array $clients): array
+    public static function map(array $result, array $clients, string $passDate = null): array
     {    
         $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
 //Log::info($doc);  
@@ -43,6 +42,7 @@ class CustomSalesInvoiceMapper
         $client_name = $client_result['name'] ?? null;
         $client_no   = $client_result['org_no'] ?? null; 
         $extracted_client_no = $client_result['og_org_no'] ?? null; 
+        $country_code   = $client_result['country_code'] ?? ''; 
 
         $invoiceDate = DateHelper::parseInvoiceDate(
             $doc['Invoice Date']['content'] ?? null
@@ -190,37 +190,100 @@ class CustomSalesInvoiceMapper
         $exchange_rate = ExchangeRateHelper::normalize(
             $doc['Exchange Rate']['valueString'] ?? null
         );
+        
+        /*
+        |--------------------------------------------------------------------------
+        | Determine local currency from country code
+        |--------------------------------------------------------------------------
+        */
+        // $localCurrency = match (strtolower($country_code ?? '')) {
+        //     'no' => 'NOK',
+        //     'gb' => 'GBP',
+        //     'ch' => 'CHF',
+        //     default => null,
+        // };
 
+        $localCurrencies = match (strtolower($country_code ?? '')) {
+            'no' => ['NOK'],
+            'gb' => ['GBP'],
+            'ch' => ['CHF', 'EUR'],
+            default => [],
+        };
+
+        $reportCurrency = match (strtolower($country_code ?? '')) {
+            'no' => 'NOK',
+            'gb' => 'GBP',
+            'ch' => 'CHF',
+            default => null,
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | Determine exchange currency
+        |--------------------------------------------------------------------------
+        |
+        | Exchange currency should represent the client's local currency.
+        | If OCR didn't extract it, fall back to the country-derived currency.
+        |
+        */
         $effectiveExchangeCurrency = $exchange_currency;
-        // fallback:
-        // if exchange currency missing and invoice currency is foreign,
-        // assume NOK local currency
+
+        // if (
+        //     empty($effectiveExchangeCurrency) &&
+        //     !empty($localCurrency) &&
+        //     !empty($currency) &&
+        //     $currency !== $localCurrency
+        // ) {
+        //     $effectiveExchangeCurrency = $localCurrency;
+        // }
+
         if (
             empty($effectiveExchangeCurrency) &&
-            $currency &&
-            $currency !== 'NOK'
+            !empty($reportCurrency) &&
+            !empty($currency) &&
+            !in_array($currency, $localCurrencies, true)
         ) {
-            $effectiveExchangeCurrency = 'NOK';
-        }    
+            $effectiveExchangeCurrency = $reportCurrency;
+        }
+
+        // Log::info('country_code: ' . ($country_code ?? 'null'));
+        // Log::info('localCurrency: ' . ($localCurrency ?? 'null'));
+        // Log::info('currency: ' . ($currency ?? 'null'));
+        // Log::info('effectiveExchangeCurrency: ' . ($effectiveExchangeCurrency ?? 'null'));
+
+        /*
+        |--------------------------------------------------------------------------
+        | Foreign invoice?
+        |--------------------------------------------------------------------------
+        */
+        // $isForeignInvoice =
+        //     !empty($currency) &&
+        //     !empty($effectiveExchangeCurrency) &&
+        //     $currency !== $effectiveExchangeCurrency;
 
         $isForeignInvoice =
-            $currency &&
-            $effectiveExchangeCurrency &&
-            $currency !== $effectiveExchangeCurrency;
+            !empty($currency) &&
+            !in_array($currency, $localCurrencies, true);
 
-        // $isEligibleVatFx =
-        //     $currency === 'EUR' &&
-        //     $effectiveExchangeCurrency === 'NOK' &&
-        //     $parseVatAmount > 0 &&
-        //     $parseExchangeVatAmount > 0;
-
+        /*
+        |--------------------------------------------------------------------------
+        | Eligible for automatic VAT FX calculation?
+        |--------------------------------------------------------------------------
+        |
+        | Only calculate exchange values when:
+        | - invoice currency differs from local currency
+        | - local currency is known
+        | - VAT exists in both currencies
+        |
+        */
         $isEligibleVatFx =
-            $currency &&
-            $effectiveExchangeCurrency &&
-            $currency !== $effectiveExchangeCurrency &&
-            $effectiveExchangeCurrency === 'NOK' &&
+            $isForeignInvoice &&
+            //!empty($localCurrency) &&
+            //$effectiveExchangeCurrency === $localCurrency &&
+            !empty($reportCurrency) &&
+            $effectiveExchangeCurrency === $reportCurrency &&
             $parseVatAmount > 0 &&
-            $parseExchangeVatAmount > 0;    
+            $parseExchangeVatAmount > 0;
 
         if ($isForeignInvoice && $isEligibleVatFx) {
 
@@ -230,11 +293,11 @@ class CustomSalesInvoiceMapper
             |--------------------------------------------------------------------------
             */
             if (empty($exchange_rate)) {
-                
+
                 $exchange_rate = ExchangeRateHelper::calculateExchangeRateFromVat(
                     $parseExchangeVatAmount,
                     $parseVatAmount
-                );                
+                );
             }
 
             /*
@@ -273,9 +336,9 @@ class CustomSalesInvoiceMapper
                     ',',
                     '.'
                 );
-            }            
+            }
         }
-            
+
         /*
         |--------------------------------------------------------------------------
         | Calculate exchange total ONLY if missing
@@ -301,8 +364,16 @@ class CustomSalesInvoiceMapper
                 ',',
                 '.'
             );
-        }    
-       
+        }
+
+// Log::info("net_amount: " . $net_amount);
+// Log::info("discount_amount: " . $discount_amount);
+// Log::info("vat_rate: " . $vat_rate);
+// Log::info("vat_amount: " . $vat_amount);
+// Log::info("currency: " . $currency);
+// Log::info("additional_charges: " . $additional_charges);
+// Log::info("variance: " . $variance);
+// Log::info("total_amount: " . $total_amount);
         $mapresult = [
             'invoice_type' => $doc['Invoice Type']['valueString'] ?? null,
             'invoice_number' => $invoiceNumber ?? null,
@@ -345,8 +416,42 @@ class CustomSalesInvoiceMapper
                 $error_message .= "Client No. missing\n";                
         }
         
-        if (!$invoiceDate)
+        $futureInvoiceDate = false;
+        $olderInvoiceDate = false;
+
+        if ($invoiceDate) {
+
+            $fetchDate = $passDate ?? now();
+
+            $referenceDate = Carbon::parse($fetchDate)->startOfDay();
+
+            $invoiceDateCarbon = Carbon::parse($invoiceDate)->startOfDay();
+
+            // Future invoice date
+            if ($invoiceDateCarbon->gt($referenceDate)) {
+                $futureInvoiceDate = true;
+            }
+
+            // Older than 6 months
+            if ($invoiceDateCarbon->lt(
+                $referenceDate->copy()->subMonths(6)
+            )) {
+                $olderInvoiceDate = true;
+            }
+        }
+
+        if (!$invoiceDate) {
             $error_message .= "Invoice Date missing\n";
+        }
+        else {
+            if ($futureInvoiceDate) {
+                $error_message .= "Invoice Date is in the future\n";
+            }
+
+            if ($olderInvoiceDate) {
+                $error_message .= "Invoice Date is older than 6 months\n";
+            }
+        }
 
         if (!$invoiceNumber)
             $error_message .= "Invoice no. missing\n";
@@ -354,15 +459,41 @@ class CustomSalesInvoiceMapper
         if (!$currency)
             $error_message .= "Currency missing\n";
 
-        if ($currency != 'NOK' && $currency != 'CHF')
-        {
-            if(!$exchange_rate 
-                || !$effectiveExchangeCurrency 
-                || !$exchange_net_amount 
-                || !$exchange_vat_amount
-                || !$exchange_total_amount
-            )
+        // if ($currency != 'NOK' && $currency != 'CHF' && $currency != 'GBP')
+        // {
+        //     if(!$exchange_rate 
+        //         || !$effectiveExchangeCurrency 
+        //         || !$exchange_net_amount 
+        //         || !$exchange_vat_amount
+        //         || !$exchange_total_amount
+        //     )
+        //         $error_message .= "Exchange fields missing\n";
+        // }
+
+        // Log::info('country_code: ' . ($country_code ?? 'null'));
+        // Log::info('localCurrency: ' . ($localCurrency ?? 'null'));
+        // Log::info('currency: ' . ($currency ?? 'null'));
+        // Log::info('effectiveExchangeCurrency: ' . ($effectiveExchangeCurrency ?? 'null'));
+
+        // if (
+        //     $localCurrency &&
+        //     $currency &&
+        //     $currency !== $localCurrency
+        // ) {
+        if (
+            !empty($reportCurrency) &&
+            !empty($currency) &&
+            !in_array($currency, $localCurrencies, true)
+        ) {
+            if (
+                !$exchange_rate ||
+                !$effectiveExchangeCurrency ||
+                !$exchange_net_amount ||
+                !$exchange_vat_amount ||
+                !$exchange_total_amount
+            ) {
                 $error_message .= "Exchange fields missing\n";
+            }
         }
 
         if (!$net_amount)
@@ -371,7 +502,11 @@ class CustomSalesInvoiceMapper
         if ($error_message) {
             $mapresult['error'] = $error_message;
         }
-        
+
+        if ($vat_rate == "100") {
+            $mapresult['change_invoice_type'] = true;
+        }
+     
         return $mapresult;
     }
 }

@@ -118,6 +118,19 @@ class TestSampleController extends Controller
         //             $systemapi->save();
         //             dd($systemapi->api_secret_key);
 
+// $analyzepdfs = OcrPdf::query()
+//                         ->select([
+//                             'id', 
+//                             'file_name',
+//                             'extracted_data'
+//                         ])                        
+//                         ->whereIn('status', ['completed', 'failed'])
+//                         ->where('is_deleted', 0)
+//                         ->whereNull('og_extracted_data')
+//                         ->orderBy('id', 'DESC')            
+//                         ->get(); 
+// dd($analyzepdfs->pluck('file_name')->toArray());
+
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */

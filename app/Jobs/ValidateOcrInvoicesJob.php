@@ -28,7 +28,8 @@ class ValidateOcrInvoicesJob implements ShouldQueue
     {
         $this->invoiceIds = $invoiceIds;
 
-        $this->onQueue('ocrpdfvalidateinvoices');
+        //$this->onQueue('ocrpdfvalidateinvoices');
+        $this->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
     }
 
     public function handle()
@@ -157,7 +158,10 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         //->where('status', '!=', 'duplicate')
         $query = clone $baseQuery;
 
-        $query->where('status', 'completed')
+        if (empty($this->invoiceIds))
+            $query->where('status', 'completed');
+
+        $query
         ->when($this->batchId, fn ($query) => $query->where('batch_id', $this->batchId))
         ->whereIn('validation_status', [
             'not_yet_validated',
@@ -171,14 +175,14 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                     dispatch((new ValidateOcrCommercialInvoiceJob(
                         $clients,
                         $invoice->id
-                    ))->onQueue('ocrpdfvalidateinvoices'));
+                    ))->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices')));
                 }
 
                 if ($invoice->invoice_type === 'sales' || $invoice->invoice_type === 'multi-invoices') {                    
                     dispatch((new ValidateOcrSalesInvoiceJob(
                         $clients,
                         $invoice->id                        
-                    ))->onQueue('ocrpdfvalidateinvoices'));
+                    ))->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices')));
                 }
             }
         });        

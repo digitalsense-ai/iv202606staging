@@ -44,24 +44,24 @@ class CustomComInvoiceMapper
             $invoiceNumber = !empty($invoiceNumber)
                                 ? $invoiceNumber
                                 : ($invoiceDate ? str_replace('-', '', $invoiceDate) : null);            
-        if($validate)
-        {
-            $parser = app(ClientInvoiceParser::class);
-            $related = $parser->parse($doc, $client_name, $client_no, true);
+        // if($validate)
+        // {
+        //     $parser = app(ClientInvoiceParser::class);
+        //     $related = $parser->parse($doc, $client_name, $client_no, true);
 
-            // $finalRelatedSalesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
-            // $finalRelatedSalesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
-            // $finalRelatedShipments     = $doc['Related Shipment Numbers']['valueString'] ?? null;
-        }
-        else
-        {
+        //     // $finalRelatedSalesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
+        //     // $finalRelatedSalesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
+        //     // $finalRelatedShipments     = $doc['Related Shipment Numbers']['valueString'] ?? null;
+        // }
+        // else
+        // {
             //Log::info($result);
 
             $parser = app(ClientInvoiceParser::class);
             $related = $parser->parse($result, $client_name, $client_no, false);   
 
             //Log::info($related);
-        }
+        //}
 
         $finalRelatedSalesInvoices = $related['related_sales_invoices'] ?? null;
         $finalRelatedSalesOrders   = $related['related_sales_orders'] ?? null;
@@ -71,6 +71,7 @@ class CustomComInvoiceMapper
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
         );
+            
         $currency = CurrencyHelper::parseCurrency($og_currency);
 
         [$og_exchange_currency, $exchange_net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
@@ -86,7 +87,7 @@ class CustomComInvoiceMapper
         $exchange_net_amount = EuropeanNumberHelper::normalize(
             $exchange_net_amount ?? null
         );  
-        
+
         $mapresult = [
             'invoice_type' => $doc['Invoice Type']['valueString'] ?? null,
             'invoice_number' => $invoiceNumber ?? null,            

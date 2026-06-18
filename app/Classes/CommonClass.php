@@ -8237,7 +8237,7 @@ class CommonClass
                   }
                   else
                   {
-                    $rows = DB::connection(config('database.ocr_connection'))->sselect("
+                    $rows = DB::connection(config('database.ocr_connection'))->select("
                         SELECT id
                         FROM dv_invoice_ocr_pdfs
                         WHERE invoice_type = 'com'

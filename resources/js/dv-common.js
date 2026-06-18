@@ -26,6 +26,12 @@ $(function () {
   //             "uk_12": "december-january-february"
   //         };
 
+  const localCurrencyMap = {
+      no: 'NOK',
+      gb: 'GBP',
+      ch: 'CHF'
+  };
+
   const periodmap = {
 
     /* ===== Monthly (12) ===== */
@@ -4469,6 +4475,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
 
           let org_no = null;
           let client_name = null;
+          let country_code =  null;
 
           let invoice_no = null;
           let invoice_date = null;
@@ -4510,14 +4517,21 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 if (extracted_org_number !== null && extracted_org_number !== undefined) {
                   org_no = extracted_org_number;
                 }
-                                            
-                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
-                    return ((vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
-                      (vatregmain.vat_no && org_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
-                });              
+                  
+                var filter_vatregmains = [];  
+                if(org_no)
+                {                        
+                  filter_vatregmains = vatregmains.filter(function(vatregmain) {                      
+                      return ((vatregmain.org_no && org_no) ? (vatregmain.org_no.replace(/\D+/g, '') === org_no) : false ||
+                        (vatregmain.vat_no && org_no) ? (vatregmain.vat_no.replace(/\D+/g, '') === org_no) : false);
+                  });  
+                }            
 
                 if(filter_vatregmains.length > 0)
+                {
                   client_name = filter_vatregmains[0].client.client_name;
+                  country_code = filter_vatregmains[0].country;
+                }
                 else
                   client_name = parsed_extracted_data.supplier.name;
 
@@ -4694,33 +4708,60 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
               //   )
               // )
               // {                
-                if(currency != 'NOK' && currency != 'CHF')
-                {
-                  let swap_currency = currency;
-                  let swap_exchange_currency = exchange_currency; 
+                // if(currency != 'NOK' && currency != 'CHF')
+                // {
+                //   let swap_currency = currency;
+                //   let swap_exchange_currency = exchange_currency; 
 
-                  currency = swap_exchange_currency;
-                  exchange_currency = swap_currency;
+                //   currency = swap_exchange_currency;
+                //   exchange_currency = swap_currency;
 
-                  let swap_net_amount = net_amount;
-                  let swap_exchange_net_amount = exchange_net_amount;
+                //   let swap_net_amount = net_amount;
+                //   let swap_exchange_net_amount = exchange_net_amount;
 
-                  net_amount = swap_exchange_net_amount;
-                  exchange_net_amount = swap_net_amount;
+                //   net_amount = swap_exchange_net_amount;
+                //   exchange_net_amount = swap_net_amount;
                   
-                  let swap_vat_amount = vat_amount;
-                  let swap_exchange_vat_amount = exchange_vat_amount;
+                //   let swap_vat_amount = vat_amount;
+                //   let swap_exchange_vat_amount = exchange_vat_amount;
 
-                  vat_amount = swap_exchange_vat_amount;
-                  exchange_vat_amount = swap_vat_amount;
+                //   vat_amount = swap_exchange_vat_amount;
+                //   exchange_vat_amount = swap_vat_amount;
 
-                  let swap_total_amount = total_amount;
-                  let swap_exchange_total_amount = exchange_total_amount;
+                //   let swap_total_amount = total_amount;
+                //   let swap_exchange_total_amount = exchange_total_amount;
 
-                  total_amount = swap_exchange_total_amount;
-                  exchange_total_amount = swap_total_amount;
-                }                
-              //}
+                //   total_amount = swap_exchange_total_amount;
+                //   exchange_total_amount = swap_total_amount;
+                // }                
+              //}              
+
+              const localCurrency = localCurrencyMap[(country_code || '').toLowerCase()] || null;
+
+              if (
+                  localCurrency &&
+                  exchange_currency === localCurrency &&
+                  currency !== localCurrency
+              )
+              {
+
+                  // invoice is in foreign currency -> swap so primary amounts
+                  // always contain the local currency values
+
+                  [currency, exchange_currency] = [exchange_currency, currency];
+                  [net_amount, exchange_net_amount] = [exchange_net_amount, net_amount];
+                  [vat_amount, exchange_vat_amount] = [exchange_vat_amount, vat_amount];
+                  [total_amount, exchange_total_amount] = [exchange_total_amount, total_amount];
+
+                  if (
+                      !exchange_rate &&
+                      !exchange_net_amount &&
+                      !exchange_vat_amount &&
+                      !exchange_total_amount
+                  ) {
+                      exchange_currency = '';
+                  }
+              }
               //Swap
 
               if (credit_note === true && net_amount && !net_amount.startsWith('-'))
@@ -4946,7 +4987,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
               } //capture
               else if(type == 'analyzepdf_search')
               {
-                if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                //if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                if(!analyzepdf.is_deleted && analyzepdf.status == 'completed')
                 {
                   analyzepdf_sales_invoice_datas.push({                 
                     'id' : analyzepdf.id,
@@ -5020,10 +5062,14 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   org_no = extracted_org_number;
                 }
                 
-                var filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
-                  return ((vatregmain.org_no) ? (vatregmain.org_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false ||
-                    (vatregmain.vat_no) ? (vatregmain.vat_no.replace(/[a-zA-Z\s]+/g, '') === org_no) : false);
-                });
+                var filter_vatregmains = [];
+                if(org_no)
+                {
+                  filter_vatregmains = vatregmains.filter(function(vatregmain) {                                        
+                    return ((vatregmain.org_no) ? (vatregmain.org_no.replace(/\D+/g, '') === org_no) : false ||
+                      (vatregmain.vat_no) ? (vatregmain.vat_no.replace(/\D+/g, '') === org_no) : false);
+                  });
+                }
 
                 if(filter_vatregmains.length > 0)
                   client_name = filter_vatregmains[0].client.client_name;
@@ -5283,7 +5329,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
               } //capture
               else if(type == 'analyzepdf_search')
               {
-                if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                //if(!analyzepdf.is_deleted && analyzepdf.sync_status == 1)
+                if(!analyzepdf.is_deleted && analyzepdf.status == 'completed')
                 {
                   analyzepdf_commercial_invoice_datas.push({                 
                     'id' : analyzepdf.id,

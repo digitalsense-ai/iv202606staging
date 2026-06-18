@@ -145,10 +145,10 @@ $(function () {
           scrollCollapse: false,              
           searching: true,    
           lengthMenu: [
-              [10, 25, 50, 100],
-              [10, 25, 50, 100]
+              [10, 25, 50, 100, 500],
+              [10, 25, 50, 100, 500]
           ],
-          pageLength: 100,     
+          pageLength: 500,     
           autoWidth: false, 
           ordering: true,                
           columns: columns,          
@@ -299,7 +299,7 @@ $(function () {
                               </a>                                     
                             </li>` +
                             btn_recapture_analyzepdf +
-                            //btn_validate_analyzepdf +
+                            btn_validate_analyzepdf +
                             btn_delete_analyzepdf +
                           `</ul>
                         </div>`;
@@ -502,7 +502,7 @@ $(function () {
           var btn_validate_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
                                       '<span><i class="bx bx-check"></i> Validate</span>' +
                                     '</button>';
-          //$(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+          $(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
           if(analyzepdf_name != 'deleted')          
           {          
@@ -1828,10 +1828,11 @@ console.log(filter_analyzepdf_data);
 
                     console.log("LOADING DONE");
 
-                    var analyzepdf_datas =
-                        drawDtTable(progressData, 'analyzepdf');
+                    // var analyzepdf_datas =
+                    //     drawDtTable(progressData, 'analyzepdf');
 
-                    reloadAnalyzedPdf(analyzepdf_datas);
+                    // reloadAnalyzedPdf(analyzepdf_datas);
+                    window.location.reload();
 
                     return;
                 }
@@ -2075,19 +2076,21 @@ console.log("LOADING--------: " + total);
 
                         console.log("BULK LOADING DONE");
 
-                        var analyzepdf_datas =
-                            drawDtTable(progressData, 'analyzepdf');
+                        // var analyzepdf_datas =
+                        //     drawDtTable(progressData, 'analyzepdf');
 
-                        reloadAnalyzedPdf(analyzepdf_datas);
+                        // reloadAnalyzedPdf(analyzepdf_datas);
 
-                        completed = 0;
-                        total = 0;
+                        // completed = 0;
+                        // total = 0;
 
-                        myDropzone.removeAllFiles(true);
+                        // myDropzone.removeAllFiles(true);
 
-                        $('html, body').animate({
-                            scrollTop: 0
-                        }, 500);
+                        // $('html, body').animate({
+                        //     scrollTop: 0
+                        // }, 500);
+
+                        window.location.reload();
 
                         return;
                     }
@@ -2276,10 +2279,12 @@ console.log("LOADING--------: " + total);
 
                     console.log("validate LOADING DONE");
 
-                    var analyzepdf_datas =
-                        drawDtTable(progressData, 'analyzepdf');
+                    // var analyzepdf_datas =
+                    //     drawDtTable(progressData, 'analyzepdf');
 
-                    reloadAnalyzedPdf(analyzepdf_datas);
+                    // reloadAnalyzedPdf(analyzepdf_datas);
+
+                    window.location.reload();
 
                     return;
                 }
