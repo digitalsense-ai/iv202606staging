@@ -23,79 +23,114 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {
-        $rows = $this->extractColumnAfterHeader(
-            $result,
-            "Order Number\nInvoice Number\nTracking Number",
-            3,
-            [
-                0 => 'sales_order',
-                1 => 'sales_invoice',
-                2 => 'shipment',
-            ]
-        );
-
-        $tokens = array_merge(
+        $tableTokens = $this->tokensFromOrderTables($result['analyzeResult']['content'] ?? '');
+        $fieldTokens = array_merge(
             $this->extractKiteTokens($doc['Related Sales Orders']['valueString'] ?? null),
             $this->extractKiteTokens($doc['Related Sales Invoices']['valueString'] ?? null),
-            $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null),
-            $this->extractKiteTokens(array_column($rows, 'sales_order')),
-            $this->extractKiteTokens(array_column($rows, 'sales_invoice')),
-            $this->extractKiteTokens(array_column($rows, 'shipment'))
+            $this->extractKiteTokens($doc['Related Shipment Numbers']['valueString'] ?? null)
         );
+
+        $tokens = $tableTokens ?: $fieldTokens;
 
         return [
             'related_sales_invoices' => $this->joinReferences($this->filterKiteSalesInvoices($tokens)),
             'related_sales_orders' => $this->joinReferences($this->filterKiteSalesOrders($tokens)),
             'related_shipment_nos' => $this->joinReferences($this->filterKiteShipments($tokens)),
         ];
-        
-        /*
-        $content = $result['analyzeResult']['content'] ?? '';
+    }
 
-        $header = "Order Number\nInvoice Number\nTracking Number";
+    private function tokensFromOrderTables(string $content): array
+    {
+        $tokens = [];
 
-        $parts = explode($header, $content);
+        foreach ($this->kiteOrderTableSections($content) as $section) {
+            preg_match_all('/(?:25\d{9}|10\d{9}|92\d{9}|\d{6})/', $section, $matches);
 
-        if (count($parts) <= 1) {
-            return [
-                'related_sales_invoices' => null,
-                'related_sales_orders' => null,
-                'related_shipment_nos' => null,
-            ];
+            foreach ($matches[0] ?? [] as $token) {
+                $tokens[] = $token;
+            }
         }
 
-        array_shift($parts);
+        return array_values(array_unique($tokens));
+    }
 
-        $content = implode("\n", $parts);
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $content))));
-
-        $data = [];
+    private function kiteOrderTableSections(string $content): array
+    {
+        $sections = [];
+        $lines = preg_split('/\R/', $content) ?: [];
+        $collecting = false;
         $current = [];
+        $headerScore = 0;
 
         foreach ($lines as $line) {
-            if (!preg_match('/\d/', $line)) {
+            $line = trim(preg_replace('/\s+/', ' ', (string) $line));
+            $normalized = strtolower($line);
+
+            if ($line === '') {
                 continue;
             }
 
-            $current[] = $line;
+            if (str_contains($normalized, 'order number')) {
+                if ($current) {
+                    $sections[] = implode("\n", $current);
+                    $current = [];
+                }
 
-            if (count($current) === 3) {
-                $data[] = [
-                    'sales_order'   => $current[0],
-                    'sales_invoice' => $current[1],
-                    'shipment'      => explode(',', $current[2]),
-                ];
+                $collecting = true;
+                $headerScore = 1;
+                continue;
+            }
 
-                $current = [];
+            if ($collecting && $headerScore > 0 && $headerScore < 3) {
+                if (str_contains($normalized, 'invoice number') || str_contains($normalized, 'tracking number')) {
+                    $headerScore++;
+                    continue;
+                }
+            }
+
+            if (!$collecting) {
+                continue;
+            }
+
+            if ($this->isKiteTableEndLine($line)) {
+                if ($current) {
+                    $sections[] = implode("\n", $current);
+                    $current = [];
+                }
+
+                $collecting = false;
+                $headerScore = 0;
+                continue;
+            }
+
+            if (preg_match('/(?:25\d{9}|10\d{9}|92\d{9}|\d{6})/', $line)) {
+                $current[] = $line;
             }
         }
 
-        return [
-            'related_sales_invoices' => implode(', ', array_column($data, 'sales_invoice')),
-            'related_sales_orders'   => implode(', ', array_column($data, 'sales_order')),
-            'related_shipment_nos'   => implode(', ', array_merge(...array_column($data, 'shipment'))),
-        ];
-        */        
+        if ($current) {
+            $sections[] = implode("\n", $current);
+        }
+
+        return $sections;
+    }
+
+    private function isKiteTableEndLine(string $line): bool
+    {
+        $normalized = strtolower(trim($line));
+
+        if (preg_match('/^\d+$/', $normalized)) {
+            return false;
+        }
+
+        return str_contains($normalized, 'total')
+            || str_contains($normalized, 'subtotal')
+            || str_contains($normalized, 'vat')
+            || str_contains($normalized, 'cvr')
+            || str_contains($normalized, 'invoice date')
+            || str_contains($normalized, 'payment')
+            || str_contains($normalized, 'the exporter')
+            || str_contains($normalized, 'kite');
     }
 
     private function extractKiteTokens(array|string|null $value): array
@@ -132,7 +167,7 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 
     private function isKiteSalesOrder(string $value): bool
     {
-        return (bool) preg_match('/^25\d{9}$/', trim($value));
+        return (bool) preg_match('/^(?:25\d{9}|10\d{9})$/', trim($value));
     }
 
     private function isKiteSalesInvoice(string $value): bool
