@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 
-use App\Adapters\ValidateOcrCommercialAdapter;
 use App\Models\OcrPdf;
 use App\Mappers\CustomComInvoiceMapper;
 use App\Services\ValidateOcrInvoiceUpdateService;
@@ -27,32 +26,19 @@ class ValidateOcrCommercialInvoiceJob implements ShouldQueue
 
         if (!$invoice) return;
         
-        $data = ($invoice->og_extracted_data) ? $invoice->og_extracted_data : $invoice->extracted_data;
+        $result = ($invoice->og_extracted_data) ? $invoice->og_extracted_data : $invoice->extracted_data;
 
-        if (is_string($data)) {
-            $data = json_decode($data, true);
+        if (is_string($result)) {
+            $result = json_decode($result, true);
         }
 
-        if (!is_array($data)) {
-            \Log::warning("Invalid extracted_data", [
+        if (!is_array($result)) {
+            Log::warning("Invalid OCR result for commercial validation", [
                 'invoice_id' => $invoice->id,
             ]);
 
             return;
         }
-
-        $fields = app(ValidateOcrCommercialAdapter::class)
-            ->fromExtracted($data);
-
-        $result = [
-            'analyzeResult' => [
-                'documents' => [
-                    [
-                        'fields' => $fields
-                    ]
-                ]
-            ]
-        ];
 
         $mapped = CustomComInvoiceMapper::map($result, $this->clients, true);
 
