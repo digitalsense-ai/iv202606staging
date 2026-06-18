@@ -8,7 +8,7 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 {
     use ExtractsCommercialReferences;
 
-    private const SALES_INVOICE_PREFIXES = ['NO', 'CH', 'UK'];
+    private const SALES_INVOICE_PREFIXES = ['NO', 'CH', 'UK', 'OSL'];
 
     public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
@@ -18,11 +18,13 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
             return true;
         }
 
-        $content = strtolower($result['analyzeResult']['content'] ?? '');
+        $content = $this->normalizeHeaderText($result['analyzeResult']['content'] ?? '');
 
         return str_contains($content, 'secondfemale')
             || str_contains($content, 'second female')
-            || str_contains($content, 'org. invoice no. tracking no');
+            || str_contains($content, 'org invoice no tracking no')
+            || str_contains($content, 'opr fakturanr tracking no')
+            || str_contains($content, 'fakturaen daekker over foelgende leverancer');
     }
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
@@ -52,75 +54,62 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function extractRowsFromContent(array $result): array
     {
-        $content = $this->commercialContent($result);
-
-        if (preg_match('/This\s+Invoice\s+includes\s+the\s+following\s+deliveries\s*:/i', $content, $match, PREG_OFFSET_CAPTURE)) {
-            $content = substr($content, $match[0][1]);
-        }
-
         $rows = [];
-        $current = null;
+        $currentOrder = null;
+        $currentInvoice = null;
+        $currentShipments = [];
 
-        foreach (preg_split('/\R/', $content) ?: [] as $line) {
-            $line = trim(preg_replace('/\s+/', ' ', (string) $line));
+        foreach ($this->tokensFromContent($this->commercialContent($result)) as $token) {
+            if ($this->isSalesOrder($token)) {
+                $this->flushRow($rows, $currentOrder, $currentInvoice, $currentShipments);
 
-            if ($line === '' || $this->isSecondFemaleHeaderOrNoise($line)) {
+                $currentOrder = $token;
+                $currentInvoice = null;
+                $currentShipments = [];
                 continue;
             }
 
-            preg_match_all($this->referencePattern(), $line, $matches);
-            $tokens = array_values(array_map(fn ($token) => strtoupper(ltrim(trim($token), '+')), $matches[0] ?? []));
+            if ($this->isSalesInvoice($token)) {
+                if ($currentInvoice !== null && $currentInvoice !== $token) {
+                    $this->flushRow($rows, $currentOrder, $currentInvoice, $currentShipments);
+                    $currentShipments = [];
+                }
 
-            if (!$tokens) {
+                $currentInvoice = $token;
                 continue;
             }
 
-            foreach ($tokens as $token) {
-                if ($this->isSalesOrder($token)) {
-                    if ($current) {
-                        $rows[] = $current;
-                    }
-
-                    $current = [
-                        'sales_order' => $token,
-                        'sales_invoice' => null,
-                        'shipments' => [],
-                    ];
-                    continue;
-                }
-
-                if ($this->isSalesInvoice($token)) {
-                    if (!$current) {
-                        $current = [
-                            'sales_order' => null,
-                            'sales_invoice' => null,
-                            'shipments' => [],
-                        ];
-                    }
-
-                    $current['sales_invoice'] = $token;
-                    continue;
-                }
-
-                if ($this->isShipment($token)) {
-                    if (!$current) {
-                        $current = [
-                            'sales_order' => null,
-                            'sales_invoice' => null,
-                            'shipments' => [],
-                        ];
-                    }
-
-                    $current['shipments'][] = $token;
-                }
+            if ($this->isShipment($token)) {
+                $currentShipments[] = $token;
             }
         }
 
-        if ($current) {
-            $rows[] = $current;
-        }
+        $this->flushRow($rows, $currentOrder, $currentInvoice, $currentShipments);
 
         return $this->dedupeRows($rows);
+    }
+
+    private function tokensFromContent(string $content): array
+    {
+        preg_match_all($this->referencePattern(), $content, $matches);
+
+        return array_values(array_map(
+            fn ($token) => strtoupper(ltrim(trim($token), '+')),
+            $matches[0] ?? []
+        ));
+    }
+
+    private function flushRow(array &$rows, ?string $order, ?string $invoice, array $shipments): void
+    {
+        if (!$order && !$invoice && !$shipments) {
+            return;
+        }
+
+        $rows[] = [
+            'sales_order' => $order,
+            'sales_invoice' => $invoice,
+            'shipments' => array_values(array_unique($shipments)),
+        ];
     }
 
     private function dedupeRows(array $rows): array
@@ -161,12 +150,23 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
     {
         $invoicePrefixes = implode('|', self::SALES_INVOICE_PREFIXES);
 
-        return '/\+?SL\d+|(?:' . $invoicePrefixes . ')\d+|92\d{10,}/i';
+        return '/\+?SL\d+|(?:' . $invoicePrefixes . ')\d+|92\d{8,}/i';
     }
 
-    private function isSecondFemaleHeaderOrNoise(string $line): bool
+    private function normalizeHeaderText(string $value): string
     {
-        return (bool) preg_match('/^(this invoice includes|deliveries:?|org\. invoice no\. tracking no|org\.?\s+invoice\s+no\.?\s+tracking\s+no\.?)$/i', trim($line));
+        $value = strtolower(trim($value));
+        $value = strtr($value, [
+            'æ' => 'ae',
+            'ø' => 'oe',
+            'å' => 'aa',
+            '^' => 'ae',
+            '0' => 'o',
+            '.' => '',
+            ':' => '',
+        ]);
+
+        return trim(preg_replace('/\s+/', ' ', $value));
     }
 
     private function filterSalesOrders(array $values): array
@@ -198,6 +198,6 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
     private function isShipment(string $value): bool
     {
-        return (bool) preg_match('/^92\d{10,}$/', trim($value));
+        return (bool) preg_match('/^92\d{8,}$/', trim($value));
     }
 }
