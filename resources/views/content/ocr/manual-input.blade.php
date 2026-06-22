@@ -9,16 +9,23 @@
 @section('page-style')
 <link rel="stylesheet" href="{{asset('assets/css/custom.css')}}" />
 <style>
-  .manual-input-shell { min-height: calc(100vh - 11rem); }
-  .manual-input-queue { max-height: calc(100vh - 15rem); overflow-y: auto; }
+  .manual-input-shell { height: calc(100vh - 11rem); min-height: 640px; }
+  .manual-input-shell > [class*="col-"] { height: 100%; }
+  .manual-input-shell .card { height: 100%; }
+  .manual-input-shell .card-body { min-height: 0; overflow: hidden; }
+  .manual-input-queue { max-height: calc(100vh - 15rem); overflow-y: auto; overflow-x: hidden; }
   .manual-input-queue .list-group-item { cursor: pointer; }
   .manual-input-queue .list-group-item.active .text-muted,
   .manual-input-queue .list-group-item.active .text-danger { color: rgba(255,255,255,.85) !important; }
-  .manual-input-pdf-frame { width: 100%; height: 58vh; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: #f8f9fa; }
-  .manual-input-form { max-height: 58vh; overflow-y: auto; padding-right: .35rem; }
+  .manual-input-detail { height: 100%; min-height: 0; }
+  .manual-input-detail > [class*="col-"] { height: 100%; min-height: 0; }
+  .manual-input-pdf-frame { width: 100%; height: 100%; min-height: 0; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: #f8f9fa; }
+  .manual-input-form { height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: .35rem; }
+  .manual-input-form .row { margin-left: 0; margin-right: 0; }
+  .manual-input-form [class*="col-"] { padding-left: .25rem; padding-right: .25rem; }
   .manual-input-note { min-height: 82px; }
   .manual-input-empty { min-height: 52vh; display: flex; align-items: center; justify-content: center; }
-  .manual-input-salesinvoice-repeater { max-height: 180px; overflow-y: auto; }
+  .manual-input-salesinvoice-repeater { max-height: none; overflow: visible; }
 </style>
 @endsection
 
@@ -82,7 +89,7 @@
           Select an error item from the queue.
         </div>
 
-        <div id="manualInputDetail" class="row g-3 d-none">
+        <div id="manualInputDetail" class="row g-3 d-none manual-input-detail">
           <div class="col-12 col-lg-8">
             <iframe id="manualPdfViewer" class="manual-input-pdf-frame"></iframe>
           </div>
