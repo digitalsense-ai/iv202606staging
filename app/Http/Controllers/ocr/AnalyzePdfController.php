@@ -841,47 +841,51 @@ class AnalyzePdfController extends Controller
     /* -- GET /analyzepdf/{analyze_id}/sas-url -- */
     public function getSasUrl($id, $type = null)
     {
-        $invoice = OcrPdf::query()->findOrFail($id);
+        $ocrAnalyzeService = new OcrAnalyzeService();
+        $sasUrl = $ocrAnalyzeService->getSasUrl($id, $type);
 
-        if (!$invoice->azure_url) {
-            return response()->json(['error' => 'PDF not available'], 404);
-        }
+        return $sasUrl;
+        // $invoice = OcrPdf::query()->findOrFail($id);
 
-        $azureService = new AzureStorageService();
+        // if (!$invoice->azure_url) {
+        //     return response()->json(['error' => 'PDF not available'], 404);
+        // }
 
-        $invoice_azure_url = $invoice->azure_url;
-        if ($invoice->azure_sas_url && $invoice->azure_sas_expiry && now()->lt($invoice->azure_sas_expiry))
-            $signedUrl = $invoice->azure_sas_url;
-        else 
-        {
-            //$invoice_azure_url = $invoice->azure_url;
-            if (stripos($invoice->azure_url, "multi-invoices/") !== false)
-            {
-                if($type == 'recapture')
-                    $invoice_azure_url = $invoice->azure_url;
-                // else             
-                //     $invoice_azure_url = preg_replace('/_\d+\.pdf$/', '.pdf', $invoice->azure_url);
-            }
+        // $azureService = new AzureStorageService();
+
+        // $invoice_azure_url = $invoice->azure_url;
+        // if ($invoice->azure_sas_url && $invoice->azure_sas_expiry && now()->lt($invoice->azure_sas_expiry))
+        //     $signedUrl = $invoice->azure_sas_url;
+        // else 
+        // {
+        //     //$invoice_azure_url = $invoice->azure_url;
+        //     if (stripos($invoice->azure_url, "multi-invoices/") !== false)
+        //     {
+        //         if($type == 'recapture')
+        //             $invoice_azure_url = $invoice->azure_url;
+        //         // else             
+        //         //     $invoice_azure_url = preg_replace('/_\d+\.pdf$/', '.pdf', $invoice->azure_url);
+        //     }
             
-            $signedUrl = $azureService->generateSasUrl($invoice_azure_url);
-            $invoice->azure_sas_url = $signedUrl;
-            $invoice->azure_sas_expiry = now()->addHours(1);
-            $invoice->save();
-        }
+        //     $signedUrl = $azureService->generateSasUrl($invoice_azure_url);
+        //     $invoice->azure_sas_url = $signedUrl;
+        //     $invoice->azure_sas_expiry = now()->addHours(1);
+        //     $invoice->save();
+        // }
 
-        if($type == 'recapture')
-        {
-            //return $signedUrl;
-            return [
-                'blobPath' =>  $invoice_azure_url,
-                'signedUrl' =>  $signedUrl,
-            ];  
-        }
-        else    
-            return response()->json([
-                'azure_signed_url' => $signedUrl,
-                'start_pageno' => $invoice->start_pageno ?? 1
-            ]);
+        // if($type == 'recapture')
+        // {
+        //     //return $signedUrl;
+        //     return [
+        //         'blobPath' =>  $invoice_azure_url,
+        //         'signedUrl' =>  $signedUrl,
+        //     ];  
+        // }
+        // else    
+        //     return response()->json([
+        //         'azure_signed_url' => $signedUrl,
+        //         'start_pageno' => $invoice->start_pageno ?? 1
+        //     ]);
     }
     /* --end GET /analyzepdf/{analyze_id}/sas-url -- */
     
@@ -1227,6 +1231,8 @@ class AnalyzePdfController extends Controller
     /* -- GET /analyzepdf/{analyze_id}/recapture -- */
     public function recapture(Request $request, $id)
     {
+        $ocrAnalyzeService = new OcrAnalyzeService();
+        
         Cache::forget('inbox_completed');
         Cache::forget('inbox_total');
 
@@ -1247,7 +1253,7 @@ class AnalyzePdfController extends Controller
         // unset($arr_selected_analyze_ids[16]);
         // $arr_selected_analyze_ids = array_values($arr_selected_analyze_ids);
         // $selected_analyze_ids = implode(',', $arr_selected_analyze_ids);
-
+        
         $attachments = [];
         $grouped = [
             'sales' => [],
@@ -1269,7 +1275,7 @@ class AnalyzePdfController extends Controller
                 $invoice->save();
 
                 //Get file from Azure storage
-                $sasPaths = $this->getSasUrl($id, 'recapture');
+                $sasPaths = $ocrAnalyzeService->getSasUrl($id, 'recapture');
 
                 $sasUrl = $sasPaths['signedUrl'];
                 $blobPath = $sasPaths['blobPath'];
@@ -1300,8 +1306,9 @@ class AnalyzePdfController extends Controller
                     $parts['host'] .
                     $path .
                     (isset($parts['query']) ? '?' . $parts['query'] : '');
-                
+               
                 $stream = fopen($rebuiltUrl, 'r');
+
 
                 $fileName = basename($invoice->file_name);
                 

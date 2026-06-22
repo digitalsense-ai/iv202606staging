@@ -12,6 +12,7 @@ use App\Helpers\CurrencyHelper;
 use App\Helpers\EuropeanNumberHelper;
 use App\Helpers\VatRateHelper;
 use App\Helpers\ExchangeRateHelper;
+use App\Support\OcrFallbackFieldExtractor;
 
 use App\Services\ClientResolver;
 
@@ -19,18 +20,44 @@ class CustomSalesInvoiceMapper
 {
     public static function map(array $result, array $clients, string $passDate = null): array
     {    
+        $comInvoiceTypes = [
+            'consolidated',
+            'commercial',
+            'samlefaktura',
+            'export sales',
+            'proforma',
+            'zollrechnung',
+            'reference',
+            'total tarrif',
+            'rechnung',
+            'samleliste',
+            'invoice declaration',
+            'master invoice',
+            'customs invoice',
+            'collective'
+        ];
+
         $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
+        $content = $result['analyzeResult']['content'] ?? '';
 //Log::info($doc);  
 
+        $invoice_type = $doc['Invoice Type']['valueString'] ?? null;
         $credit_note = CreditNoteHelper::isCreditNote(
-            $doc['Invoice Type']['valueString'] ?? null
+            $invoice_type
         );
 
         $supplierName = $doc ? ($doc['Client Name']['valueString'] ?? '') : '';    
         $orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $supplierName);
 
         if(!$orgNo)
-            $orgNo = OrgNoNormalizer::normalize(($doc['Client Vat Number']['valueString'] ?? null), $supplierName);
+        {
+            //$orgNo = OrgNoNormalizer::normalize(($doc['Client Vat Number']['valueString'] ?? null), $supplierName);
+
+            $rawVatNumber = $doc['Client Vat Number']['valueString']
+                ?? OcrFallbackFieldExtractor::clientNumber($content);
+
+            $orgNo = OrgNoNormalizer::normalize($rawVatNumber, $supplierName);            
+        }
 
         $client_result = app(ClientResolver::class)->resolve(
             $clients,
@@ -50,6 +77,15 @@ class CustomSalesInvoiceMapper
 
         $invoiceNumber = $doc['Invoice Number']['valueString'] ?? null;
         $invoiceNumber = trim($invoiceNumber ?? '') ?: null;        
+       
+        if (!$invoiceDate) {
+            $invoiceDate = OcrFallbackFieldExtractor::invoiceDate($content);
+        }
+        $invoiceDate = DateHelper::parseInvoiceDate($invoiceDate);
+
+        if (!$invoiceNumber) {
+            $invoiceNumber = OcrFallbackFieldExtractor::invoiceNumber($content);
+        }
 
         $noInvoiceNumber = $doc['NO Invoice Number']['valueString'] ?? null;
         $noInvoiceNumber = trim($noInvoiceNumber ?? '') ?: null;        
@@ -75,13 +111,24 @@ class CustomSalesInvoiceMapper
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
         );
-        $currency = CurrencyHelper::parseCurrency($og_currency);
+        if($og_currency)
+            $currency = CurrencyHelper::parseCurrency($og_currency);
+        else
+            $currency = CurrencyHelper::parseCurrency($doc['Currency']['valueString'] ?? null);
+
+        if (!$currency) {
+            $currency = OcrFallbackFieldExtractor::currency($content);
+        }
+
+        $exchange_currency = $doc['Exchange Currency']['valueString'] ?? null;
 
         [$og_exchange_currency, $exchange_net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Exchange Net Amount']['valueString'] ?? null,
-            $doc['Exchange Currency']['valueString'] ?? null
+            $exchange_currency
         );
-        $exchange_currency = CurrencyHelper::parseCurrency($og_exchange_currency);
+        
+        if($og_exchange_currency)     
+            $exchange_currency = CurrencyHelper::parseCurrency($og_exchange_currency);
 
         [$vat_currency, $vat_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Vat Amount']['valueString'] ?? null,
@@ -92,6 +139,34 @@ class CustomSalesInvoiceMapper
             $doc['Exchange Vat Amount']['valueString'] ?? null,
             $exchange_currency ?? null
         );
+
+        if($client_name && stripos($client_name, 'engel') !== false)
+        {            
+            if($exchange_currency && !$exchange_vat_amount)
+            {
+                Log::info("exchange_currency: " . $exchange_currency);
+                if(trim($exchange_currency) == "0 NOK")
+                {                    
+                    $exchange_currency = str_replace('0 ', '', trim($exchange_currency)); 
+                    $exchange_vat_amount = "0";      
+
+                    Log::info("exchange_currency: " . $exchange_currency);       
+                    Log::info("exchange_vat_amount: " . $exchange_vat_amount);              
+                }
+                else
+                    $exchange_vat_amount = OcrFallbackFieldExtractor::exchangeVatAmount($content);
+            }
+            else if(!$exchange_currency && !$exchange_vat_amount)
+            {
+                $exchange_fallback = OcrFallbackFieldExtractor::exchangeVatAmount($content, true);
+
+                if($exchange_fallback)
+                {
+                    $exchange_currency = $exchange_fallback['currency'];
+                    $exchange_vat_amount = $exchange_fallback['amount'];
+                }
+            }
+        }
 
         [$discount_currency, $discount_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Discount Amount']['valueString'] ?? null,
@@ -375,7 +450,7 @@ class CustomSalesInvoiceMapper
 // Log::info("variance: " . $variance);
 // Log::info("total_amount: " . $total_amount);
         $mapresult = [
-            'invoice_type' => $doc['Invoice Type']['valueString'] ?? null,
+            'invoice_type' => $invoice_type,
             'invoice_number' => $invoiceNumber ?? null,
             'no_invoice_number' => $noInvoiceNumber ?? null,
             'invoice_date'   => $invoiceDate ?? null,           
@@ -503,7 +578,20 @@ class CustomSalesInvoiceMapper
             $mapresult['error'] = $error_message;
         }
 
-        if ($vat_rate == "100") {
+        $validInvoiceType = collect($comInvoiceTypes)->contains(function ($type) use ($invoice_type, $vat_rate) {       
+            if(strtolower($invoice_type) == "rechnung" && $vat_rate)
+                return false;
+            else
+                return str_contains(strtolower($invoice_type), $type);
+        });
+
+        if($client_name && stripos($client_name, 'engel') !== false)
+        {
+            $validInvoiceType = OcrFallbackFieldExtractor::invoiceType($content);
+        }
+
+        if ($vat_rate == "100" || $validInvoiceType) {
+            //Log::info("invoice_type: " . $invoice_type);
             $mapresult['change_invoice_type'] = true;
         }
      

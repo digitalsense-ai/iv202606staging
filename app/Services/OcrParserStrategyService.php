@@ -27,12 +27,33 @@ class OcrParserStrategyService
 
         $parser = $this->parserFor($invoiceType);
 
+        $amountFields = [
+            'net_amount',
+            'vat_amount',
+            'total_amount',
+            'exchange_net_amount',
+            'exchange_vat_amount',
+            'exchange_total_amount',
+        ];
+
+        $originalAmounts = [];
+
+        foreach ($amountFields as $field) {
+            $originalAmounts[$field] = $normalized[$field] ?? null;
+        }
+
         $normalized = $parser->parse(
             normalized: $normalized,
             azureResult: $azureResult,
             clientId: $clientId,
             invoiceType: $invoiceType
         );
+
+        foreach ($originalAmounts as $field => $value) {
+            if ($value !== null && $value !== '') {
+                $normalized[$field] = $value;
+            }
+        }
 
         data_set($normalized, '_ocr.parser_strategy', [
             'parser' => class_basename($parser),

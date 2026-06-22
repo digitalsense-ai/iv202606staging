@@ -20,11 +20,17 @@ class SecondFemaleInvoiceParser implements ClientInvoiceParserInterface
 
         $content = $this->normalizeHeaderText($result['analyzeResult']['content'] ?? '');
 
-        return str_contains($content, 'secondfemale')
-            || str_contains($content, 'second female')
-            || str_contains($content, 'org invoice no tracking no')
-            || str_contains($content, 'opr fakturanr tracking no')
-            || str_contains($content, 'fakturaen daekker over foelgende leverancer');
+        return (
+                (
+                    str_contains($content, 'secondfemale')
+                    || str_contains($content, 'second female')
+                ) &&
+                (
+                    str_contains($content, 'org invoice no tracking no')
+                    || str_contains($content, 'opr fakturanr tracking no')
+                    || str_contains($content, 'fakturaen daekker over foelgende leverancer')
+                )
+            );
     }
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array

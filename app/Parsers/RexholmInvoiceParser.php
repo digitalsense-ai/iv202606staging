@@ -19,22 +19,22 @@ class RexholmInvoiceParser implements ClientInvoiceParserInterface
 
     public function parse(array $result, array $doc, ?string $clientName = null, ?string $clientNo = null, ?bool $validate = false): array
     {   
-        if($validate)
-        { 
-            $salesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
+        // if($validate)
+        // { 
+        //     $salesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
             
-            $salesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
+        //     $salesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
             
-            $shipmentNos     = $doc['Related Shipment Numbers']['valueString'] ?? null;
+        //     $shipmentNos     = $doc['Related Shipment Numbers']['valueString'] ?? null;
             
-            return [
-                'related_sales_invoices' => $salesInvoices,
-                'related_sales_orders'   => $salesOrders,
-                'related_shipment_nos'   => $shipmentNos,
-            ];
-        }
-        else
-        {    
+        //     return [
+        //         'related_sales_invoices' => $salesInvoices,
+        //         'related_sales_orders'   => $salesOrders,
+        //         'related_shipment_nos'   => $shipmentNos,
+        //     ];
+        // }
+        // else
+        // {    
             $value = $doc['Related Sales Invoices']['valueString'] ?? '';
 
             preg_match_all('/(\d+)\s*\(([^)]+)\)/', $value, $matches, PREG_SET_ORDER);
@@ -59,6 +59,6 @@ class RexholmInvoiceParser implements ClientInvoiceParserInterface
                 'related_sales_orders'   => implode(', ', $salesOrders),
                 'related_shipment_nos'   => implode(', ', $shipmentNos),
             ];
-        }
+        //}
     }
 }

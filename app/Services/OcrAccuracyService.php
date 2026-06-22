@@ -16,6 +16,7 @@ class OcrAccuracyService
         $fullText = $this->extractFullText($azureResult);
         $confidence = $this->extractFieldConfidence($azureResult);
         $candidates = $this->extractCandidates($fullText, $invoiceType);
+        $normalized = $this->promoteMissingFields($normalized, $candidates);
         $checks = $this->runConsistencyChecks($normalized, $candidates);
         $score = $this->calculateScore($normalized, $confidence, $candidates, $checks);
 
@@ -89,6 +90,7 @@ class OcrAccuracyService
             'invoice_numbers' => [
                 '/(?:invoice|inv|faktura|fakturanr|faktura nr|invoice no)[\s:#.-]*([A-Z0-9][A-Z0-9\/-]{2,})/iu',
                 '/\b(?:INV|SI|CI)[-\s]?\d{3,}\b/iu',
+                '/\b(?:IC|CH|CHF|NO|OSL)[A-Z0-9-]{3,}\b/iu',
             ],
             'dates' => [
                 '/\b\d{1,2}[\.\/-]\d{1,2}[\.\/-]\d{2,4}\b/u',
@@ -255,5 +257,31 @@ class OcrAccuracyService
         }
 
         return is_numeric($clean) ? (float) $clean : null;
+    }
+
+    private function promoteMissingFields(array $normalized, array $candidates): array
+    {
+        if (
+            empty($normalized['invoice_number'])
+            && count($candidates['invoice_numbers'] ?? []) === 1
+        ) {
+            $normalized['invoice_number'] = $candidates['invoice_numbers'][0];
+        }
+
+        if (
+            empty($normalized['invoice_date'])
+            && count($candidates['dates'] ?? []) === 1
+        ) {
+            $normalized['invoice_date'] = $candidates['dates'][0];
+        }
+
+        if (
+            empty($normalized['currency'])
+            && count($candidates['currencies'] ?? []) === 1
+        ) {
+            $normalized['currency'] = $candidates['currencies'][0];
+        }
+
+        return $normalized;
     }
 }

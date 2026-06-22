@@ -279,7 +279,8 @@ class MicrosoftMailService
             preg_match('/^(ATT|EAD|ESCAN_|Payment information|Mainifest)/i', $fileName)
             || stripos($fileName, 'AJONEDDCPA') !== false
             || stripos($fileName, 'Mva-melding') !== false
-            || stripos($fileName, 'kontoudtog') !== false            
+            || stripos($fileName, 'kontoudtog') !== false   
+            || stripos($fileName, 'delivery_note') !== false           
             || Str::startsWith(Str::lower($fileName), ['26dk', 'gls - '])
         ) return $grouped;
 
@@ -328,9 +329,15 @@ class MicrosoftMailService
             ];
         }
         else
-        {
+        {            
             if(isset($attachment['prevFolder']))
-                $folder = $attachment['prevFolder'];
+            {
+                if (Str::startsWith(Str::lower($fileName), ['jessi regina'])                    
+                )
+                    $folder = 'com';
+                else
+                    $folder = $attachment['prevFolder'];
+            }
             else
             {
                 // Decide folder purely based on filename
@@ -381,7 +388,7 @@ class MicrosoftMailService
                         || stripos($fileName, "nos-") !== false
                         || stripos($fileName, "nos ") !== false
                         || stripos($fileName, "ic") !== false
-                        || Str::startsWith(Str::lower($fileName), ['no ', 'la_', 'haos_', 'nmd', 'ch ', 'uk ', 'gb ', 'invoices_for_commercial_invoice', 'ci', 'dhl', '980827682_mva_si_2610000'])
+                        || Str::startsWith(Str::lower($fileName), ['no ', 'la_', 'haos_', 'nmd', 'ch ', 'uk ', 'gb ', 'invoices_for_commercial_invoice', 'ci', 'dhl', '980827682_mva_si_2610000', 'jessi regina'])
                         || Str::startsWith(Str::lower($subject), ['no00'])
                     )
                     { 

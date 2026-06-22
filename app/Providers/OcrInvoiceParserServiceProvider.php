@@ -9,6 +9,7 @@ use App\Parsers\BergToysInvoiceParser;
 use App\Parsers\KiteInvoiceParser;
 use App\Parsers\RexholmInvoiceParser;
 use App\Parsers\SecondFemaleInvoiceParser;
+use App\Parsers\DanFormInvoiceParser;
 use App\Parsers\DefaultInvoiceParser;
 
 class OcrInvoiceParserServiceProvider extends ServiceProvider
@@ -21,6 +22,7 @@ class OcrInvoiceParserServiceProvider extends ServiceProvider
                 new BergToysInvoiceParser(),
                 new RexholmInvoiceParser(),
                 new SecondFemaleInvoiceParser(),
+                new DanFormInvoiceParser(),
                 new DefaultInvoiceParser(),
             ]);
         });

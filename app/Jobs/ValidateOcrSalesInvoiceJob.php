@@ -77,7 +77,9 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
         if (isset($mapped['change_invoice_type'])) 
         { 
             if($mapped['change_invoice_type'])
-            {               
+            {       
+                $ocrAnalyzeService = new OcrAnalyzeService();
+                        
                 // $changeType = OcrPdf::query()->where('id', $this->invoiceId)->first();
                 // $changeType->sync_status = 0;
                 // $changeType->is_locked = 0;
@@ -87,7 +89,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
                 $batchId = $invoice->batch_id;
                 
                 //Get file from Azure storage
-                $sasPaths = $controller->getSasUrl($this->invoiceId, 'recapture');
+                $sasPaths = $ocrAnalyzeService->getSasUrl($this->invoiceId, 'recapture');
                 $sasUrl = $sasPaths['signedUrl'];
                 $blobPath = $sasPaths['blobPath'];
 
@@ -133,7 +135,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
 
                 // $fullPath = storage_path('app/' . $path); // this will exist
             
-                $ocrAnalyzeService = new OcrAnalyzeService();
+                
                 $ocrAnalyzeService->analyze($this->clients, [$fullPath], $folder, $batchId, null, $prevCaptures);
 
                 return;
@@ -145,19 +147,42 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
          * 7a. ACCURACY SERVICE
          * -------------------------------------------------
          */
-        if (is_array($mapped) && !isset($mapped['error'])) {            
-            // $mapped = app(OcrParserStrategyService::class)->apply(
-            //     normalized: $mapped,
-            //     azureResult: $result,
-            //     clientId: null,
-            //     invoiceType: $invoice->invoice_type
-            // );
-           
+        if (is_array($mapped) && !isset($mapped['error'])) {     
+// Log::info('Before parser strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null,
+//     'vat' => $mapped['vat_amount'] ?? null,
+//     'total' => $mapped['total_amount'] ?? null,
+// ]);
+
+            $mapped = app(OcrParserStrategyService::class)->apply(
+                normalized: $mapped,
+                azureResult: $result,
+                clientId: null,
+                invoiceType: $invoice->invoice_type
+            );
+        
+// Log::info('After parser strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null,
+//     'vat' => $mapped['vat_amount'] ?? null,
+//     'total' => $mapped['total_amount'] ?? null,
+// ]);
+
             $mapped = app(OcrAccuracyService::class)->enrich(
                 $mapped,
                 $result,
                 $invoice->invoice_type
-            );           
+            );  
+// Log::info('After Accuracy strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null,
+//     'vat' => $mapped['vat_amount'] ?? null,
+//     'total' => $mapped['total_amount'] ?? null,
+// ]);
         }
 
         app(ValidateOcrInvoiceUpdateService::class)->apply($invoice, $mapped);

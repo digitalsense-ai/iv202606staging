@@ -8,6 +8,7 @@ use App\Helpers\DateHelper;
 use App\Helpers\OrgNoNormalizer;
 use App\Helpers\CurrencyHelper;
 use App\Helpers\EuropeanNumberHelper;
+use App\Support\OcrFallbackFieldExtractor;
 
 use App\Services\ClientResolver;
 use App\Parsers\ClientInvoiceParser;
@@ -17,10 +18,21 @@ class CustomComInvoiceMapper
     public static function map(array $result, array $clients, bool $validate = false): array
     {
         $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
+        $content = $result['analyzeResult']['content'] ?? '';
 //Log::info($doc); 
          
-       $recipientName = $doc ? ($doc['Client Name']['valueString'] ?? '') : '';
-       $orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $recipientName);
+        $recipientName = $doc ? ($doc['Client Name']['valueString'] ?? '') : '';
+        //$orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $recipientName);
+
+        $clientNumber = $doc['Client Number']['valueString'] ?? null;
+        if($clientNumber)
+            $rawClientNumber = (strlen(trim($clientNumber)) === 3)
+                ? OcrFallbackFieldExtractor::clientNumber($content)
+                : $clientNumber;
+        else
+            $rawClientNumber = OcrFallbackFieldExtractor::clientNumber($content);
+
+        $orgNo = OrgNoNormalizer::normalize($rawClientNumber, $recipientName);
 
         $client_result = app(ClientResolver::class)->resolve(
             $clients,
@@ -38,7 +50,16 @@ class CustomComInvoiceMapper
         );
 
         $invoiceNumber = $doc['Invoice Number']['valueString'] ?? null;
-        $invoiceNumber = trim($invoiceNumber ?? '') ?: null;        
+        $invoiceNumber = trim($invoiceNumber ?? '') ?: null;
+        
+        if (!$invoiceDate) {
+            $invoiceDate = OcrFallbackFieldExtractor::invoiceDate($content);
+        }
+        $invoiceDate = DateHelper::parseInvoiceDate($invoiceDate);
+
+        if (!$invoiceNumber) {
+            $invoiceNumber = OcrFallbackFieldExtractor::invoiceNumber($content);
+        }
 
         if($client_name && stripos($client_name, 'dfi-geisler') !== false)
             $invoiceNumber = !empty($invoiceNumber)
@@ -71,8 +92,15 @@ class CustomComInvoiceMapper
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
         );
-            
-        $currency = CurrencyHelper::parseCurrency($og_currency);
+      
+        if($og_currency)    
+            $currency = CurrencyHelper::parseCurrency($og_currency);
+        else
+            $currency = CurrencyHelper::parseCurrency($doc['Currency']['valueString'] ?? null);
+
+        if (!$currency) {
+            $currency = OcrFallbackFieldExtractor::currency($content);
+        }
 
         [$og_exchange_currency, $exchange_net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Exchange Net Amount']['valueString'] ?? null,
@@ -137,7 +165,7 @@ class CustomComInvoiceMapper
         if ($error_message) {
             $mapresult['error'] = $error_message;
         }
-        
+       
         return $mapresult;        
     }
 }

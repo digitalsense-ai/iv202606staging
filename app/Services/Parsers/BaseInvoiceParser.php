@@ -150,18 +150,40 @@ abstract class BaseInvoiceParser implements OcrInvoiceParser
             return $value;
         }
 
-        $clean = preg_replace('/[^0-9,.-]/', '', (string) $value);
+        $clean = trim((string) $value);
+
+        $clean = preg_replace('/[^0-9,.\-]/', '', $clean);
 
         if ($clean === '') {
             return $value;
         }
 
-        if (substr_count($clean, ',') === 1 && substr_count($clean, '.') === 0) {
-            $clean = str_replace(',', '.', $clean);
-        } else {
-            $clean = str_replace(',', '', $clean);
+        /*
+         * European format:
+         * 1.599,20
+         * 12.345,99
+         */
+        if (preg_match('/^\-?\d{1,3}(\.\d{3})*,\d{2}$/', $clean)) {
+            return str_replace(',', '.', str_replace('.', '', $clean));
         }
 
-        return is_numeric($clean) ? $clean : $value;
+        /*
+         * US format:
+         * 1,599.20
+         * 12,345.99
+         */
+        if (preg_match('/^\-?\d{1,3}(,\d{3})*\.\d{2}$/', $clean)) {
+            return str_replace(',', '', $clean);
+        }
+
+        /*
+         * Decimal comma only:
+         * 399,80
+         */
+        if (preg_match('/^\-?\d+,\d+$/', $clean)) {
+            return str_replace(',', '.', $clean);
+        }
+
+        return $clean;
     }
 }

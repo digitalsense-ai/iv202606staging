@@ -199,6 +199,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                     {
                         if($normalized['change_invoice_type'])
                         {
+                            $ocrAnalyzeService = new OcrAnalyzeService();
                             //$controller = app(AnalyzePdfController::class);
 
                             $changeType = OcrPdf::query()->where('id', $this->documentId)->first();
@@ -210,7 +211,7 @@ class PollAnalyzeResultJob implements ShouldQueue
                             $batchId = $changeType->batch_id;
                             
                             //Get file from Azure storage
-                            $sasPaths = $controller->getSasUrl($this->documentId, 'recapture');
+                            $sasPaths = $ocrAnalyzeService->getSasUrl($this->documentId, 'recapture');
                             $sasUrl = $sasPaths['signedUrl'];
                             $blobPath = $sasPaths['blobPath'];
 
@@ -222,7 +223,6 @@ class PollAnalyzeResultJob implements ShouldQueue
                             
                             //$controller->analyzeStoredPdfs($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures);
                             
-                            $ocrAnalyzeService = new OcrAnalyzeService();
                             $ocrAnalyzeService->analyze($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures); 
 
                             return;
@@ -266,12 +266,12 @@ class PollAnalyzeResultJob implements ShouldQueue
              * -------------------------------------------------
              */
             if (is_array($normalized) && !isset($normalized['error'])) {
-                // $normalized = app(OcrParserStrategyService::class)->apply(
-                //     normalized: $normalized,
-                //     azureResult: $result,
-                //     clientId: null,
-                //     invoiceType: $this->invoiceType
-                // );
+                $normalized = app(OcrParserStrategyService::class)->apply(
+                    normalized: $normalized,
+                    azureResult: $result,
+                    clientId: null,
+                    invoiceType: $this->invoiceType
+                );
 
                 $normalized = app(OcrAccuracyService::class)->enrich(
                     $normalized,

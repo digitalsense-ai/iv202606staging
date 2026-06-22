@@ -8217,7 +8217,7 @@ class CommonClass
                   {
                     $rows = DB::connection(config('database.ocr_connection'))->select("
                         SELECT id
-                        FROM dv_invoice_ocr_pdfs
+                        FROM dv_ocr_pdfs
                         WHERE invoice_type = 'com'
                           AND is_locked = 0
                           AND is_deleted = 0
@@ -8239,7 +8239,7 @@ class CommonClass
                   {
                     $rows = DB::connection(config('database.ocr_connection'))->select("
                         SELECT id
-                        FROM dv_invoice_ocr_pdfs
+                        FROM dv_ocr_pdfs
                         WHERE invoice_type = 'com'
                           AND is_locked = 0
                           AND is_deleted = 0

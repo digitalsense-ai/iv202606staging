@@ -29,9 +29,9 @@ class OcrAnalyzeService
         };
 
         $modelId = match ($invoiceType) {
-            'sales', 'multi-invoices' => 'custom_sales_invoice_v19',
-            'com'   => 'custom_com_invoice_v16',
-            default => 'custom_sales_invoice_v19',
+            'sales', 'multi-invoices' => 'custom_sales_invoice_v20',
+            'com'   => 'custom_com_invoice_v17',
+            default => 'custom_sales_invoice_v20',
         };
 
         foreach ($paths as $key => $fullPath) {
@@ -122,4 +122,49 @@ class OcrAnalyzeService
             } //not allow
         }
     }
+
+    public function getSasUrl($id, $type = null)
+    {
+        $invoice = OcrPdf::query()->findOrFail($id);
+
+        if (!$invoice->azure_url) {
+            return response()->json(['error' => 'PDF not available'], 404);
+        }
+
+        $azureService = new AzureStorageService();
+
+        $invoice_azure_url = $invoice->azure_url;
+        if ($invoice->azure_sas_url && $invoice->azure_sas_expiry && now()->lt($invoice->azure_sas_expiry))
+            $signedUrl = $invoice->azure_sas_url;
+        else 
+        {
+            //$invoice_azure_url = $invoice->azure_url;
+            if (stripos($invoice->azure_url, "multi-invoices/") !== false)
+            {
+                if($type == 'recapture')
+                    $invoice_azure_url = $invoice->azure_url;
+                // else             
+                //     $invoice_azure_url = preg_replace('/_\d+\.pdf$/', '.pdf', $invoice->azure_url);
+            }
+            
+            $signedUrl = $azureService->generateSasUrl($invoice_azure_url);
+            $invoice->azure_sas_url = $signedUrl;
+            $invoice->azure_sas_expiry = now()->addHours(1);
+            $invoice->save();
+        }
+
+        if($type == 'recapture')
+        {
+            //return $signedUrl;
+            return [
+                'blobPath' =>  $invoice_azure_url,
+                'signedUrl' =>  $signedUrl,
+            ];  
+        }
+        else    
+            return response()->json([
+                'azure_signed_url' => $signedUrl,
+                'start_pageno' => $invoice->start_pageno ?? 1
+            ]);
+    }   
 }

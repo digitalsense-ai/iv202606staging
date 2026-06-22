@@ -66,25 +66,43 @@ class ValidateOcrCommercialInvoiceJob implements ShouldQueue
         // }        
 
         $mapped = CustomComInvoiceMapper::map($result, $this->clients, true);
-
+// Log::info('Mapped', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null    
+// ]);
         /**
          * -------------------------------------------------
          * 7a. ACCURACY SERVICE
          * -------------------------------------------------
          */
         if (is_array($mapped) && !isset($mapped['error'])) {
-            // $mapped = app(OcrParserStrategyService::class)->apply(
-            //     normalized: $mapped,
-            //     azureResult: $result,
-            //     clientId: null,
-            //     invoiceType: $invoice->invoice_type
-            // );
-
+// Log::info('Before parser strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null    
+// ]);            
+            $mapped = app(OcrParserStrategyService::class)->apply(
+                normalized: $mapped,
+                azureResult: $result,
+                clientId: null,
+                invoiceType: $invoice->invoice_type
+            );
+// Log::info('After parser strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null    
+// ]);
             $mapped = app(OcrAccuracyService::class)->enrich(
                 $mapped,
                 $result,
                 $invoice->invoice_type
-            );           
+            );  
+// Log::info('After Accuracy strategy', [
+//     'no' => $mapped['invoice_number'] ?? null,
+//     'date' => $mapped['invoice_date'] ?? null,
+//     'net' => $mapped['net_amount'] ?? null    
+// ]);                     
         }
 
         app(ValidateOcrInvoiceUpdateService::class)->apply($invoice, $mapped);

@@ -11,9 +11,9 @@ class ClientInvoiceParser
 
     public function parse(array $result, ?string $clientName, ?string $clientNo, ?bool $validate = false): array
     {
-        if($validate)
-            $doc = $result;
-        else
+        //if($validate)
+            //$doc = $result;
+        //else
             $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
         //$clientName = $doc['Client Name']['valueString'] ?? null;
         $clientName = $clientName ?? null;
