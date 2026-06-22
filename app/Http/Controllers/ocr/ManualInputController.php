@@ -239,18 +239,25 @@ class ManualInputController extends Controller
 
     private function nextResponse(int $currentId): array
     {
-        $items = $this->baseQueueQuery()
-            ->orderBy('updated_at')
-            ->orderBy('id')
-            ->get();
-
-        $next = $items->firstWhere('id', '!=', $currentId);
+        $next = $this->nextQueueItem($currentId);
+        $total = $this->baseQueueQuery()->count();
 
         return [
-            'total' => $items->count(),
-            'next' => $next ? $this->detailPayload($next) : null,
-            'position' => $next ? $this->positionFor($next->id) : null,
+            'total' => $total,
+            'next' => $next,
+            'position' => $next ? $this->positionFor($next['id']) : null,
         ];
+    }
+
+    private function nextQueueItem(int $currentId): ?array
+    {
+        $next = $this->baseQueueQuery()
+            ->where('id', '!=', $currentId)
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->first();
+
+        return $next ? $this->detailPayload($next) : null;
     }
 
     private function positionFor(int $id): ?int
@@ -279,7 +286,10 @@ class ManualInputController extends Controller
             ->get()
             ->first(function (VATRegistrationMain $vatRegistration) use ($normalized) {
                 return $this->normalizedEquals($vatRegistration->org_no, $normalized)
-                    || $this->normalizedEquals($vatRegistration->vat_no, $normalized);
+                    || $this->normalizedEquals($vatRegistration->vat_no, $normalized)
+                    || $this->normalizedEquals($vatRegistration->cvr_no, $normalized)
+                    || $this->normalizedEquals($vatRegistration->mva_no, $normalized)
+                    || $this->normalizedEquals($vatRegistration->eori_no, $normalized);
             });
     }
 
