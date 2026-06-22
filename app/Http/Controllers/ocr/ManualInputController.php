@@ -80,18 +80,7 @@ class ManualInputController extends Controller
             return response()->json(['client' => null]);
         }
 
-        $vatRegistration = VATRegistrationMain::query()
-            ->with('client')
-            ->get()
-            ->first(function (VATRegistrationMain $vatRegistration) use ($clientNo) {
-                return in_array($clientNo, array_filter([
-                    $vatRegistration->org_no,
-                    $vatRegistration->vat_no,
-                    $vatRegistration->cvr_no,
-                    $vatRegistration->mva_no,
-                    $vatRegistration->eori_no,
-                ]), true);
-            });
+        $vatRegistration = $this->vatRegistrationForOrgNo($clientNo);
 
         if ($vatRegistration && $vatRegistration->client) {
             return response()->json([
@@ -99,6 +88,7 @@ class ManualInputController extends Controller
                     'id' => $vatRegistration->client->id,
                     'name' => $vatRegistration->client->client_name,
                     'client_no' => $clientNo,
+                    'country_code' => $vatRegistration->country,
                 ],
             ]);
         }
@@ -112,6 +102,7 @@ class ManualInputController extends Controller
                 'id' => $client->id,
                 'name' => $client->client_name,
                 'client_no' => $clientNo,
+                'country_code' => null,
             ] : null,
         ]);
     }
@@ -120,24 +111,25 @@ class ManualInputController extends Controller
     {
         return OcrPdf::query()
             ->where('is_deleted', 0)
-            ->where(function ($query) {
-                $query->where('status', 'failed')
-                    ->orWhere('validation_status', 'not_yet_validated')
-                    ->orWhereNotNull('error');
-            });
+            ->where('status', 'failed');
     }
 
     private function summaryPayload(OcrPdf $invoice): array
     {
         $data = $invoice->extracted_data ?? [];
+        $clientNo = data_get($data, 'recipient.org_number') ?? data_get($data, 'supplier.org_number');
+        $vatRegistration = $this->vatRegistrationForOrgNo($clientNo);
 
         return [
             'id' => $invoice->id,
             'file_name' => $invoice->file_name,
             'invoice_type' => $invoice->invoice_type,
             'invoice_type_name' => $this->invoiceTypeName($invoice->invoice_type),
-            'client_no' => data_get($data, 'recipient.org_number') ?? data_get($data, 'supplier.org_number'),
-            'client_name' => data_get($data, 'recipient.name') ?? data_get($data, 'supplier.name'),
+            'client_no' => $clientNo,
+            'client_name' => $vatRegistration?->client?->client_name
+                ?? data_get($data, 'recipient.name')
+                ?? data_get($data, 'supplier.name'),
+            'country_code' => $vatRegistration?->country,
             'invoice_no' => data_get($data, 'invoice_number'),
             'invoice_date' => data_get($data, 'invoice_date'),
             'error' => $invoice->error,
@@ -151,8 +143,14 @@ class ManualInputController extends Controller
     private function detailPayload(OcrPdf $invoice): array
     {
         $data = $invoice->extracted_data ?? [];
+        $clientNo = data_get($data, 'recipient.org_number') ?? data_get($data, 'supplier.org_number');
+        $vatRegistration = $this->vatRegistrationForOrgNo($clientNo);
 
         return array_merge($this->summaryPayload($invoice), [
+            'client_name' => $vatRegistration?->client?->client_name
+                ?? data_get($data, 'recipient.name')
+                ?? data_get($data, 'supplier.name'),
+            'country_code' => $vatRegistration?->country,
             'credit_note' => (bool) data_get($data, 'credit_note', false),
             'currency' => data_get($data, 'currency'),
             'exchange_currency' => data_get($data, 'exchange_currency'),
@@ -166,6 +164,7 @@ class ManualInputController extends Controller
             'exchange_total_amount' => data_get($data, 'exchange_total_amount'),
             'related_sales_invoices' => $this->referencesAsArray(data_get($data, 'related_sales_invoices')),
             'note' => data_get($data, 'manual_note'),
+            'azure_url' => $invoice->azure_url,
             'sas_url' => app(OcrAnalyzeService::class)->getSasUrl($invoice->id),
         ]);
     }
@@ -175,6 +174,7 @@ class ManualInputController extends Controller
         $data = $invoice->extracted_data ?? [];
 
         data_set($data, 'invoice_type', $request->input('invoice_type'));
+        data_set($data, 'country_code', $request->input('country_code'));
         data_set($data, 'recipient.org_number', $request->input('client_no'));
         data_set($data, 'recipient.name', $request->input('client_name'));
         data_set($data, 'supplier.org_number', $request->input('client_no'));
@@ -219,11 +219,15 @@ class ManualInputController extends Controller
             'invoice_date' => 'Invoice Date missing',
             'invoice_number' => 'Invoice no. missing',
             'currency' => 'Currency missing',
-            'total_amount' => 'Total amount missing',
+            'net_amount' => 'Net amount missing',
         ] as $field => $message) {
             if (blank(data_get($data, $field))) {
                 $missing[] = $message;
             }
+        }
+
+        if (data_get($data, 'invoice_type') !== 'com' && blank(data_get($data, 'total_amount'))) {
+            $missing[] = 'Total amount missing';
         }
 
         if (blank(data_get($data, 'recipient.org_number')) && blank(data_get($data, 'supplier.org_number'))) {
@@ -262,7 +266,29 @@ class ManualInputController extends Controller
         return $index === false ? null : $index + 1;
     }
 
-    private function referencesAsArray(mixed $value): array
+    private function vatRegistrationForOrgNo(?string $orgNo): ?VATRegistrationMain
+    {
+        $normalized = preg_replace('/\D+/', '', (string) $orgNo);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return VATRegistrationMain::query()
+            ->with('client')
+            ->get()
+            ->first(function (VATRegistrationMain $vatRegistration) use ($normalized) {
+                return $this->normalizedEquals($vatRegistration->org_no, $normalized)
+                    || $this->normalizedEquals($vatRegistration->vat_no, $normalized);
+            });
+    }
+
+    private function normalizedEquals(?string $value, string $normalized): bool
+    {
+        return preg_replace('/\D+/', '', (string) $value) === $normalized;
+    }
+
+    private function referencesAsArray($value): array
     {
         if (is_array($value)) {
             return array_values(array_filter($value));
@@ -277,11 +303,15 @@ class ManualInputController extends Controller
 
     private function invoiceTypeName(?string $invoiceType): string
     {
-        return match ($invoiceType) {
-            'com' => 'Commercial Invoice',
-            'multi-invoices' => 'Multi invoices in single PDF',
-            'sales' => 'Sales Invoice',
-            default => ucfirst((string) $invoiceType),
-        };
+        switch ($invoiceType) {
+            case 'com':
+                return 'Commercial Invoice';
+            case 'multi-invoices':
+                return 'Multi invoices in single PDF';
+            case 'sales':
+                return 'Sales Invoice';
+            default:
+                return ucfirst((string) $invoiceType);
+        }
     }
 }
