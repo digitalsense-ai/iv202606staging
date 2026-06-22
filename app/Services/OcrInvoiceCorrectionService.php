@@ -7,12 +7,35 @@ use Illuminate\Support\Arr;
 
 class OcrInvoiceCorrectionService
 {
+    private const LOCAL_CURRENCY_MAP = [
+        'no' => 'NOK',
+        'gb' => 'GBP',
+        'uk' => 'GBP',
+        'ch' => 'CHF',
+        'dk' => 'DKK',
+        'se' => 'SEK',
+        'pl' => 'PLN',
+        'de' => 'EUR',
+        'fr' => 'EUR',
+        'it' => 'EUR',
+        'es' => 'EUR',
+        'nl' => 'EUR',
+        'be' => 'EUR',
+        'ie' => 'EUR',
+        'fi' => 'EUR',
+        'at' => 'EUR',
+        'pt' => 'EUR',
+        'lu' => 'EUR',
+    ];
+
     public function apply(OcrPdf $invoice, array $payload, bool $forceSubmitted = false, ?int $userId = null): array
     {
         $data = $invoice->extracted_data ?? [];
         $invoiceType = Arr::get($payload, 'invoice_type', $invoice->invoice_type);
+        $countryCode = $this->countryCode($payload, $data);
 
         $this->set($data, 'invoice_type', $invoiceType);
+        $this->set($data, 'country_code', $countryCode);
         $this->set($data, 'supplier.org_number', Arr::get($payload, 'client_no'));
         $this->set($data, 'supplier.name', Arr::get($payload, 'client_name'));
         $this->set($data, 'recipient.org_number', Arr::get($payload, 'client_no'));
@@ -37,6 +60,7 @@ class OcrInvoiceCorrectionService
         } else {
             $currency = Arr::get($payload, 'currency');
             $exchangeCurrency = Arr::get($payload, 'exchange_currency');
+            $exchangeRate = Arr::get($payload, 'exchange_rate');
             $netAmount = Arr::get($payload, 'net_amount');
             $exchangeNetAmount = Arr::get($payload, 'exchange_net_amount');
             $vatAmount = Arr::get($payload, 'vat_amount');
@@ -44,11 +68,15 @@ class OcrInvoiceCorrectionService
             $totalAmount = Arr::get($payload, 'total_amount');
             $exchangeTotalAmount = Arr::get($payload, 'exchange_total_amount');
 
-            if ($currency !== 'NOK' && $currency !== 'CHF') {
+            if ($this->shouldSwapLocalCurrency($countryCode, $currency, $exchangeCurrency)) {
                 [$currency, $exchangeCurrency] = [$exchangeCurrency, $currency];
                 [$netAmount, $exchangeNetAmount] = [$exchangeNetAmount, $netAmount];
                 [$vatAmount, $exchangeVatAmount] = [$exchangeVatAmount, $vatAmount];
                 [$totalAmount, $exchangeTotalAmount] = [$exchangeTotalAmount, $totalAmount];
+
+                if (blank($exchangeRate) && blank($exchangeNetAmount) && blank($exchangeVatAmount) && blank($exchangeTotalAmount)) {
+                    $exchangeCurrency = null;
+                }
             }
 
             $this->set($data, 'currency', $currency);
@@ -59,7 +87,7 @@ class OcrInvoiceCorrectionService
             $this->set($data, 'vat_rate', Arr::get($payload, 'vat_rate'));
             $this->set($data, 'vat_amount', $vatAmount);
             $this->set($data, 'total_amount', $totalAmount);
-            $this->set($data, 'exchange_rate', Arr::get($payload, 'exchange_rate'));
+            $this->set($data, 'exchange_rate', $exchangeRate);
             $this->set($data, 'exchange_vat_amount', $exchangeVatAmount);
             $this->set($data, 'exchange_total_amount', $exchangeTotalAmount);
             $this->set($data, 'related_sales_invoices', []);
@@ -119,6 +147,24 @@ class OcrInvoiceCorrectionService
         }
 
         return $missing;
+    }
+
+    private function shouldSwapLocalCurrency(?string $countryCode, ?string $currency, ?string $exchangeCurrency): bool
+    {
+        $localCurrency = self::LOCAL_CURRENCY_MAP[strtolower((string) $countryCode)] ?? null;
+
+        return $localCurrency
+            && $exchangeCurrency === $localCurrency
+            && $currency !== $localCurrency;
+    }
+
+    private function countryCode(array $payload, array $data): ?string
+    {
+        return Arr::get($payload, 'country_code')
+            ?? data_get($data, 'country_code')
+            ?? data_get($data, '_ocr.country_code')
+            ?? data_get($data, 'recipient.country_code')
+            ?? data_get($data, 'supplier.country_code');
     }
 
     private function set(array &$data, string $key, $value): void
