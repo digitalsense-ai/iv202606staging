@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\ocr;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ManualInputUpdateJob;
 use App\Models\Client;
 use App\Models\OcrPdf;
 use App\Models\VATRegistrationMain;
@@ -46,17 +47,42 @@ class ManualInputController extends Controller
     public function save(Request $request, int $id): JsonResponse
     {
         $invoice = OcrPdf::query()->findOrFail($id);
-        $this->applyManualInput($invoice, $request, false);
 
-        return response()->json($this->nextResponse($invoice->id));
+        $invoice->update([
+            'manual_input_status' => 'queued',
+            'manual_input_at' => now(),
+            'manual_input_by' => auth()->id(),
+        ]);
+
+        ManualInputUpdateJob::dispatch(
+            $id,
+            $request->all(),
+            false,
+            auth()->id()
+        );
+
+        return response()->json($this->queuedResponse($id));
     }
 
     public function forceSubmit(Request $request, int $id): JsonResponse
     {
         $invoice = OcrPdf::query()->findOrFail($id);
-        $this->applyManualInput($invoice, $request, true);
 
-        return response()->json($this->nextResponse($invoice->id));
+        $invoice->update([
+            'manual_input_status' => 'queued',
+            'manual_input_at' => now(),
+            'manual_input_by' => auth()->id(),
+            'force_submitted' => true,
+        ]);
+
+        ManualInputUpdateJob::dispatch(
+            $id,
+            $request->all(),
+            true,
+            auth()->id()
+        );
+
+        return response()->json($this->queuedResponse($id));
     }
 
     public function destroy(int $id): JsonResponse
@@ -111,7 +137,11 @@ class ManualInputController extends Controller
     {
         return OcrPdf::query()
             ->where('is_deleted', 0)
-            ->where('status', 'failed');
+            ->where('status', 'failed')
+            ->where(function ($query) {
+                $query->whereNull('manual_input_status')
+                    ->orWhereNotIn('manual_input_status', ['queued', 'processing', 'validation_queued']);
+            });
     }
 
     private function summaryPayload(OcrPdf $invoice): array
@@ -135,6 +165,7 @@ class ManualInputController extends Controller
             'error' => $invoice->error,
             'status' => $invoice->status,
             'validation_status' => $invoice->validation_status,
+            'manual_input_status' => $invoice->manual_input_status,
             'updated_at' => optional($invoice->updated_at)->format('d-m-Y'),
             'created_at' => optional($invoice->created_at)->format('d-m-Y'),
         ];
@@ -163,78 +194,10 @@ class ManualInputController extends Controller
             'total_amount' => data_get($data, 'total_amount'),
             'exchange_total_amount' => data_get($data, 'exchange_total_amount'),
             'related_sales_invoices' => $this->referencesAsArray(data_get($data, 'related_sales_invoices')),
-            'note' => data_get($data, 'manual_note'),
+            'note' => data_get($data, 'manual_note') ?? $invoice->manual_note,
             'azure_url' => $invoice->azure_url,
             'sas_url' => app(OcrAnalyzeService::class)->getSasUrl($invoice->id),
         ]);
-    }
-
-    private function applyManualInput(OcrPdf $invoice, Request $request, bool $force): void
-    {
-        $data = $invoice->extracted_data ?? [];
-
-        data_set($data, 'invoice_type', $request->input('invoice_type'));
-        data_set($data, 'country_code', $request->input('country_code'));
-        data_set($data, 'recipient.org_number', $request->input('client_no'));
-        data_set($data, 'recipient.name', $request->input('client_name'));
-        data_set($data, 'supplier.org_number', $request->input('client_no'));
-        data_set($data, 'supplier.name', $request->input('client_name'));
-        data_set($data, 'invoice_date', $request->input('invoice_date'));
-        data_set($data, 'invoice_number', $request->input('invoice_no'));
-        data_set($data, 'credit_note', $request->boolean('credit_note'));
-        data_set($data, 'currency', $request->input('currency'));
-        data_set($data, 'exchange_currency', $request->input('exchange_currency'));
-        data_set($data, 'vat_rate', $request->input('vat_rate'));
-        data_set($data, 'exchange_rate', $request->input('exchange_rate'));
-        data_set($data, 'net_amount', $request->input('net_amount'));
-        data_set($data, 'exchange_net_amount', $request->input('exchange_net_amount'));
-        data_set($data, 'vat_amount', $request->input('vat_amount'));
-        data_set($data, 'exchange_vat_amount', $request->input('exchange_vat_amount'));
-        data_set($data, 'total_amount', $request->input('total_amount'));
-        data_set($data, 'exchange_total_amount', $request->input('exchange_total_amount'));
-        data_set($data, 'related_sales_invoices', array_values(array_filter((array) $request->input('related_sales_invoices', []))));
-        data_set($data, 'manual_note', $request->input('note'));
-        data_set($data, 'manual_input.force_submitted', $force);
-        data_set($data, 'manual_input.updated_at', now()->toDateTimeString());
-
-        $missing = $this->missingRequiredFields($data);
-
-        $invoice->update([
-            'invoice_type' => $request->input('invoice_type', $invoice->invoice_type),
-            'extracted_data' => $data,
-            'status' => ($missing && !$force) ? 'failed' : 'completed',
-            'error' => ($missing && !$force) ? implode("\n", $missing) : null,
-            'validation_status' => ($missing && !$force) ? 'not_yet_validated' : 'validated_with_changes',
-            'sync_status' => 0,
-            'is_locked' => 0,
-        ]);
-    }
-
-    private function missingRequiredFields(array $data): array
-    {
-        $missing = [];
-
-        foreach ([
-            'invoice_type' => 'Document type missing',
-            'invoice_date' => 'Invoice Date missing',
-            'invoice_number' => 'Invoice no. missing',
-            'currency' => 'Currency missing',
-            'net_amount' => 'Net amount missing',
-        ] as $field => $message) {
-            if (blank(data_get($data, $field))) {
-                $missing[] = $message;
-            }
-        }
-
-        if (data_get($data, 'invoice_type') !== 'com' && blank(data_get($data, 'total_amount'))) {
-            $missing[] = 'Total amount missing';
-        }
-
-        if (blank(data_get($data, 'recipient.org_number')) && blank(data_get($data, 'supplier.org_number'))) {
-            $missing[] = 'Client no. missing';
-        }
-
-        return $missing;
     }
 
     private function nextResponse(int $currentId): array
@@ -243,6 +206,19 @@ class ManualInputController extends Controller
         $total = $this->baseQueueQuery()->count();
 
         return [
+            'total' => $total,
+            'next' => $next,
+            'position' => $next ? $this->positionFor($next['id']) : null,
+        ];
+    }
+
+    private function queuedResponse(int $currentId): array
+    {
+        $next = $this->nextQueueItem($currentId);
+        $total = $this->baseQueueQuery()->count();
+
+        return [
+            'queued' => true,
             'total' => $total,
             'next' => $next,
             'position' => $next ? $this->positionFor($next['id']) : null,
