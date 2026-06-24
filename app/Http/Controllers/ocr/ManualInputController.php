@@ -139,8 +139,12 @@ class ManualInputController extends Controller
             ->where('is_deleted', 0)
             ->where('status', 'failed')
             ->where(function ($query) {
+                $query->whereNull('force_submitted')
+                    ->orWhere('force_submitted', false);
+            })
+            ->where(function ($query) {
                 $query->whereNull('manual_input_status')
-                    ->orWhereNotIn('manual_input_status', ['queued', 'processing', 'validation_queued']);
+                    ->orWhereNotIn('manual_input_status', ['queued', 'processing', 'validation_queued', 'validating', 'validated']);
             });
     }
 
