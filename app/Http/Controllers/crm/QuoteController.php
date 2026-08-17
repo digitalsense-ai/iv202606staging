@@ -16,6 +16,9 @@ use DB;
 use App\Classes\CommonClass;
 use App\Classes\CVRApiClass;
 
+use App\Services\CRM\ContractGenerator;
+use App\Services\CRM\ContractProductCatalog;
+
 class QuoteController extends Controller
 {
     public $authUser;
@@ -30,18 +33,18 @@ class QuoteController extends Controller
         'ultimate' => 7500
     ];
 
-    public $addons = [
-            'EORI number',
-            'Customs credit',
-            'Enterprise',
-            'Purchase invoice per unit',
-            'Document per unit',
-            'Registration and authority fees',
-            'VAT reconciliation',
-            'Transfer from another provider',
-            'Transfer to another provider',
-            'CASH account statement per month'
-        ];
+    // public $addons = [
+    //         'EORI number',
+    //         'Customs credit',
+    //         'Enterprise',
+    //         'Purchase invoice per unit',
+    //         'Document per unit',
+    //         'Registration and authority fees',
+    //         'VAT reconciliation',
+    //         'Transfer from another provider',
+    //         'Transfer to another provider',
+    //         'CASH account statement per month'
+    //     ];
     
     public function __construct()
     {
@@ -92,39 +95,22 @@ class QuoteController extends Controller
     /**
      * Create quote from lead
      */
-    public function create(Request $request, $lead_id)
+    //public function create(Request $request, $lead_id)
+    public function create(Request $request, $lead_id, ContractProductCatalog $catalog)
     {
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
 
         $lead = CRMLead::findOrFail($lead_id);
+       
+        //$packages = $this->packages;        
+        
+        //$addons = CRMAddons::where('enabled', 1);
 
-        // $packages = [
-        //     'essential' => 0,
-        //     'basic' => 2500,
-        //     'plus_basic' => 3500,
-        //     'premium' => 5000,
-        //     'ultimate' => 7500
-        // ];
-
-        // $addons = [
-        //     'EORI number',
-        //     'Customs credit',
-        //     'Enterprise',
-        //     'Purchase invoice per unit',
-        //     'Document per unit',
-        //     'Registration and authority fees',
-        //     'VAT reconciliation',
-        //     'Transfer from another provider',
-        //     'Transfer to another provider',
-        //     'CASH account statement per month'
-        // ];
-
-        $packages = $this->packages;        
-        //$addons = $this->addons;
-
-        $addons = CRMAddons::where('enabled', 1);
+        $packages = $this->packages;
+        $countryCode = $this->quoteCountryCode($lead);
+        $addons = $catalog->forCountry($countryCode);
         
         return view('content.crm.quotes.create', compact(
             'pageConfigs',
@@ -137,7 +123,8 @@ class QuoteController extends Controller
     /**
      * Store quote
      */
-    public function store(Request $request)
+    //public function store(Request $request)
+    public function store(Request $request, ContractProductCatalog $catalog)
     {
         DB::beginTransaction();
 
@@ -182,18 +169,32 @@ class QuoteController extends Controller
              */
             if ($request->addons) {
 
+                $countryCode = $this->quoteCountryCode($quote->lead);
+                $countryName = $catalog->countryName($countryCode);
+
                 foreach ($request->addons as $name => $addon) {
+
+                    $catalogItem = $catalog->find($countryCode, $name);
+                    $price = $addon['price'] ?? $catalogItem?->standard_price ?? 0;
 
                     CRMQuoteAddon::updateOrCreate(
                         [
-                            'quote_id' => $quote_id,
+                            //'quote_id' => $quote_id,
+                            'quote_id' => $quote->id,
                             'addon_name' => $name
                         ],
                         [
                             'quote_id' => $quote->id,
                             'addon_name' => $name,
                             'enabled' => isset($addon['enabled']),
-                            'price' => $addon['price'] ?? 0
+                            //'price' => $addon['price'] ?? 0
+                            'country_code' => $countryCode,
+                            'country_name' => $countryName,
+                            'description' => $catalogItem?->description,
+                            'standard_price' => $catalogItem?->standard_price ?? $price,
+                            'interval' => $catalogItem?->interval,
+                            'price' => $price,
+                            'discount_amount' => max(0, (($catalogItem?->standard_price ?? $price) - $price))
                         ]
                     );
                 }
@@ -258,7 +259,8 @@ class QuoteController extends Controller
     /**
      * Edit quote
      */
-    public function edit(string $id)
+    //public function edit(string $id)
+    public function edit(string $id, ContractProductCatalog $catalog)
     {
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
@@ -266,24 +268,11 @@ class QuoteController extends Controller
 
         $quote = CRMQuote::with([
             'lead', 'lead.contact', 'addons', 'children'
-        ])->findOrFail($id);
-
-        // $packages = [
-        //     'essential' => 0,
-        //     'basic' => 2500,
-        //     'plus_basic' => 3500,
-        //     'premium' => 5000,
-        //     'ultimate' => 7500
-        // ];
-
-        // return view('content.crm.quotes.edit', compact(
-        //     'pageConfigs',
-        //     'quote',
-        //     'packages'
-        // ));
+        ])->findOrFail($id);       
 
         $packages = $this->packages;
-        $addons = $this->addons;
+        //$addons = $this->addons;
+        $addons = $catalog->forCountry($this->quoteCountryCode($quote->lead));
 
         return view('content.crm.quotes.create', compact(
             'pageConfigs',
@@ -555,5 +544,26 @@ class QuoteController extends Controller
 
         $tabName = 'rejected';
         return view('content.crm.quotes.index', compact('pageConfigs', 'quotes', 'tabName'));       
+    }
+
+    private function quoteCountryCode(?CRMLead $lead): ?string
+    {
+        $countries = $lead?->potential_countries;
+
+        if (is_array($countries) && !empty($countries)) {
+            return $countries[0];
+        }
+
+        return $lead?->company_country;
+    }
+
+    public function downloadContract(string $id, string $format, ContractGenerator $generator)
+    {
+        abort_unless(in_array($format, ['docx', 'pdf'], true), 404);
+
+        $quote = CRMQuote::with(['lead.contact', 'addons'])->findOrFail($id);
+        $paths = $generator->build($quote);
+
+        return response()->download($paths[$format]);
     }
 }

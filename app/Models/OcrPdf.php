@@ -25,6 +25,11 @@ class OcrPdf extends Model
         'extracted_data' => 'array'
     ]; 
 
+    protected $appends = [
+        'sync_status_value',
+        'is_locked_value'
+    ];
+
     public function getConnectionName()
     {
         return config('database.ocr_connection', 'ocr');
@@ -38,14 +43,69 @@ class OcrPdf extends Model
         return $this->belongsTo('App\Models\Client', 'client_id');
     } 
 
-    // public function getAzureSignedUrlAttribute()
+    public function payload()
+    {
+        return $this->hasOne(OcrPdfPayload::class, 'ocr_pdf_id');
+    }
+
+    public function getOgExtractedDataAttribute()
+    {        
+        $value = $this->payload?->og_extracted_data;
+
+        if (is_string($value)) {
+            return json_decode($value, true) ?: [];
+        }
+
+        return $value ?: [];
+    }
+
+    public function setOgExtractedDataAttribute($value): void
+    {
+        $this->payload()->updateOrCreate(
+            ['ocr_pdf_id' => $this->id],
+            ['og_extracted_data' => is_string($value) ? $value : json_encode($value)]
+        );
+    }    
+
+    // public function getSyncStatusAttribute()
+    // {        
+    //     return $this->syncStatus()
+    //         ->currentEnvironment()
+    //         ->first();
+    // }
+    
+    // public function getSyncStatusAttribute()
     // {
-    //     if (!$this->azure_url) {
-    //         return null;
-    //     }
+    //     return $this->syncStatus?->sync_status ?? false;
+    // }
 
-    //     $azureService = new AzureStorageService();
+    // public function getIsLockedAttribute()
+    // {
+    //     return $this->syncStatus?->is_locked ?? false;
+    // }  
 
-    //     return $azureService->getSignedUrl($this->azure_url);
-    // }    
+    /**
+     * OCR sync status.
+     */
+    public function syncStatus()
+    {
+        return $this->hasOne(OcrSyncStatus::class, 'ocr_pdf_id')
+                    ->currentEnvironment();
+    }  
+
+    /**
+     * Appended attribute.
+     */
+    public function getSyncStatusValueAttribute()
+    {
+        return $this->syncStatus?->sync_status ?? false;
+    }
+
+    /**
+     * Appended attribute.
+     */
+    public function getIsLockedValueAttribute()
+    {
+        return $this->syncStatus?->is_locked ?? false;
+    }
 }

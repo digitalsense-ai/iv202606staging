@@ -513,8 +513,8 @@ class InsertInvoices implements ShouldQueue
                                   $check_invoice->save();
                                 //}
                               }
-                              else
-                                $check_invoice->delete();
+                              //else
+                                //$check_invoice->delete();
                             }
                             else
                             {
@@ -522,7 +522,9 @@ class InsertInvoices implements ShouldQueue
   if($invoice_type == 'purchase')
     Log::info('CALCULATED NET AMOUNT : ' . $sales_net_amount);
                               if($sales_net_amount == 0)              
-                                $check_invoice->delete();
+                              {
+                                //$check_invoice->delete();
+                              }
                               else
                               {
                                 $check_invoice->total_net = $sales_net_amount;

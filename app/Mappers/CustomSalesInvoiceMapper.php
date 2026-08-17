@@ -4,6 +4,7 @@ namespace App\Mappers;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Str;
 
 use App\Helpers\CreditNoteHelper;
 use App\Helpers\DateHelper;
@@ -18,23 +19,30 @@ use App\Services\ClientResolver;
 
 class CustomSalesInvoiceMapper
 {
-    public static function map(array $result, array $clients, string $passDate = null): array
+    public static function map(array $result, array $clients, string $passDate = null, bool $manual = false, bool $searchSave = false): array
     {    
         $comInvoiceTypes = [
             'consolidated',
             'commercial',
             'samlefaktura',
+            'nlefaktura',
+            'nnlefaktura',
             'export sales',
+            'reason for export',
+            'reason for export: sale',
             'proforma',
+            'proformafaktura',
             'zollrechnung',
-            'reference',
+            //'reference',
+            'total tariff',
             'total tarrif',
             'rechnung',
             'samleliste',
             'invoice declaration',
             'master invoice',
             'customs invoice',
-            'collective'
+            'collective',
+            'reference/invoicing'
         ];
 
         $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
@@ -42,6 +50,8 @@ class CustomSalesInvoiceMapper
 //Log::info($doc);  
 
         $invoice_type = $doc['Invoice Type']['valueString'] ?? null;
+        $invalid_invoice_type = OcrFallbackFieldExtractor::invalidInvoiceType($content);
+
         $credit_note = CreditNoteHelper::isCreditNote(
             $invoice_type
         );
@@ -50,9 +60,7 @@ class CustomSalesInvoiceMapper
         $orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $supplierName);
 
         if(!$orgNo)
-        {
-            //$orgNo = OrgNoNormalizer::normalize(($doc['Client Vat Number']['valueString'] ?? null), $supplierName);
-
+        {            
             $rawVatNumber = $doc['Client Vat Number']['valueString']
                 ?? OcrFallbackFieldExtractor::clientNumber($content);
 
@@ -66,10 +74,40 @@ class CustomSalesInvoiceMapper
             null
         );
         
-        $client_name = $client_result['name'] ?? null;
-        $client_no   = $client_result['org_no'] ?? null; 
-        $extracted_client_no = $client_result['og_org_no'] ?? null; 
-        $country_code   = $client_result['country_code'] ?? ''; 
+        if($manual || $searchSave)
+        {
+            $client_name = $client_result['name'] ?? $supplierName;
+            $client_no   = $client_result['org_no'] ?? ($doc['Client Number']['valueString'] ?? null); 
+            $extracted_client_no = $client_result['og_org_no'] ?? null; 
+            $country_code   = $client_result['country_code'] ?? '';
+        }
+        else
+        {
+            $client_name = $client_result['name'] ?? null;
+            $client_no   = $client_result['org_no'] ?? null; 
+            $extracted_client_no = $client_result['og_org_no'] ?? null; 
+            $country_code   = $client_result['country_code'] ?? '';
+        } 
+
+        if(!$client_no)
+        {
+            $rawVatNumber = $doc['Client Vat Number']['valueString']
+                ?? OcrFallbackFieldExtractor::clientNumber($content);
+
+            $orgNo = OrgNoNormalizer::normalize($rawVatNumber, $supplierName);  
+
+            $client_result = app(ClientResolver::class)->resolve(
+                $clients,
+                $supplierName,
+                $orgNo,
+                null
+            );
+            
+            $client_name = $client_result['name'] ?? null;
+            $client_no   = $client_result['org_no'] ?? null; 
+            $extracted_client_no = $client_result['og_org_no'] ?? null; 
+            $country_code   = $client_result['country_code'] ?? ''; 
+        }
 
         $invoiceDate = DateHelper::parseInvoiceDate(
             $doc['Invoice Date']['content'] ?? null
@@ -111,6 +149,7 @@ class CustomSalesInvoiceMapper
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
         );
+        
         if($og_currency)
             $currency = CurrencyHelper::parseCurrency($og_currency);
         else
@@ -126,9 +165,11 @@ class CustomSalesInvoiceMapper
             $doc['Exchange Net Amount']['valueString'] ?? null,
             $exchange_currency
         );
-        
+   
         if($og_exchange_currency)     
             $exchange_currency = CurrencyHelper::parseCurrency($og_exchange_currency);
+        else
+            $exchange_currency = CurrencyHelper::parseCurrency($exchange_currency);
 
         [$vat_currency, $vat_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Vat Amount']['valueString'] ?? null,
@@ -143,18 +184,17 @@ class CustomSalesInvoiceMapper
         if($client_name && stripos($client_name, 'engel') !== false)
         {            
             if($exchange_currency && !$exchange_vat_amount)
-            {
-                Log::info("exchange_currency: " . $exchange_currency);
+            {              
                 if(trim($exchange_currency) == "0 NOK")
                 {                    
                     $exchange_currency = str_replace('0 ', '', trim($exchange_currency)); 
-                    $exchange_vat_amount = "0";      
-
-                    Log::info("exchange_currency: " . $exchange_currency);       
-                    Log::info("exchange_vat_amount: " . $exchange_vat_amount);              
+                    $exchange_vat_amount = "0";            
                 }
                 else
-                    $exchange_vat_amount = OcrFallbackFieldExtractor::exchangeVatAmount($content);
+                {
+                    $exchange_fallback = OcrFallbackFieldExtractor::exchangeVatAmount($content);
+                    $exchange_vat_amount = (!is_array($exchange_fallback)) ? $exchange_fallback : null;
+                }
             }
             else if(!$exchange_currency && !$exchange_vat_amount)
             {
@@ -162,8 +202,11 @@ class CustomSalesInvoiceMapper
 
                 if($exchange_fallback)
                 {
-                    $exchange_currency = $exchange_fallback['currency'];
-                    $exchange_vat_amount = $exchange_fallback['amount'];
+                    if (is_array($exchange_fallback))
+                    {
+                        $exchange_currency = $exchange_fallback['currency'];
+                        $exchange_vat_amount = $exchange_fallback['amount'];
+                    }
                 }
             }
         }
@@ -172,11 +215,23 @@ class CustomSalesInvoiceMapper
             $doc['Discount Amount']['valueString'] ?? null,
             $currency ?? null
         );
-
+        
         [$additional_charges_currency, $additional_charges] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Additional Charges']['valueString'] ?? null,
             $currency ?? null
         );
+        if($client_name && stripos($client_name, 'adag') !== false)
+        {
+            $sum = 0;
+            $parts = array_values(array_filter(array_map('trim', explode("\n", $additional_charges))));
+            foreach ($parts as $part) {
+                if (is_numeric($part)) {
+                    $sum += (float)$part;
+                }
+            }
+
+            $additional_charges = $sum; // 500
+        }
 
         [$variance_currency, $variance] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Variance']['valueString'] ?? null,
@@ -187,7 +242,7 @@ class CustomSalesInvoiceMapper
             $doc['Total Amount']['valueString'] ?? null,
             $currency ?? null
         );        
-       
+
         $net_amount = EuropeanNumberHelper::normalize(
             $net_amount ?? null
         );
@@ -204,6 +259,15 @@ class CustomSalesInvoiceMapper
             $variance ?? null
         );
 
+        if (strpos($vat_amount, "\n") !== false) {
+            $parts = array_map('trim', preg_split('/\r\n|\r|\n/', $vat_amount));
+
+            $vat_rate   = $parts[0] ?? null;
+            $vat_amount = $parts[1] ?? null;
+        } else {
+            $vat_amount = trim($vat_amount);
+        }    
+
         $vat_amount = EuropeanNumberHelper::normalize(
             $vat_amount ?? null
         );
@@ -219,32 +283,90 @@ class CustomSalesInvoiceMapper
         $parseVatAmount = EuropeanNumberHelper::toFloat($vat_amount);
         $parseTotalAmount = EuropeanNumberHelper::toFloat($total_amount);
 
-        $calcParseNetAmount = ($parseNetAmount + $parseAdditionalCharges + $parseVariance) - $parseDiscountAmount;
-        
+        if($client_name && (stripos($client_name, 'sgi wholesale') !== false
+                || stripos($client_name, 'sand cph') !== false
+            )
+        )       
+            $calcParseNetAmount = (abs($parseNetAmount) + abs($parseAdditionalCharges)) - (abs($parseVariance) + abs($parseDiscountAmount));
+        else
+            $calcParseNetAmount = (abs($parseNetAmount) + abs($parseAdditionalCharges) + abs($parseVariance)) - abs($parseDiscountAmount);
+
         /**
          * Net amount should never be greater than total amount.
          * If it is, OCR likely swapped them.
          */
-        if(!$credit_note)
-        {
-            if ($calcParseNetAmount > $parseTotalAmount) {
-                [$parseNetAmount, $parseTotalAmount] = [
-                    $parseTotalAmount,
-                    $parseNetAmount
-                ];
+        // if(!$credit_note)
+        // {
+        //     if (
+        //         $parseNetAmount > 0 &&
+        //         $parseVatAmount > 0 &&
+        //         $parseTotalAmount <= 0
+        //     ) {
+            if (
+                abs($parseNetAmount) > 0 &&
+                abs($parseVatAmount) > 0 &&
+                abs($parseTotalAmount) <= 0
+            ) {
+                // Calculate total directly
+                $parseTotalAmount = $calcParseNetAmount + abs($parseVatAmount);
+                $total_amount = $parseTotalAmount;
 
-                [$net_amount, $total_amount] = [
-                    $total_amount,
-                    $net_amount
-                ];
+                $total_amount = EuropeanNumberHelper::normalize(
+                    $total_amount ?? null
+                );
             }
-        }
 
+            // if ($calcParseNetAmount > $parseTotalAmount) {
+            //     [$parseNetAmount, $parseTotalAmount] = [
+            //         $parseTotalAmount,
+            //         $parseNetAmount
+            //     ];
+
+            //     [$net_amount, $total_amount] = [
+            //         $total_amount,
+            //         $net_amount
+            //     ];
+            // }
+        //}
+
+        if (abs($parseTotalAmount) != 0 && (abs($calcParseNetAmount) > abs($parseTotalAmount))) {
+            [$parseNetAmount, $parseTotalAmount] = [
+                $parseTotalAmount,
+                $parseNetAmount
+            ];
+            
+            $calcParseNetAmount = abs($parseNetAmount);
+
+            [$net_amount, $total_amount] = [
+                $total_amount,
+                $net_amount
+            ];            
+        }
+        
         if (
-            $parseVatAmount > 0  && $parseTotalAmount > 0 && abs($parseTotalAmount - $parseVatAmount) < 0.01
-        ) {
+            abs($parseVatAmount) > 0  && abs($parseTotalAmount) > 0 && (abs($parseTotalAmount) - abs($parseVatAmount)) < 0.01
+        ) {            
             $net_amount = $total_amount;
         }        
+   
+        if (blank($net_amount)) {            
+            //if ($parseVatAmount && $parseTotalAmount) {
+            if ($parseVatAmount !== '' && $parseTotalAmount !== null) {
+                $calcNetAmount = abs($parseTotalAmount) - abs($parseVatAmount);
+                
+                if($calcNetAmount == 0)
+                    $net_amount = number_format(
+                        $calcNetAmount,
+                        2,
+                        ',',
+                        '.'
+                    );
+                else
+                    $net_amount = EuropeanNumberHelper::normalize(
+                        $calcNetAmount ?? null
+                    );
+            }
+        }
 
         $exchange_net_amount = EuropeanNumberHelper::normalize(
             $exchange_net_amount ?? null
@@ -257,27 +379,21 @@ class CustomSalesInvoiceMapper
         $vat_rate = VatRateHelper::resolve(
             $doc['Vat Rate']['valueString'] ?? null,
             $calcParseNetAmount,
-            $parseVatAmount
+            abs($parseVatAmount)
         );
  
         $parseExchangeVatAmount = EuropeanNumberHelper::toFloat($exchange_vat_amount);
-        
+
         $exchange_rate = ExchangeRateHelper::normalize(
             $doc['Exchange Rate']['valueString'] ?? null
-        );
-        
+        );       
+        $parseExchangeRate = str_replace(',', '.', $exchange_rate);
+
         /*
         |--------------------------------------------------------------------------
         | Determine local currency from country code
         |--------------------------------------------------------------------------
-        */
-        // $localCurrency = match (strtolower($country_code ?? '')) {
-        //     'no' => 'NOK',
-        //     'gb' => 'GBP',
-        //     'ch' => 'CHF',
-        //     default => null,
-        // };
-
+        */       
         $localCurrencies = match (strtolower($country_code ?? '')) {
             'no' => ['NOK'],
             'gb' => ['GBP'],
@@ -302,16 +418,7 @@ class CustomSalesInvoiceMapper
         |
         */
         $effectiveExchangeCurrency = $exchange_currency;
-
-        // if (
-        //     empty($effectiveExchangeCurrency) &&
-        //     !empty($localCurrency) &&
-        //     !empty($currency) &&
-        //     $currency !== $localCurrency
-        // ) {
-        //     $effectiveExchangeCurrency = $localCurrency;
-        // }
-
+       
         if (
             empty($effectiveExchangeCurrency) &&
             !empty($reportCurrency) &&
@@ -320,22 +427,12 @@ class CustomSalesInvoiceMapper
         ) {
             $effectiveExchangeCurrency = $reportCurrency;
         }
-
-        // Log::info('country_code: ' . ($country_code ?? 'null'));
-        // Log::info('localCurrency: ' . ($localCurrency ?? 'null'));
-        // Log::info('currency: ' . ($currency ?? 'null'));
-        // Log::info('effectiveExchangeCurrency: ' . ($effectiveExchangeCurrency ?? 'null'));
-
+      
         /*
         |--------------------------------------------------------------------------
         | Foreign invoice?
         |--------------------------------------------------------------------------
-        */
-        // $isForeignInvoice =
-        //     !empty($currency) &&
-        //     !empty($effectiveExchangeCurrency) &&
-        //     $currency !== $effectiveExchangeCurrency;
-
+        */       
         $isForeignInvoice =
             !empty($currency) &&
             !in_array($currency, $localCurrencies, true);
@@ -352,13 +449,12 @@ class CustomSalesInvoiceMapper
         |
         */
         $isEligibleVatFx =
-            $isForeignInvoice &&
-            //!empty($localCurrency) &&
-            //$effectiveExchangeCurrency === $localCurrency &&
+            $isForeignInvoice &&          
             !empty($reportCurrency) &&
-            $effectiveExchangeCurrency === $reportCurrency &&
-            $parseVatAmount > 0 &&
-            $parseExchangeVatAmount > 0;
+            $effectiveExchangeCurrency === $reportCurrency //&&
+            //abs($parseVatAmount) > 0 &&
+            //abs($parseExchangeVatAmount) > 0
+            ;    
 
         if ($isForeignInvoice && $isEligibleVatFx) {
 
@@ -367,12 +463,27 @@ class CustomSalesInvoiceMapper
             | Calculate exchange rate ONLY if missing
             |--------------------------------------------------------------------------
             */
-            if (empty($exchange_rate)) {
+            //if (empty($exchange_rate)) {
+            if ($parseExchangeRate === null || $parseExchangeRate === '') {
+                //if($parseVatAmount && $parseExchangeVatAmount)
+                if ($parseVatAmount !== '' && $parseVatAmount !== null &&
+                    $parseExchangeVatAmount !== '' && $parseExchangeVatAmount !== null
+                    && $exchange_currency
+                )
+                {
+                    $exchange_rate = ExchangeRateHelper::calculateExchangeRateFromVat(
+                        abs($parseExchangeVatAmount),
+                        abs($parseVatAmount)
+                    ); 
+                    $parseExchangeRate = str_replace(',', '.', $exchange_rate);
 
-                $exchange_rate = ExchangeRateHelper::calculateExchangeRateFromVat(
-                    $parseExchangeVatAmount,
-                    $parseVatAmount
-                );
+                    $exchange_rate = number_format(
+                        (float)$parseExchangeRate,
+                        4,
+                        ',',
+                        '.'
+                    );
+                }
             }
 
             /*
@@ -380,37 +491,65 @@ class CustomSalesInvoiceMapper
             | Calculate exchange net ONLY if missing
             |--------------------------------------------------------------------------
             */
+            // if (
+            //     empty($exchange_net_amount) &&
+            //     $exchange_rate &&
+            //     abs($parseNetAmount) > 0
+            // ) {
             if (
                 empty($exchange_net_amount) &&
-                $exchange_rate &&
-                $parseNetAmount > 0
+                $parseExchangeRate !== '' && $parseExchangeRate !== null &&               
+                $parseNetAmount !== '' && $parseNetAmount !== null
             ) {
-
-                $exchange_net_amount = number_format(
-                    $parseNetAmount * $exchange_rate,
-                    2,
-                    ',',
-                    '.'
-                );
+                if (is_numeric($parseNetAmount) && is_numeric($parseExchangeRate)) {
+                    $exchange_net_amount = number_format(
+                        abs($parseNetAmount) * $parseExchangeRate,
+                        2,
+                        ',',
+                        '.'
+                    );
+                }
+                else
+                {
+                    Log::info([
+                        "error" => "Non-numeric format",
+                        "parseNetAmount" => $parseNetAmount,
+                        "parseExchangeRate" => $parseExchangeRate,
+                    ]);
+                }
             }
-
+           
             /*
             |--------------------------------------------------------------------------
             | Calculate exchange VAT ONLY if missing
             |--------------------------------------------------------------------------
             */
+            // if (
+            //     empty($exchange_vat_amount) &&
+            //     $exchange_rate &&
+            //     abs($parseVatAmount) > 0            
+            // ) {
             if (
                 empty($exchange_vat_amount) &&
-                $exchange_rate &&
-                $parseVatAmount > 0
+                $parseExchangeRate !== '' && $parseExchangeRate !== null &&   
+                $parseVatAmount !== '' && $parseVatAmount !== null
             ) {
-
-                $exchange_vat_amount = number_format(
-                    $parseVatAmount * $exchange_rate,
-                    2,
-                    ',',
-                    '.'
-                );
+                if (is_numeric($parseVatAmount) && is_numeric($parseExchangeRate)) {
+                    $exchange_vat_amount = number_format(
+                        abs($parseVatAmount) * $parseExchangeRate,
+                        2,
+                        ',',
+                        '.'
+                    );
+                }
+                else
+                {
+                    Log::info([
+                        "error" => "Non-numeric format",
+                        "parseVatAmount" => $parseVatAmount,
+                        "parseExchangeRate" => $parseExchangeRate,
+                    ]);
+                }
             }
         }
 
@@ -434,24 +573,24 @@ class CustomSalesInvoiceMapper
             );
 
             $exchange_total_amount = number_format(
-                $parseExchangeNetAmount + $parseExchangeVatAmount,
+                abs($parseExchangeNetAmount) + abs($parseExchangeVatAmount),
                 2,
                 ',',
                 '.'
             );
-        }
+        }                
 
-// Log::info("net_amount: " . $net_amount);
-// Log::info("discount_amount: " . $discount_amount);
-// Log::info("vat_rate: " . $vat_rate);
-// Log::info("vat_amount: " . $vat_amount);
-// Log::info("currency: " . $currency);
-// Log::info("additional_charges: " . $additional_charges);
-// Log::info("variance: " . $variance);
-// Log::info("total_amount: " . $total_amount);
+        if ($exchange_rate !== null && $exchange_rate !== '' && (float)$parseExchangeRate === 0.0)            
+            $exchange_rate = number_format(
+                (float)$parseExchangeRate,
+                4,
+                ',',
+                '.'
+            );
+   
         $mapresult = [
             'invoice_type' => $invoice_type,
-            'invoice_number' => $invoiceNumber ?? null,
+            'invoice_number' => rtrim((string) $invoiceNumber, '.'), //$invoiceNumber ?? null,
             'no_invoice_number' => $noInvoiceNumber ?? null,
             'invoice_date'   => $invoiceDate ?? null,           
             'order_number'   => $doc['Order Number']['valueString'] ?? null,            
@@ -478,7 +617,7 @@ class CustomSalesInvoiceMapper
             'exchange_vat_amount'   => $exchange_vat_amount ?? null,
             'exchange_total_amount'   => $exchange_total_amount ?? null            
         ];
-
+   
         $error_message = '';
         if (!$client_name)
             $error_message .= "Client Name missing\n";
@@ -499,11 +638,12 @@ class CustomSalesInvoiceMapper
             $fetchDate = $passDate ?? now();
 
             $referenceDate = Carbon::parse($fetchDate)->startOfDay();
+            $futureReferenceDate = Carbon::now()->startOfDay();
 
             $invoiceDateCarbon = Carbon::parse($invoiceDate)->startOfDay();
 
             // Future invoice date
-            if ($invoiceDateCarbon->gt($referenceDate)) {
+            if ($invoiceDateCarbon->gt($futureReferenceDate)) {
                 $futureInvoiceDate = true;
             }
 
@@ -528,33 +668,15 @@ class CustomSalesInvoiceMapper
             }
         }
 
+        // if (!$invoice_type)
+        //     $error_message .= "Invoice Type missing\n";
+        
         if (!$invoiceNumber)
             $error_message .= "Invoice no. missing\n";
 
         if (!$currency)
             $error_message .= "Currency missing\n";
-
-        // if ($currency != 'NOK' && $currency != 'CHF' && $currency != 'GBP')
-        // {
-        //     if(!$exchange_rate 
-        //         || !$effectiveExchangeCurrency 
-        //         || !$exchange_net_amount 
-        //         || !$exchange_vat_amount
-        //         || !$exchange_total_amount
-        //     )
-        //         $error_message .= "Exchange fields missing\n";
-        // }
-
-        // Log::info('country_code: ' . ($country_code ?? 'null'));
-        // Log::info('localCurrency: ' . ($localCurrency ?? 'null'));
-        // Log::info('currency: ' . ($currency ?? 'null'));
-        // Log::info('effectiveExchangeCurrency: ' . ($effectiveExchangeCurrency ?? 'null'));
-
-        // if (
-        //     $localCurrency &&
-        //     $currency &&
-        //     $currency !== $localCurrency
-        // ) {
+        
         if (
             !empty($reportCurrency) &&
             !empty($currency) &&
@@ -570,31 +692,124 @@ class CustomSalesInvoiceMapper
                 $error_message .= "Exchange fields missing\n";
             }
         }
+// Log::info("currency: " . $currency);
+// Log::info("net_amount: " . $net_amount);
+// Log::info("vat_amount: " . $vat_amount);
+// Log::info("vat_rate: " . $vat_rate);        
+// Log::info("total_amount: " . $total_amount);
 
-        if (!$net_amount)
-            $error_message .= "Net Amount missing";        
+// Log::info("exchange_currency: " . $exchange_currency);
+// Log::info("exchange_rate: " . $exchange_rate);
+// Log::info("exchange_net_amount: " . $exchange_net_amount);
+// Log::info("exchange_vat_amount: " . $exchange_vat_amount);
+// Log::info("exchange_total_amount: " . ($exchange_total_amount ?? null));
+
+        //if (!$net_amount)
+        if (blank($net_amount))
+            $error_message .= "Net Amount missing\n";        
+
+        //$vat_amount_value = str_replace(',', '.', trim($vat_amount));
+        //if (blank($vat_amount) || (float) $vat_amount_value == 0.0)
+        if (blank($vat_amount))
+            $error_message .= "VAT Amount missing\n";
+        
+        //if(!$vat_rate)
+        if (blank($vat_rate))
+            $error_message .= "VAT Rate missing\n";
 
         if ($error_message) {
             $mapresult['error'] = $error_message;
         }
 
-        $validInvoiceType = collect($comInvoiceTypes)->contains(function ($type) use ($invoice_type, $vat_rate) {       
+        $validInvoiceType = collect($comInvoiceTypes)->contains(function ($type) use ($invoice_type, $vat_rate, $invoiceNumber) {          
             if(strtolower($invoice_type) == "rechnung" && $vat_rate)
+                return false;
+            else if(strtolower($invoice_type) == "rechnung" && 
+                Str::startsWith(Str::lower($invoiceNumber), ['ch'])
+            )
                 return false;
             else
                 return str_contains(strtolower($invoice_type), $type);
         });
 
-        if($client_name && stripos($client_name, 'engel') !== false)
-        {
-            $validInvoiceType = OcrFallbackFieldExtractor::invoiceType($content);
-        }
+        // if($client_name && (stripos($client_name, 'engel') !== false
+        //         || stripos($client_name, 'guardian') !== false
+        //         || stripos($client_name, 'berendsohn') !== false
+        //     )            
+        // )
+        // {
+        //     $validInvoiceType = OcrFallbackFieldExtractor::salesInvoiceType($content);
+        // }
 
-        if ($vat_rate == "100" || $validInvoiceType) {
-            //Log::info("invoice_type: " . $invoice_type);
+        // if (!$invoice_type)        
+        // {
+            $validInvoiceType = OcrFallbackFieldExtractor::checkInvoiceType($content);
+
+            // if($validInvoiceType)
+            //     $mapresult['change_invoice_type'] = true;            
+        //}
+
+        if ($vat_rate == "100" || $validInvoiceType) {             
             $mapresult['change_invoice_type'] = true;
         }
-     
+    
+        // if($client_name && (stripos($client_name, 'vernon') !== false)            
+        // )
+        // {
+        //     $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'base');
+
+        //     // Log::info("vatBase: " . $vatBase);
+        //     // Log::info("invoiceNumber: " . $invoiceNumber);
+            
+        //     if(Str::startsWith(Str::lower($invoiceNumber), ['ex']) && !$vatBase)
+        //         $mapresult['change_invoice_type'] = true;
+        //     else
+        //         unset($mapresult['change_invoice_type']);
+        // }        
+
+        if($client_name)
+        {
+            if(stripos($client_name, 'vernon') !== false)
+            {
+                $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'base');
+                
+                if(Str::startsWith(Str::lower($invoiceNumber), ['ex']) && !$vatBase)
+                    $mapresult['change_invoice_type'] = true;
+                else
+                    unset($mapresult['change_invoice_type']);
+            }
+            else if(stripos($client_name, 'committee xxiv') !== false)
+            {
+                $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'amount');
+                
+                if($vatBase)
+                    unset($mapresult['change_invoice_type']);
+                else
+                {
+                    $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'rate');
+
+                    if($vatBase)
+                        unset($mapresult['change_invoice_type']);
+                    else    
+                        $mapresult['change_invoice_type'] = true;
+                }
+            }            
+        }
+   
+        $chkSpecificText = OcrFallbackFieldExtractor::chkSpecificText($content, 'samsoe samsoe');        
+        if($chkSpecificText)
+        {            
+            if (blank($vat_amount))
+                $mapresult['change_invoice_type'] = true;
+            else
+                unset($mapresult['change_invoice_type']);            
+        }
+
+        if ($invalid_invoice_type !== null)
+        {            
+            $mapresult['invalid_invoice_type'] = true;            
+        }
+   
         return $mapresult;
     }
 }

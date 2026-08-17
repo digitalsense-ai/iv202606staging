@@ -514,6 +514,15 @@ $(function () {
           </div>
           <!--/ For GB -->
 
+          <!-- For Sync -->
+          <div class="form-floating mb-3">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="ocr_sync" name="ocr_sync" value="1" {{ (isset($vatRegMain) ? (($vatRegMain->ocr_sync) ? 'checked' : '') : '') }}/>
+              <label for="ocr_sync">OCR Sync</label>
+            </div>
+          </div> 
+          <!--/ For Sync -->
+
         </div>
 
         <div class="card-footer">          

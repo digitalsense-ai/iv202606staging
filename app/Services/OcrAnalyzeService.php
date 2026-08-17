@@ -29,9 +29,9 @@ class OcrAnalyzeService
         };
 
         $modelId = match ($invoiceType) {
-            'sales', 'multi-invoices' => 'custom_sales_invoice_v20',
-            'com'   => 'custom_com_invoice_v17',
-            default => 'custom_sales_invoice_v20',
+            'sales', 'multi-invoices' => 'custom_sales_invoice_v28',
+            'com'   => 'custom_com_invoice_v28',
+            default => 'custom_sales_invoice_v28',
         };
 
         foreach ($paths as $key => $fullPath) {
@@ -73,7 +73,7 @@ class OcrAnalyzeService
             }
             else
             {
-                if(strtolower($originalName) == 'report50022')
+                if(strtolower($originalName) == 'report50022' || str_contains(strtolower($originalName), 'report50022'))
                     $allow = true;
                 else
                 {
@@ -104,7 +104,7 @@ class OcrAnalyzeService
                     $prevCapture
                 )->onQueue(config('queue.ocr.split', 'ocrpdfinvoices'));
 
-                Log::info("Queued SplitPdfJob for {$originalName} in batch {$batchId}");
+                Log::info("Queued SplitPdfJob for {$originalName} in " . strtoupper($invoiceType) . " batch {$batchId}");
             } //allow
             else
             {
@@ -141,7 +141,7 @@ class OcrAnalyzeService
             //$invoice_azure_url = $invoice->azure_url;
             if (stripos($invoice->azure_url, "multi-invoices/") !== false)
             {
-                if($type == 'recapture')
+                if($type == 'recapture' || $type == 'split')
                     $invoice_azure_url = $invoice->azure_url;
                 // else             
                 //     $invoice_azure_url = preg_replace('/_\d+\.pdf$/', '.pdf', $invoice->azure_url);
@@ -153,7 +153,7 @@ class OcrAnalyzeService
             $invoice->save();
         }
 
-        if($type == 'recapture')
+        if($type == 'recapture' || $type == 'split')
         {
             //return $signedUrl;
             return [

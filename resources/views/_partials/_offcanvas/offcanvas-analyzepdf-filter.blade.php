@@ -1,13 +1,13 @@
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasAnalyzePdfFilter" aria-labelledby="offcanvasAnalyzePdfFilterLabel">
   <div class="offcanvas-header">
-    <h5 id="offcanvasAnalyzePdfFilterLabel" class="offcanvas-title">PDF Filter</h5>
+    <h5 id="offcanvasAnalyzePdfFilterLabel" class="offcanvas-title">Filter</h5>
     <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body my-auto mx-0 py-0">  <!-- flex-grow-0 -->
     <form method="post" class="form-analyzepdf-filter">  
       @csrf
       <input type="hidden" id="user-id" name="user_id" value="{{ $authUser->user_id }}">
-
+{{--
       <div class="mb-3">
         <label class="form-label" for="filter_invoice_type">Document Type</label>          
         <select id="filter_invoice_type" class="form-select" name="filter_invoice_type">
@@ -16,7 +16,8 @@
           <option value="sales">Sales Invoice</option>
           <option value="com">Commercial Invoice</option>
         </select> 
-      </div>    
+      </div>
+--}}
       <div class="mb-3">
         <label class="form-label" for="filter_client_no">Client No.</label>          
         <input type="text" id="filter_client_no" class="form-control" placeholder="987654321" aria-label="987654321" name="filter_client_no" value="" />

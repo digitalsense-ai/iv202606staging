@@ -19,6 +19,7 @@ use App\Models\ImportReconciliationSalesInvoices;
 use \App\Classes\CommonClass;
 use \App\Classes\ApiClass;
 use \App\Classes\FtpClass;
+use App\Helpers\EnvironmentHelper;
 
 class GlobalSearchController extends Controller
 {
@@ -27,7 +28,7 @@ class GlobalSearchController extends Controller
     public $commonClass;
     public $apiClass;
     public $ftpClass;
-   
+    public $environment;
     public function __construct()
     {
         $this->middleware('auth');
@@ -36,7 +37,7 @@ class GlobalSearchController extends Controller
             $this->apiClass = new ApiClass();
             $this->ftpClass = new FtpClass();
             $this->authUser = $this->commonClass->getAuthUser();     
-          
+            $this->environment = EnvironmentHelper::getEnvironment();
             return $next($request);
         });
     }      
@@ -216,8 +217,8 @@ class GlobalSearchController extends Controller
                 stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
                 stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
                 ) 
-                {      
-                    $which_folder = (strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud") ? 'main' : 'archive';
+                {                          
+                    $which_folder = ($this->environment === "live") ? 'main' : 'archive';
                                        
                     /* -- READ XML FILE FROM FTP -- */
                     $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder); 

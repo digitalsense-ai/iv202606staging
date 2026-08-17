@@ -31,10 +31,12 @@
 		$box1 = $pivsmonthtotal + $salestotalvat;
 		$box2 = 0;
 		$box3 = $box1 + $box2;
-		$box4 = abs(($c79numbers + $pivsmonthtotal + $purchasetotalvat));
+		//$box4 = abs(($c79numbers + $pivsmonthtotal + $purchasetotalvat));
+		$box4 = abs($c79numbers) + abs($pivsmonthtotal) + abs($purchasetotalvat);
 		$box5 = $box3 - $box4;
 		$box6 = $salestotalnet;
-		$box7 = abs((($c79numbers/0.2) + ($pivsmonthtotal/0.2) + $purchasetotalnet));
+		//$box7 = abs((($c79numbers/0.2) + ($pivsmonthtotal/0.2) + $purchasetotalnet));
+		$box7 = (abs($c79numbers)/0.2) + (abs($pivsmonthtotal)/0.2) + abs($purchasetotalnet);
 		$box8 = 0;
 		$box9 = 0;
 	}

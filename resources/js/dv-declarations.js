@@ -2213,7 +2213,8 @@ console.log(declaration_datas);
       co_invoices.sort((a, b) => {
         if (a.id === '-') return 1;
         if (b.id === '-') return -1;
-        return a.co_invoice_no.localeCompare(b.co_invoice_no);
+        //return a.co_invoice_no.localeCompare(b.co_invoice_no);
+        return (a.co_invoice_no ?? '').localeCompare(b.co_invoice_no ?? '');
       });
 
       if(declaration_datas[0]['country'] == 'NO')

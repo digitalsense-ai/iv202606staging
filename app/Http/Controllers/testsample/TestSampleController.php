@@ -65,6 +65,10 @@ use Spatie\PdfToText\Pdf as PdfExtract;
 use Spatie\PdfToImage\Pdf as PdfImage;
 use Aws\Textract\TextractClient;
 
+use Mail;
+use App\Mail\NotificationEmail;
+use App\Models\EmailNotification;
+
 class TestSampleController extends Controller
 {
 	public $authUser;
@@ -118,18 +122,9 @@ class TestSampleController extends Controller
         //             $systemapi->save();
         //             dd($systemapi->api_secret_key);
 
-// $analyzepdfs = OcrPdf::query()
-//                         ->select([
-//                             'id', 
-//                             'file_name',
-//                             'extracted_data'
-//                         ])                        
-//                         ->whereIn('status', ['completed', 'failed'])
-//                         ->where('is_deleted', 0)
-//                         ->whereNull('og_extracted_data')
-//                         ->orderBy('id', 'DESC')            
-//                         ->get(); 
-// dd($analyzepdfs->pluck('file_name')->toArray());
+        // $email = EmailNotification::where('id', 8)->first();
+        // $sendNotification = Mail::to(config('mail.from.address'))              
+        //                                   ->send(new NotificationEmail($email));
 
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
@@ -314,7 +309,7 @@ class TestSampleController extends Controller
                 $client = $vatregmain->client;                
                 $client_name = str_replace(' ', '', $this->commonClass->replaceSpecialCharForFolderName(strtolower($client->client_name)));
 
-                $create_email = $country . '.' . $client_name . config('mail.intravatmail.domain');
+                $create_email = $country . '.' . $client_name . config('mail.mailers.intravatmail.domain');
                 $password = config('app.dv_user_password');
 
                 $email_exist = array_values(array_filter($email_lists, function ($email) use($create_email) {                    
@@ -351,11 +346,11 @@ class TestSampleController extends Controller
             $storage_path = storage_path('app/public/mailbox/');
 
             /* -- TEST CONNECTION -- */
-            $hostname = config('mail.intravatmail.host') . ':' . 
-                            config('mail.intravatmail.port') . '/imap/' .
-                            config('mail.intravatmail.encryption') . 'INBOX';
-            $username = config('mail.intravatmail.info.username');
-            $password = config('mail.intravatmail.info.password');
+            $hostname = config('mail.mailers.intravatmail.host') . ':' . 
+                            config('mail.mailers.intravatmail.port') . '/imap/' .
+                            config('mail.mailers.intravatmail.encryption') . 'INBOX';
+            $username = config('mail.mailers.intravatmail.info.username');
+            $password = config('mail.mailers.intravatmail.info.password');
 
             // Try to connect
             $inbox = imap_open($hostname, $username, $password);
@@ -441,7 +436,7 @@ class TestSampleController extends Controller
     { 
         try 
         { 
-            //$email_lists[0] = 'test' . config('mail.intravatmail.domain');
+            //$email_lists[0] = 'test' . config('mail.mailers.intravatmail.domain');
             //$system = $this->emailBoxApiClass->readEmailForCompany($this->authUser, $email_lists);
 
             $email_read = $this->emailBoxApiClass->readEmailForCompany($this->authUser);

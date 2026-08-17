@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 use App\Models\OcrPdf;
+use App\Models\OcrPdfPayload;
+use App\Models\OcrSyncStatus;
 
 use App\Classes\CommonClass;
 
@@ -28,6 +30,8 @@ use App\Services\OcrParserStrategyService;
 use App\Services\OcrAnalyzeService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
+
+use App\Helpers\EnvironmentHelper;
 
 //use App\Http\Controllers\ocr\AnalyzePdfController;
 
@@ -200,32 +204,56 @@ class PollAnalyzeResultJob implements ShouldQueue
                         if($normalized['change_invoice_type'])
                         {
                             $ocrAnalyzeService = new OcrAnalyzeService();
-                            //$controller = app(AnalyzePdfController::class);
-
+                            
                             $changeType = OcrPdf::query()->where('id', $this->documentId)->first();
-                            $changeType->sync_status = 0;
-                            $changeType->is_locked = 0;
-                            $changeType->save();
 
-                            $folder = 'com';                            
-                            $batchId = $changeType->batch_id;
-                            
-                            //Get file from Azure storage
-                            $sasPaths = $ocrAnalyzeService->getSasUrl($this->documentId, 'recapture');
-                            $sasUrl = $sasPaths['signedUrl'];
-                            $blobPath = $sasPaths['blobPath'];
+                            if($changeType->no_of_attempts <= 2)
+                            {
+                                $no_of_attempts = $changeType->no_of_attempts;
 
-                            $prevCaptures = [[
-                                'prevId' => $this->documentId,
-                                'sasUrl' => $sasUrl,
-                                'blobPath' => $blobPath
-                            ]];                            
-                            
-                            //$controller->analyzeStoredPdfs($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures);
-                            
-                            $ocrAnalyzeService->analyze($this->clients, [$this->filePath], $folder, $batchId, null, $prevCaptures); 
+                                $changeType->no_of_attempts = $no_of_attempts + 1;
+                                $changeType->sync_db = 0;
+                                //$changeType->sync_status = 0;
+                                //$changeType->is_locked = 0;
+                                $changeType->save();
 
-                            return;
+                                $environment = EnvironmentHelper::getEnvironment();
+                                OcrSyncStatus::updateOrCreate(
+                                    [
+                                        'ocr_pdf_id' => $changeType->id,
+                                        'environment' => $environment,
+                                    ],
+                                    [                    
+                                        'sync_status' => 0,
+                                        'is_locked' => 0,
+                                    ]
+                                );
+
+                                $folder = 'com';                            
+                                $batchId = $changeType->batch_id;
+                                
+                                //Get file from Azure storage
+                                $sasPaths = $ocrAnalyzeService->getSasUrl($this->documentId, 'recapture');
+                                $sasUrl = $sasPaths['signedUrl'];
+                                $blobPath = $sasPaths['blobPath'];
+
+                                $prevCaptures = [[
+                                    'prevId' => $this->documentId,
+                                    'sasUrl' => $sasUrl,
+                                    'blobPath' => $blobPath
+                                ]];                            
+                               
+                                $ocrAnalyzeService->analyze($this->clients, [$this->filePath], $folder, $batchId, $this->emailMessageId, $prevCaptures); 
+
+                                return;
+                            } 
+                            // else
+                            // {
+                            //     if(isset($normalized['error']))
+                            //         $normalized['error'] = $normalized['error'] . "Invalid document type\n";  
+                            //     else
+                            //         $normalized['error'] = "Invalid document type\n";                           
+                            // }
                         }
                     }
 
@@ -248,6 +276,64 @@ class PollAnalyzeResultJob implements ShouldQueue
 
                 if($normalized)
                 {
+                    if(isset($normalized['change_invoice_type']))
+                    {
+                        if($normalized['change_invoice_type'])
+                        {
+                            $ocrAnalyzeService = new OcrAnalyzeService();
+                            
+                            $changeType = OcrPdf::query()->where('id', $this->documentId)->first();
+
+                            if($changeType->no_of_attempts <= 2)
+                            {
+                                $no_of_attempts = $changeType->no_of_attempts;
+
+                                $changeType->no_of_attempts = $no_of_attempts + 1;
+                                $changeType->sync_db = 0;
+                                //$changeType->sync_status = 0;
+                                //$changeType->is_locked = 0;
+                                $changeType->save();
+
+                                $environment = EnvironmentHelper::getEnvironment();
+                                OcrSyncStatus::updateOrCreate(
+                                    [
+                                        'ocr_pdf_id' => $changeType->id,
+                                        'environment' => $environment,
+                                    ],
+                                    [                    
+                                        'sync_status' => 0,
+                                        'is_locked' => 0,
+                                    ]
+                                );
+
+                                $folder = 'sales';                            
+                                $batchId = $changeType->batch_id;
+                                
+                                //Get file from Azure storage
+                                $sasPaths = $ocrAnalyzeService->getSasUrl($this->documentId, 'recapture');
+                                $sasUrl = $sasPaths['signedUrl'];
+                                $blobPath = $sasPaths['blobPath'];
+
+                                $prevCaptures = [[
+                                    'prevId' => $this->documentId,
+                                    'sasUrl' => $sasUrl,
+                                    'blobPath' => $blobPath
+                                ]];                            
+                                
+                                $ocrAnalyzeService->analyze($this->clients, [$this->filePath], $folder, $batchId, $this->emailMessageId, $prevCaptures); 
+
+                                return;
+                            }   
+                            // else
+                            // {
+                            //     if(isset($normalized['error']))
+                            //         $normalized['error'] = $normalized['error'] . "Invalid document type\n";  
+                            //     else
+                            //         $normalized['error'] = "Invalid document type\n";                           
+                            // }                     
+                        }
+                    }
+
                     if(isset($normalized['error']))
                     {
                     }
@@ -330,6 +416,8 @@ class PollAnalyzeResultJob implements ShouldQueue
 
             $finalStatus = $hasNormalizedError ? 'failed' : 'completed';
 
+            $extractedData = OcrPdf::query()->where('id', $this->documentId)->first();            
+
             OcrPdf::query()
                 ->where('id', $this->documentId)
                 ->update([
@@ -338,9 +426,19 @@ class PollAnalyzeResultJob implements ShouldQueue
                     //'error' => isset($normalized['error']) ? $normalized['error'] : null,
                     'status' => $finalStatus,
                     'error' => $hasNormalizedError ? $normalized['error'] : null,
-                    'extracted_data' => json_encode($normalized),
-                    'og_extracted_data' => json_encode($result),
+                    'extracted_data' => ($extractedData->manual_input_by || $extractedData->search_save_by) ? $extractedData->extracted_data : json_encode($normalized),
+                    //'og_extracted_data' => json_encode($result),
+
+                    'is_deleted' => isset($normalized['invalid_invoice_type']) ? 1 : 0,
+                    'deleted_reason' => isset($normalized['invalid_invoice_type']) ? ('Invalid document type - ' . $normalized['invalid_invoice_type']) : null,
                 ]);
+            
+            OcrPdfPayload::updateOrCreate(
+                ['ocr_pdf_id' => $this->documentId],
+                [
+                    'og_extracted_data' => json_encode($result),
+                ]
+            );    
 
             /**
              * -------------------------------------------------
@@ -365,32 +463,40 @@ class PollAnalyzeResultJob implements ShouldQueue
             {
                 //Re-capture
                 if($this->prevCapture)
-                {                    
-                    $prevId = $this->prevCapture['prevId'];
-                    $sasUrl = $this->prevCapture['sasUrl'];
-                    $blobPath = $this->prevCapture['blobPath'];
+                {  
+                    if(isset($this->prevCapture['split']))
+                    { 
+                    }
+                    else
+                    {                 
+                        $prevId = $this->prevCapture['prevId'];
+                        $sasUrl = $this->prevCapture['sasUrl'];
+                        $blobPath = $this->prevCapture['blobPath'];
 
-                    //Delete prev file from Azure Blob Storage                   
-                    if ($finalStatus === 'completed') {
-                        $azureService = app(AzureStorageService::class);
-                        $azureService->deleteFile($blobPath);
+                        //Delete prev file from Azure Blob Storage                   
+                        if ($finalStatus === 'completed') {
+                            $azureService = app(AzureStorageService::class);
+                            $azureService->deleteFile($blobPath);
 
-                        Log::info("Azure file deleted {$blobPath}");
-                    } else {
-                        Log::warning("Recapture failed; old Azure file kept {$blobPath}", [
-                            'document_id' => $this->documentId,
-                            'prev_id' => $prevId,
-                            //'error' => $finalError,
-                        ]);
+                            Log::info("Azure file deleted {$blobPath}");
+                        } else {
+                            Log::warning("Recapture failed; old Azure file kept {$blobPath}", [
+                                'document_id' => $this->documentId,
+                                'prev_id' => $prevId,
+                                //'error' => $finalError,
+                            ]);
+                        }
+
+                        $invoice = OcrPdf::query()->where('id', $prevId)->first();
+                        $invoice->azure_sas_url = null;
+                        $invoice->azure_sas_expiry = null;
+                        $invoice->save();
                     }
 
-                    $invoice = OcrPdf::query()->where('id', $prevId)->first();
-                    $invoice->azure_sas_url = null;
-                    $invoice->azure_sas_expiry = null;
-                    $invoice->save();
-
-                    $this->finalizeEmailBatchIfComplete();                    
+                    $this->finalizeEmailBatchIfComplete();
                 }
+                else
+                    $this->finalizeEmailBatchIfComplete('bulk');
             }
 
         } finally {
@@ -409,20 +515,162 @@ class PollAnalyzeResultJob implements ShouldQueue
         }
     }
 
-    private function finalizeEmailBatchIfComplete(): void
+    private function finalizeEmailBatchIfComplete($type = null): void
     {
         if (file_exists($this->filePath)) {
             unlink($this->filePath);
         }
 
-        $batchId = OcrPdf::query()
+        $currentInvoice = OcrPdf::query()
             ->where('id', $this->documentId)
-            ->value('batch_id');
+            ->first();
 
-        if (!$batchId) {
+        if (!$currentInvoice) {
             return;
         }
 
+        $batchId = $currentInvoice->batch_id;
+
+        // if($type)
+        // {
+            // $invoiceType = $currentInvoice->invoice_type;
+            // $invoiceNo = $currentInvoice->extracted_data['invoice_number'];
+            // $clientOrgNo = $currentInvoice->extracted_data['recipient']['org_number'] ?? ($currentInvoice->extracted_data['supplier']['org_number'] ?? null);
+
+        //     $selected_invoice_ids = OcrPdf::query()   
+        //                                 ->where('status', 'completed')
+        //                                 ->where('is_deleted', 0)
+        //                                 ->where('invoice_type', $invoiceType)
+        //                                 ->where('extracted_data', 'LIKE', '%'. $clientOrgNo .'%')
+        //                                 ->orderBy('id', 'ASC')            
+        //                                 ->pluck('id')
+        //                                 ->toArray();
+        // }
+
+        $invoiceType = $currentInvoice->invoice_type;
+        $currentExtractedData = $currentInvoice->extracted_data;
+
+        if (is_string($currentExtractedData)) {
+            $currentExtractedData = json_decode($currentExtractedData, true);
+        }
+
+        $currentExtractedData = is_array($currentExtractedData) ? $currentExtractedData : [];
+
+        $invoiceNo = $currentExtractedData['invoice_number'] ?? null;
+
+        $clientOrgNo = $currentExtractedData['recipient']['org_number']
+            ?? $currentExtractedData['supplier']['org_number']
+            ?? null;
+
+        $connection = DB::connection(
+            config('database.ocr_connection')
+        );
+
+        $sql = "
+            SELECT p.id
+            FROM dv_ocr_pdfs p
+            WHERE p.sync_db = 0
+              AND p.is_deleted = 0
+              AND p.status = 'completed'                           
+        ";
+        
+        $bindings = [];
+        if ($invoiceType) {
+            $invoiceTypes = ($invoiceType === 'com')
+                ? ['com']
+                : ['sales', 'multi-invoices'];
+
+            $placeholders = implode(',', array_fill(0, count($invoiceTypes), '?'));
+
+            $sql .= " AND p.invoice_type IN ($placeholders)";
+
+            $bindings = array_merge($bindings, $invoiceTypes);
+        }
+
+        if($invoiceNo)
+        {
+            $sql .= "            
+              AND JSON_UNQUOTE(
+                  JSON_EXTRACT(
+                      p.extracted_data,
+                      '$.invoice_number'
+                  )
+              ) = ?
+            ";
+
+            $bindings[] = $invoiceNo;
+        }
+
+        if($clientOrgNo)
+        {
+            $sql .= "
+                AND (
+                  REGEXP_REPLACE(
+                      JSON_UNQUOTE(
+                          JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')
+                      ),
+                      '[^0-9]',
+                      ''
+                  ) = ?
+
+                  OR
+
+                  REGEXP_REPLACE(
+                      JSON_UNQUOTE(
+                          JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')
+                      ),
+                      '[^0-9]',
+                      ''
+                  ) = ?
+
+                  OR
+
+                  REGEXP_REPLACE(
+                      JSON_UNQUOTE(
+                          JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')
+                      ),
+                      '[^0-9]',
+                      ''
+                  ) = ?
+              )";
+
+            $clientOrgNo = preg_replace('/[^0-9]/', '', $clientOrgNo);
+
+            $bindings[] = $clientOrgNo;
+            $bindings[] = $clientOrgNo;
+            $bindings[] = $clientOrgNo;
+        }
+
+        $sql .= " ORDER BY p.id ASC";
+
+        $rows = $connection->select($sql, $bindings);
+        
+        $rowsCount = count($rows);
+
+        // Log::warning([
+        //     'rows_count' => $rowsCount,
+        //     'invoiceType' => $invoiceType,
+        //     'invoiceNo' => $invoiceNo,
+        //     'clientOrgNo' => $clientOrgNo,
+        // ]);
+
+        //if ($rowsCount > 10000) {
+        if(!$invoiceNo || !$clientOrgNo)
+        {
+            Log::warning("Cannot Validate OCR {$this->filePath}", [
+                'rows_count' => $rowsCount,
+                'invoiceType' => $invoiceType,
+                'invoiceNo' => $invoiceNo,
+                'clientOrgNo' => $clientOrgNo,
+            ]);
+            return;
+        }
+
+        $selected_invoice_ids = collect($rows)
+            ->pluck('id')
+            ->values()
+            ->toArray();
+        
         $remaining = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
@@ -432,8 +680,39 @@ class PollAnalyzeResultJob implements ShouldQueue
             return;
         }
 
-        ValidateOcrInvoicesJob::dispatch($batchId)
-            ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
+        if(isset($this->prevCapture['split']))
+        {
+            $prevId = $this->prevCapture['prevId'];
+            $sasUrl = $this->prevCapture['sasUrl'];
+            $blobPath = $this->prevCapture['blobPath'];
+
+            //Delete prev file from Azure Blob Storage                   
+            // $azureService = app(AzureStorageService::class);
+            // $azureService->deleteFile($blobPath);
+
+            //Log::info("Azure file deleted {$blobPath}");
+
+            $invoice = OcrPdf::query()->where('id', $prevId)->first();
+            $invoice->azure_sas_url = null;
+            $invoice->azure_sas_expiry = null;
+            $invoice->is_deleted = 1;
+            //$invoice->deleted_reason = "Splited file and deleted";
+            $invoice->deleted_reason = "Splited file";
+            $invoice->save();            
+        }
+
+        // if($type)
+        // {
+        //     // $total = Cache::get('inbox_total', 0);
+        //     // $completed = Cache::get('inbox_completed', 0);  
+            
+        //     // if($total >= $completed)
+                ValidateOcrInvoicesJob::dispatch(null, $selected_invoice_ids)
+                    ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
+        // }
+        // else            
+        //     ValidateOcrInvoicesJob::dispatch($batchId)
+        //         ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));        
 
         $cacheKey = "ocr_email_batch_finalized:{$batchId}";
 

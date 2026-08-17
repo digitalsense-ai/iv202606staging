@@ -1199,8 +1199,8 @@ class TasksController extends Controller
 
             if($vatreturn->invoice_type == 'purchase')
             {
-                $purchasetotalnet += $vatreturn->net_amount;
-                $purchasetotalvat += $vatreturn->vat_amount;
+                // $purchasetotalnet += $vatreturn->net_amount;
+                // $purchasetotalvat += $vatreturn->vat_amount;
 
                 if($vatreg->country == 'NO')
                 {
@@ -1229,7 +1229,20 @@ class TasksController extends Controller
                         $purchases_fish_totalnet += $vatreturn->net_amount;
                         $purchases_fish_totalvat += $vatreturn->vat_amount;
                     } /* --end if 11.11% -- */
-                } /* --end if NO -- */                                                   
+                } /* --end if NO -- */
+                else if($vatreg->country == 'GB')
+                {
+                    if($vatreturn->currency_code == 'GBP')
+                    {
+                        $purchasetotalnet += $vatreturn->net_amount;
+                        $purchasetotalvat += $vatreturn->vat_amount;
+                    }
+                } /* --end if GB -- */    
+                else
+                {
+                    $purchasetotalnet += $vatreturn->net_amount;
+                    $purchasetotalvat += $vatreturn->vat_amount;
+                }  /* --end if OTHER -- */                                               
             } /* --end if PURCHASE -- */
         } /* --end for -- */
         /* --end VATRETUNS  -- */            

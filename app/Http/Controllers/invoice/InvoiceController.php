@@ -327,9 +327,7 @@ class InvoiceController extends Controller
         $params = [                        
             'grant_type' => "password",                        
             'username' => "admin",  //ERP Plus Excel     
-            'password' => "admin",  //ERP Plus Excel   
-            //'username' => "DigitalAdminVat",  //Interop Excel 
-            //'password' => "Y6%9ld3\$u",  //Interop Excel       
+            'password' => "admin",  //ERP Plus Excel               
         ];
 
         $guzzleClient = new GuzzleClient();

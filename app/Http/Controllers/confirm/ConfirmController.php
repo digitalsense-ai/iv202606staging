@@ -18,6 +18,9 @@ use Illuminate\Support\Str;
 use PDF;
 use App\Events\VATReturnEvent;
 
+use Mail;
+use App\Mail\NotificationEmail;
+
 class ConfirmController extends Controller
 {        
     public $commonClass;
@@ -72,7 +75,7 @@ class ConfirmController extends Controller
                   $email->bounced_on = Carbon::parse($bounce['timestamp'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
                   $email->save();
 
-                  //Forward the Auto reply email to info@intravat.com
+                  //Forward the Auto reply email to config('mail.mailers.intravatmail.info.username')
                   if($email->status == 'auto_reply')
                   {
                     sleep(5);
@@ -83,8 +86,12 @@ class ConfirmController extends Controller
                         'Subject' => $email->subject,
                         'Error Message' => $forwarded
                       ]);
-                  }
-                  //Forward the Auto reply email to info@intravat.com
+                  } //Forward the Auto reply email to config('mail.mailers.intravatmail.info.username')
+                  else
+                  {
+                    $sendNotification = Mail::to(config('mail.mailers.intravatmail.info.username'))              
+                                          ->send(new NotificationEmail($email));
+                  }//Send as email bounced to config('mail.mailers.intravatmail.info.username')
                 }
               }              
               break;

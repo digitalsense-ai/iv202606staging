@@ -364,7 +364,10 @@ class DynamicsApiClass
         } 
                 
         //Sales Credit Memos
-        $sales_credit_memos_filter = "((sellToCountry eq '".$country."') and (creditMemoDate ge $service_start and creditMemoDate le $end_date))";
+        if($service_start == '2026-04-01' && $end_date == '2026-06-30' && strtolower($client_name) == 'fairpoint outdoors a/s')
+          $sales_credit_memos_filter = "((sellToCountry eq '".$country."') and (creditMemoDate ge $service_start and creditMemoDate le $end_date and creditMemoDate ne 2026-06-22))";
+        else
+          $sales_credit_memos_filter = "((sellToCountry eq '".$country."') and (creditMemoDate ge $service_start and creditMemoDate le $end_date))";
         
         $sales_credit_memos_expand = "customer";
 

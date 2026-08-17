@@ -3,6 +3,8 @@
 namespace App\Mappers;
 
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+use Str;
 
 use App\Helpers\DateHelper;
 use App\Helpers\OrgNoNormalizer;
@@ -15,12 +17,39 @@ use App\Parsers\ClientInvoiceParser;
 
 class CustomComInvoiceMapper
 {
-    public static function map(array $result, array $clients, bool $validate = false): array
+    public static function map(array $result, array $clients, bool $validate = false, string $passDate = null, bool $manual = false, bool $searchSave = false): array
     {
+        $comInvoiceTypes = [
+            'consolidated',
+            'commercial',
+            'samlefaktura',
+            'nlefaktura',
+            'nnlefaktura',
+            'export sales',
+            'reason for export',
+            'reason for export: sale',
+            'proforma',
+            'proformafaktura',
+            'zollrechnung',
+            //'reference',
+            'total tariff',
+            'total tarrif',
+            'rechnung',
+            'samleliste',
+            'invoice declaration',
+            'master invoice',
+            'customs invoice',
+            'collective',
+            'reference/invoicing'
+        ];
+
         $doc = $result['analyzeResult']['documents'][0]['fields'] ?? [];
         $content = $result['analyzeResult']['content'] ?? '';
 //Log::info($doc); 
-         
+        
+        $invoice_type = $doc['Invoice Type']['valueString'] ?? null;
+        $invalid_invoice_type = OcrFallbackFieldExtractor::invalidInvoiceType($content);
+
         $recipientName = $doc ? ($doc['Client Name']['valueString'] ?? '') : '';
         //$orgNo = OrgNoNormalizer::normalize(($doc['Client Number']['valueString'] ?? null), $recipientName);
 
@@ -41,9 +70,24 @@ class CustomComInvoiceMapper
             null
         );
        
-        $client_name = $client_result['name'] ?? null;
-        $client_no   = $client_result['org_no'] ?? null; 
-        $extracted_client_no = $client_result['og_org_no'] ?? null; 
+        if($manual || $searchSave)
+        {
+            $client_name = $client_result['name'] ?? $recipientName;
+            $client_no   = $client_result['org_no'] ?? $clientNumber; 
+            $extracted_client_no = $client_result['og_org_no'] ?? null; 
+
+            // Log::info([
+            //     'client_name' => $client_name,
+            //     'client_no' => $client_no,
+            //     'extracted_client_no' => $extracted_client_no,
+            // ]);
+        }
+        else
+        {
+            $client_name = $client_result['name'] ?? null;
+            $client_no   = $client_result['org_no'] ?? null; 
+            $extracted_client_no = $client_result['og_org_no'] ?? null; 
+        }
 
         $invoiceDate = DateHelper::parseInvoiceDate(
             $doc['Invoice Date']['content'] ?? null
@@ -116,8 +160,31 @@ class CustomComInvoiceMapper
             $exchange_net_amount ?? null
         );  
 
+//         if (!$net_amount) {
+//             $net_fallback = OcrFallbackFieldExtractor::netAmount($content);
+// Log::info($net_fallback);
+//             if ($net_fallback) {               
+//                 if (is_array($net_fallback)) {
+//                     $currency = $currency ?? ($net_fallback['currency'] ?? null);
+//                     $net_amount = $net_fallback['amount'] ?? null;
+//                 } else {
+//                     // string case
+//                     $net_amount = $net_fallback;
+//                 }
+//             }
+//         }
+
+        $invoiceNumber = rtrim((string) $invoiceNumber, '.');
+
+        if($manual || $searchSave)
+        {            
+            $finalRelatedSalesInvoices = $doc['Related Sales Invoices']['valueString'] ?? null;
+            $finalRelatedSalesOrders   = $doc['Related Sales Orders']['valueString'] ?? null;
+            $finalRelatedShipments     = $doc['Related Shipment Numbers']['valueString'] ?? null;
+        }
+        
         $mapresult = [
-            'invoice_type' => $doc['Invoice Type']['valueString'] ?? null,
+            'invoice_type' => $invoice_type,
             'invoice_number' => $invoiceNumber ?? null,            
             'invoice_date'   => $invoiceDate ?? null, 
             'recipient' => [
@@ -150,22 +217,177 @@ class CustomComInvoiceMapper
                 $error_message .= "Client No. missing\n";
         }
 
-        if (!$invoiceDate)
-            $error_message .= "Invoice Date missing\n";
+        $futureInvoiceDate = false;
+        $olderInvoiceDate = false;
+        if ($invoiceDate) {
 
-        if (!$invoiceNumber)
-            $error_message .= "Invoice no. missing\n";
+            $fetchDate = $passDate ?? now();
+
+            $referenceDate = Carbon::parse($fetchDate)->startOfDay();
+            $futureReferenceDate = Carbon::now()->startOfDay();
+
+            $invoiceDateCarbon = Carbon::parse($invoiceDate)->startOfDay();
+
+            // Future invoice date
+            if ($invoiceDateCarbon->gt($futureReferenceDate)) {
+                $futureInvoiceDate = true;
+            }
+
+            // Older than 6 months
+            if ($invoiceDateCarbon->lt(
+                $referenceDate->copy()->subMonths(6)
+            )) {
+                $olderInvoiceDate = true;
+            }
+        }
+
+        if (!$invoiceDate) {
+            $error_message .= "Invoice Date missing\n";
+        }
+        else {
+            if ($futureInvoiceDate) {
+                $error_message .= "Invoice Date is in the future\n";
+            }
+
+            if ($olderInvoiceDate) {
+                $error_message .= "Invoice Date is older than 6 months\n";
+            }
+        }
+        
+        // if (!$invoice_type)
+        //     $error_message .= "Invoice Type missing\n";
+
+        if (!$invoiceDate) {
+            $error_message .= "Invoice Date missing\n";
+        }
 
         if (!$currency)
             $error_message .= "Currency missing\n";
 
-        if (!$net_amount)
-            $error_message .= "Net Amount missing";
+        //if (!$net_amount)
+        if (blank($net_amount))
+            $error_message .= "Net Amount missing\n";
+
+        //if(!$finalRelatedSalesInvoices)
+        if (blank($finalRelatedSalesInvoices))
+        {
+            if (blank($finalRelatedSalesOrders))
+            {
+                if (blank($finalRelatedShipments))                
+                    $error_message .= "References missing\n";
+            }
+        }
 
         if ($error_message) {
             $mapresult['error'] = $error_message;
         }
        
+        $validInvoiceType = collect($comInvoiceTypes)->contains(function ($type) use ($invoice_type, $invoiceNumber) {            
+            if(strtolower($invoice_type) == "rechnung" && 
+                Str::startsWith(Str::lower($invoiceNumber), ['ch'])
+            )
+                return false;
+            else       
+                return str_contains(strtolower($invoice_type), $type);
+        });
+// Log::info("COM invoice_type: " . $invoice_type);
+// Log::info("COM invoiceNumber: " . $invoiceNumber);
+// Log::info("COM validInvoiceType: " . $validInvoiceType);
+        // if($client_name && (stripos($client_name, 'engel') !== false
+        //         || stripos($client_name, 'guardian') !== false
+        //         || stripos($client_name, 'berendsohn') !== false
+        //     )            
+        // )
+        // {
+        //     $validInvoiceType = OcrFallbackFieldExtractor::comInvoiceType($content);            
+        // }
+
+        // if($client_name && stripos($client_name, 'second female') !== false)
+        // {
+        //     $validInvoiceType = OcrFallbackFieldExtractor::checkVatRate($content);
+        // }
+
+        if ($invoice_type)
+        {
+            if (!$validInvoiceType) {              
+                $mapresult['change_invoice_type'] = true;
+            }            
+        }  
+//Log::info('1 COM change_invoice_type: ' . ($mapresult['change_invoice_type'] ?? 'vvvvvvvvvvvvvvvvv'));
+        // else
+        // {   
+        if(isset($mapresult['change_invoice_type']))
+        {
+            if($mapresult['change_invoice_type'])
+            {
+
+            }
+            else
+            {
+                $validInvoiceType = OcrFallbackFieldExtractor::checkInvoiceType($content);
+//Log::info('2 COM validInvoiceType: ' . $validInvoiceType);
+                if($validInvoiceType)
+                   unset($mapresult['change_invoice_type']);     
+                else
+                    $mapresult['change_invoice_type'] = true;
+            }
+        }    
+            
+        //}
+ 
+        // if ($invoice_type && !$validInvoiceType) {  
+        // //Log::info("COM change_invoice_type: " . $validInvoiceType);     
+        //     $mapresult['change_invoice_type'] = true;
+        // }
+           
+        if($client_name)
+        {
+            if(stripos($client_name, 'vernon') !== false)
+            {
+                $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'base');
+                
+                if(Str::startsWith(Str::lower($invoiceNumber), ['ex']))
+                    unset($mapresult['change_invoice_type']);
+                else
+                {
+                    if($vatBase)
+                        $mapresult['change_invoice_type'] = true;
+                }
+            }
+            else if(stripos($client_name, 'committee xxiv') !== false)
+            {
+                $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'amount');
+                // Log::info("COM vatBase: " . $vatBase);
+                // Log::info("COM invoiceNumber: " . $invoiceNumber);
+
+                if($vatBase)
+                    $mapresult['change_invoice_type'] = true;
+                else
+                {
+                    $vatBase = OcrFallbackFieldExtractor::checkVatBase($content, 'rate');
+
+                    if($vatBase)
+                        $mapresult['change_invoice_type'] = true;
+                    else
+                        unset($mapresult['change_invoice_type']);
+                }
+            }
+        }
+
+        $chkSpecificText = OcrFallbackFieldExtractor::chkSpecificText($content, 'samsoe samsoe');        
+        if($chkSpecificText)
+        {            
+            if (blank($net_amount))
+                $mapresult['change_invoice_type'] = true;
+            else
+                unset($mapresult['change_invoice_type']);
+        }
+
+        if ($invalid_invoice_type !== null)
+        {       
+            $mapresult['invalid_invoice_type'] = true;
+        }
+
         return $mapresult;        
     }
 }

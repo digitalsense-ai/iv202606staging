@@ -1,0 +1,1 @@
+<x-mail::message :subject="'Email bounced notification - '.$data['subject'].''" :lang="'en'"><p>Dear Admin</p><p>{!! $data['name'] . ' - ' . $data['email'] !!}</p><p>Email bounced, {{ !empty($data['bounced_on']) ? \Carbon\Carbon::parse($data['bounced_on'])->format('d-m-Y') : '' }}</p><p>Best regards</p><p>{{ config('app.name') }}</p></x-mail::message>

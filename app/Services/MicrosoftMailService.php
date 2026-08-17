@@ -46,8 +46,8 @@ class MicrosoftMailService
     {
         $emails = [];
         //$url = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/mailFolders/Inbox/messages?\$orderby=receivedDateTime desc&\$top=50";
-        $url = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/mailFolders/Inbox/messages?\$filter=isRead eq false&\$orderby=receivedDateTime desc&\$top=50";
-
+        $url = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/mailFolders/Inbox/messages?\$filter=isRead eq false&\$orderby=receivedDateTime desc&\$top=50";     
+  
         do {
             $response = Http::withToken($this->accessToken)->get($url);
 
@@ -70,24 +70,107 @@ class MicrosoftMailService
         //$emailsWithAttachments = array_filter($emails, fn($email) => !empty($email['hasAttachments']));
 
         // Filter only emails that actually have attachments
-        $emailsWithAttachments = array_filter($emails, function ($email) {
+        // $emailsWithAttachments = array_filter($emails, function ($email) {
+        //     if (empty($email['hasAttachments'])) {
+        //         // Move emails without attachments
+        //         $this->moveEmailToFolder($email['id'], 'No Attachment');
+        //         return false;               
+        //     }
+        //     return true;
+        // });
+
+        //$emailsWithAttachments = array_filter($emails, function ($email) {
+        foreach ($emails as &$email) {
             if (empty($email['hasAttachments'])) {
-                // Move emails without attachments
-                $this->moveEmailToFolder($email['id'], 'No Attachment');
-                return false;
-            }
-            return true;
+                $conversationId = $email['conversationId'] ?? null;
+
+                if (!$conversationId) {
+                    $this->moveEmailToFolder($email['id'], 'No Attachment');
+                    //return false;
+                }
+
+                $conversationUrl = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/messages?"
+                    . "\$filter=conversationId eq '{$conversationId}'";
+
+                $conversationResponse = Http::withToken($this->accessToken)->get($conversationUrl);
+
+                if (!$conversationResponse->successful()) {
+                    logger()->error('Graph API error', $conversationResponse->json());
+                    //return false;
+                }
+
+                $conversationMessages = $conversationResponse->json('value', []);
+
+                $hasAttachment = false;
+
+                foreach ($conversationMessages as $message) {
+
+                    if (empty($message['hasAttachments'])) {
+                        continue;
+                    }
+
+                    $attachmentsUrl = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/messages/{$message['id']}/attachments";
+
+                    $attachmentsResponse = Http::withToken($this->accessToken)->get($attachmentsUrl);
+
+                    if (!$attachmentsResponse->successful()) {
+                        continue;
+                    }
+
+                    $attachments = $attachmentsResponse->json('value', []);
+
+                    foreach ($attachments as $attachment) {
+
+                        // Ignore inline signature images
+                        if (!empty($attachment['isInline'])) {
+                            continue;
+                        }
+
+                        $contentType = strtolower($attachment['contentType'] ?? '');
+                        $name = strtolower($attachment['name'] ?? '');
+
+                        if (
+                            $contentType === 'application/pdf' ||
+                            str_ends_with($name, '.pdf')
+                        ) {                            
+                            $hasAttachment = true;
+                            //$email['replyAttachments']['hasReplyAttachments'] = $hasAttachment;
+                            $email['replyAttachments']['attachments'][] = $attachment;
+                            break 2;
+                        }
+                    }
+                }
+
+                if (!$hasAttachment) {
+                    $this->moveEmailToFolder($email['id'], 'No Attachment');
+                    //return false;
+                }                
+            }    
+            //return true;
+        //});
+        }
+        unset($email);
+
+        $emailsWithAttachments = array_filter($emails, function ($email) {
+            return $email['hasAttachments'] || isset($email['replyAttachments']);
         });
 
         return array_values($emailsWithAttachments); // reset keys        
     }
 
     // Download PDF attachments and store in com/sales folders
-    public function downloadPdfAttachments(string $messageId, string $subject): array
+    public function downloadPdfAttachments(string $messageId, string $subject, array $replyAttachments): array
     {
-        $url = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/messages/$messageId/attachments";
-        $response = Http::withToken($this->accessToken)->get($url);
-        $attachments = $response->json('value', []);
+        if($replyAttachments)
+        {
+            $attachments = $replyAttachments['attachments'];
+        }
+        else
+        {
+            $url = "https://graph.microsoft.com/v1.0/users/{$this->mailbox}/messages/$messageId/attachments";
+            $response = Http::withToken($this->accessToken)->get($url);
+            $attachments = $response->json('value', []);
+        }
         //$savedPaths = [];
 
         /*
@@ -252,7 +335,7 @@ class MicrosoftMailService
         // $com_keywords = ['consolidated', 'commercial', 'proformafaktura', 'samlefaktura', 'report', 'ci-', 'ch ', 
         //                     'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'uk ', 'gb '];
         $com_keywords = ['consolidated', 'commercial', 'proformafaktura', 'samlefaktura', 'report', 'ci-', 
-                            'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'msj_', 'eksportsalgsfaktura'];
+                            'Zollsammelrechnung', 'dsv', 'bring', '_ci_', 'samle', 'fakturanosam', 'proforma', '160326', 'msj_', 'eksportsalgsfaktura', 'jessi regina -'];
         $sales_keywords = ['kundefakturaer', 'sales', ' fakturaer ', 'intertrans_invoice', 'invoices_for_commercial_invoice', 'deerhunter_invoice', 'proforma_invoice_'];
         $multiple_sales_keywords = ['nos-', 'salesinvoices_ic', 'posted sales invoices', 'invoices_for_commercial_invoice_'];
 
@@ -279,9 +362,10 @@ class MicrosoftMailService
             preg_match('/^(ATT|EAD|ESCAN_|Payment information|Mainifest)/i', $fileName)
             || stripos($fileName, 'AJONEDDCPA') !== false
             || stripos($fileName, 'Mva-melding') !== false
-            || stripos($fileName, 'kontoudtog') !== false   
-            || stripos($fileName, 'delivery_note') !== false           
-            || Str::startsWith(Str::lower($fileName), ['26dk', 'gls - '])
+            || stripos($fileName, 'kontoudtog') !== false  
+            || stripos($fileName, 'delivery_note') !== false                   
+            || Str::startsWith(Str::lower($fileName), ['26dk', 'gls - ', 
+                'salesconditions_', 'millarco_påmindelse', 'merged_reports_report_queue'])
         ) return $grouped;
 
         if (stripos($subject, "second female") !== false) 
@@ -329,10 +413,10 @@ class MicrosoftMailService
             ];
         }
         else
-        {            
+        {
             if(isset($attachment['prevFolder']))
             {
-                if (Str::startsWith(Str::lower($fileName), ['jessi regina'])                    
+                if (Str::startsWith(Str::lower($fileName), ['jessi regina', 'samlefaktura'])                    
                 )
                     $folder = 'com';
                 else

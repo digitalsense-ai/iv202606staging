@@ -62,6 +62,7 @@ class SplitPdfJob implements ShouldQueue
                     'file_name' => $this->originalName,
                     'analyzer_id' => $this->analyzerId,
                     'status' => 'failed',
+                    'no_of_attempts' => 1,
                     'error' => "File too large ({$fileSizeMB}MB) for PDF processing",
                     'created_at' => now(),
                     'source_environment' => config('database.ocr_source_environment')
@@ -87,6 +88,7 @@ class SplitPdfJob implements ShouldQueue
                     'file_name'   => $this->originalName . '.pdf',
                     'analyzer_id' => $this->analyzerId,
                     'status'      => 'queued',
+                    'no_of_attempts' => 1,
                     'created_at'  => now(),
                     'source_environment' => config('database.ocr_source_environment')
                 ]);
@@ -137,41 +139,76 @@ class SplitPdfJob implements ShouldQueue
         {
             if($this->prevCapture)
             {
-                $docId = $this->prevCapture['prevId'];
-
-                //Store in azure storage blob
-                $azureService = new AzureStorageService();
-                $azurePath = $this->invoiceType . '/' . $this->originalName . '.pdf';
-                $azureUrl = $azureService->uploadFile($this->fullPath, $azurePath);
-
-                // Update record            
-                $ocrpdf = OcrPdf::query()->where('id', $docId)->first();
-                $ocrpdf->azure_url = $azureUrl;
-                if($this->prevCapture)
+                if(isset($this->prevCapture['split']))
                 {
-                    $ocrpdf->client_id = null;
-                    $ocrpdf->batch_id = $this->batchId;
-                    $ocrpdf->invoice_type = $this->invoiceType;
-                    $ocrpdf->file_name = $this->originalName . '.pdf';
-                    $ocrpdf->analyzer_id = $this->analyzerId;
-                    $ocrpdf->status = 'queued';
-                    $ocrpdf->updated_at = now();
+
+                } //split
+                else
+                {
+                    $docId = $this->prevCapture['prevId'];
+
+                    //Store in azure storage blob
+                    $azureService = new AzureStorageService();
+                    $azurePath = $this->invoiceType . '/' . $this->originalName . '.pdf';
+                    $azureUrl = $azureService->uploadFile($this->fullPath, $azurePath);
+
+                    // Update record            
+                    $ocrpdf = OcrPdf::query()->where('id', $docId)->first();
+                    $ocrpdf->azure_url = $azureUrl;
+                    if($this->prevCapture)
+                    {
+                        $ocrpdf->client_id = null;
+                        $ocrpdf->batch_id = $this->batchId;
+                        $ocrpdf->invoice_type = $this->invoiceType;
+                        $ocrpdf->file_name = $this->originalName . '.pdf';
+                        $ocrpdf->analyzer_id = $this->analyzerId;
+                        $ocrpdf->status = 'queued';
+                        $ocrpdf->updated_at = now();
+                    }
+                    $ocrpdf->save();
+
+                    SubmitAnalyzeJob::dispatch(
+                        $this->clients,
+                        $docId,
+                        $this->fullPath,
+                        basename($this->fullPath),
+                        $this->azureStudioType,
+                        $this->analyzerId,                
+                        $this->invoiceType,
+                        $this->emailMessageId,
+                        $this->prevCapture
+                    )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
+
+                    return;
                 }
-                $ocrpdf->save();
+            }
+            else
+            {
+                // Load PDF info to get total pages
+                $pdfInfo = new Fpdi();
+                try {
+                    $totalPages = $pdfInfo->setSourceFile($this->fullPath);
+                } catch (\Throwable $e) {
+                    \Log::error('FPDI failed to read PDF. Retrying as single invoice.', [
+                        'file' => $this->fullPath,
+                        'error' => $e->getMessage(),
+                    ]);
 
-                SubmitAnalyzeJob::dispatch(
-                    $this->clients,
-                    $docId,
-                    $this->fullPath,
-                    basename($this->fullPath),
-                    $this->azureStudioType,
-                    $this->analyzerId,                
-                    $this->invoiceType,
-                    $this->emailMessageId,
-                    $this->prevCapture
-                )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
+                    self::dispatch(
+                        $this->clients,
+                        $this->fullPath,                        
+                        $this->originalName,
+                        'sales',
+                        $this->batchId,
+                        $this->azureStudioType,
+                        $this->analyzerId,
+                        null,
+                        $this->emailMessageId,
+                        $this->prevCapture
+                    )->onQueue(config('queue.ocr.submit', 'ocrpdfinvoices'));
 
-                return;
+                    return;
+                }
             }
         }//multi-invoices
 
@@ -259,6 +296,7 @@ class SplitPdfJob implements ShouldQueue
                 'file_name' => $this->originalName . '_' . $counter . '.pdf',
                 'analyzer_id' => $this->analyzerId,
                 'status' => 'queued',
+                'no_of_attempts' => 1,
                 'start_pageno' => $start,
                 'end_pageno' => $end,
                 'layout_metadata' => json_encode([
@@ -320,10 +358,20 @@ class SplitPdfJob implements ShouldQueue
     {
         $ranges = [];
         $invoiceByPage = [];
+       
+        $pageTextByPage = [];
 
         // Load PDF info to get total pages
-        $pdfInfo = new Fpdi();
-        $totalPages = $pdfInfo->setSourceFile($this->fullPath);
+        $pdfInfo = new Fpdi();        
+        try {
+            $totalPages = $pdfInfo->setSourceFile($this->fullPath);
+        } catch (\Throwable $e) {
+            \Log::error('FPDI failed to read PDF. Retried as single invoice.', [
+                'file' => $this->fullPath,
+                'error' => $e->getMessage(),
+            ]);
+            return $ranges;
+        }
         unset($pdfInfo);
 
         // Process each page individually
@@ -369,6 +417,8 @@ class SplitPdfJob implements ShouldQueue
                 sleep(5); // throttle Azure requests
             }
 
+            $pageTextByPage[$pageNo] = trim($text);
+
             // Detect invoice number
             // if (
             //     preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text, $m) ||
@@ -400,6 +450,11 @@ class SplitPdfJob implements ShouldQueue
                 //\Log::info("/Fakturanr");
                 $invoiceByPage[$pageNo] = $m[1];
             }
+            // 4 Otherwise fallback to "Rechnungsnr."
+            elseif (preg_match('/Rechnungsnr\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
+                //\Log::info("/Rechnungsnr");
+                $invoiceByPage[$pageNo] = $m[1];
+            }
             else
             {
                 // Then extract using "Nummer"
@@ -415,20 +470,32 @@ class SplitPdfJob implements ShouldQueue
             gc_collect_cycles();
         }
 //\Log::info("Total pages: ". $totalPages);
+//\Log::info($invoiceByPage);        
         // Build page ranges grouped by invoice number
         $currentInvoice = null;
         $rangeStart = 1;
-
+        $headers = ['Nr.', 'Fakturadato', 'FSC™'];
         for ($page = 1; $page <= $totalPages; $page++) {
             $invoice = $invoiceByPage[$page] ?? $currentInvoice;
 //\Log::info("Has invoice : ". $invoice);
+          
+            if (in_array(trim($invoice), $headers, true)) {
+                $nextInvoice = $invoiceByPage[$page + 1] ?? null;
+                $pageText = $pageTextByPage[$page] ?? '';
+
+                if ($nextInvoice && stripos($pageText, $nextInvoice) !== false) {
+                    // Header page belongs to next invoice
+                    $invoice = $nextInvoice;
+                }
+            }
+
             if ($currentInvoice === null) {
                 $currentInvoice = $invoice;
                 $rangeStart = $page;
                 continue;
             }
 
-            if ($invoice !== $currentInvoice) {
+            if ($invoice !== $currentInvoice) {                
                 $ranges[] = [$rangeStart, $page - 1];
                 $currentInvoice = $invoice;
                 $rangeStart = $page;
@@ -442,7 +509,7 @@ class SplitPdfJob implements ShouldQueue
         $ranges[] = [$rangeStart, $totalPages];
 
         return $ranges;
-    }
+    }    
 
     private function azureOcrGetTextSafe(string $filePath): string
     {

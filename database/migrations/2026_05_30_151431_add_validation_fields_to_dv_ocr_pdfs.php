@@ -52,12 +52,12 @@ return new class extends Migration
     {
         Schema::connection(config('database.ocr_connection'))
             ->table('dv_ocr_pdfs', function (Blueprint $table) {
-                $table->dropIndex(['duplicate_hash']);
-                $table->dropIndex(['validation_status']);
-                $table->dropIndex(['invoice_type', 'duplicate_hash']);
+                // $table->dropIndex(['duplicate_hash']);
+                // $table->dropIndex(['validation_status']);
+                // $table->dropIndex(['invoice_type', 'duplicate_hash']);
 
-                $table->dropColumn('duplicate_hash');
-                $table->dropColumn('validation_status');
+                // $table->dropColumn('duplicate_hash');
+                // $table->dropColumn('validation_status');
             });
     }
 };

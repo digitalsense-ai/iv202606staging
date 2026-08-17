@@ -7,10 +7,13 @@ use Illuminate\Support\Facades\Cache;
 
 use App\Services\ValidateOcrInvoiceDuplicateService;
 use App\Models\OcrPdf;
+use App\Models\OcrSyncStatus;
+
+use App\Helpers\EnvironmentHelper;
 
 class ValidateOcrInvoiceUpdateService
 {
-    public function apply($invoice, array $mapped)
+    public function apply($invoice, array $mapped, bool $manual = false, bool $searchSave = false)
     {    
         $current = $invoice->extracted_data ?? [];
 
@@ -53,17 +56,37 @@ class ValidateOcrInvoiceUpdateService
 
         $save_invoice = OcrPdf::query()->find($invoice->id);
 
+        
         if($changed)
-        {            
+        {        
             Cache::increment('inbox_completed', 1);
 
             //if($invoice->validation_status == 'not_yet_validated')
             //    $invoice->og_extracted_data = $invoice->extracted_data ?? [];      
 
-            $save_invoice->extracted_data = $current;
-            $save_invoice->error = ($mapped['error']) ?? null;
-            $save_invoice->status = isset($mapped['error']) ? 'failed' : 'completed';
+            if(!$manual && !$searchSave)
+                $save_invoice->extracted_data = $current;
+            $save_invoice->error = $mapped['error'] ?? null;
+            //$save_invoice->status = isset($mapped['error']) ? 'failed' : 'completed';
+            $save_invoice->status = ($save_invoice->force_submitted == 1 || !isset($mapped['error']))
+                    ? 'completed'
+                    : 'failed';
 
+            if($manual)
+            {
+                //$save_invoice->manual_input_status = isset($mapped['error']) ? null : 'validated';
+                $save_invoice->manual_input_status = ($save_invoice->force_submitted == 1 || !isset($mapped['error']))
+                    ? 'validated'
+                    : null;
+            }
+
+            if($searchSave)
+            {                
+                $save_invoice->search_save_status = ($save_invoice->force_submitted == 1 || !isset($mapped['error']))
+                    ? 'validated'
+                    : null;
+            }
+            
             $duplicateService = app(
                 \App\Services\ValidateOcrInvoiceDuplicateService::class
             );
@@ -73,12 +96,39 @@ class ValidateOcrInvoiceUpdateService
                 : null;
         }
 
-        $save_invoice->sync_status = 0;
-        $save_invoice->is_locked = 0;
+        //$save_invoice->sync_status = 0;
+        //$save_invoice->is_locked = 0;
         $save_invoice->validation_status = $changed
             ? 'validated_with_changes'
             : 'validated';
+            
+        if($manual)    
+        {        
+            //$save_invoice->manual_input_status = isset($mapped['error']) ? null : 'validated';
+            $save_invoice->manual_input_status = ($save_invoice->force_submitted == 1 || !isset($mapped['error']))
+                    ? 'validated'
+                    : null;
+        }
+
+        if($searchSave)    
+        {                    
+            $save_invoice->search_save_status = ($save_invoice->force_submitted == 1 || !isset($mapped['error']))
+                    ? 'validated'
+                    : null;
+        }
 
         $save_invoice->save();
+
+        $environment = EnvironmentHelper::getEnvironment();
+        OcrSyncStatus::updateOrCreate(
+            [
+                'ocr_pdf_id' => $save_invoice->id,
+                'environment' => $environment,
+            ],
+            [                    
+                'sync_status' => 0,
+                'is_locked' => 0,
+            ]
+        );
     }
 }

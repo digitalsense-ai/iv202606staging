@@ -19,7 +19,8 @@ $(function () {
   }
   
   // Variable declaration for table    
-  var analyzePdfSearchUrl = baseUrl + 'analyzepdf/search/';
+  var analyzePdfUrl = baseUrl + 'analyzepdf/';
+  var analyzePdfSearchUrl = analyzePdfUrl + 'search/';
 
   // ajax setup
   $.ajaxSetup({
@@ -385,6 +386,242 @@ console.log(analyzepdfsearch_name);
   } //for loop dt
 */
 
+  window.initAnalyzepdfSearchTableFeatures = function initAnalyzepdfSearchTableFeatures(api, analyzepdfsearch_name) { 
+      function fixLayout() {
+        api.columns.adjust();
+        api.columns.adjust();
+
+        // IMPORTANT: force header/body sync in scrollX mode
+        $(api.table().node())
+          .css('width', '100%');
+
+        $(api.table().container())
+          .find('table')
+          .css('width', '100%');
+      }
+
+      requestAnimationFrame(fixLayout);
+
+      setTimeout(fixLayout, 50);
+      setTimeout(fixLayout, 150);
+      setTimeout(fixLayout, 400);
+
+      const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
+      const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
+      const $topScroll    = $('#top-scroll-navs-analyzepdfsearch-' + analyzepdfsearch_name);
+      const $topInner     = $topScroll.find('.dt-top-scroll-inner');
+
+      let isSyncing = false;
+
+      function syncWidth() {
+          if ($scrollBody.length) {
+
+              let scrollBodyEl = $scrollBody.get(0);
+
+              // FORCE DataTables layout recalculation first
+              api.columns.adjust();
+
+              setTimeout(function () {
+                  $topInner.width(scrollBodyEl.scrollWidth);
+              }, 50);
+          }
+      }
+
+      // Remove previous handlers to avoid duplicates
+      $scrollBody.off('scroll.dtTop');
+      $topScroll.off('scroll.dtTop');
+
+      // Sync scrolling
+      $scrollBody.on('scroll.dtTop', function () {
+          if (isSyncing) return;
+          isSyncing = true;
+          $topScroll.scrollLeft(this.scrollLeft);
+          isSyncing = false;
+      });
+
+      $topScroll.on('scroll.dtTop', function () {
+          if (isSyncing) return;
+          isSyncing = true;
+          $scrollBody.scrollLeft(this.scrollLeft);
+          isSyncing = false;
+      });
+
+      // Initial sync
+      syncWidth();
+
+      // Re-sync on redraw
+      api.on('draw.dtTop', syncWidth);
+
+      // Re-sync on resize
+      $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
+
+      // Re-sync on tab show
+      $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
+          .on('shown.bs.tab.dtTop', syncWidth);
+
+      //createAnalyzepdfSearchButtons(analyzepdfsearch_name);
+
+      $("."+ analyzepdfsearch_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-analyzepdfsearch-export .'+ analyzepdfsearch_name +'-analyzepdfsearch-export');
+
+      var analyzepdfsearch_total = api.data().length;
+
+      $("#btn-analyzepdfsearch-" + analyzepdfsearch_name + " span")
+        .html(analyzepdfsearch_total);
+
+      // $(".card.analyzepdfsearch .sk-bounce").hide();
+      // $(".card.analyzepdfsearch .card-datatable").show();
+  }
+
+  function createAnalyzepdfSearchButtons(analyzepdfsearch_name) {
+    $("." + analyzepdfsearch_name + "-search-filter")
+      .appendTo('.dt-search-filter');
+
+    var sliderfilter =  '<label class="mx-3 cursor-pointer" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
+                          '<i class="bx bx-slider"></i>' +
+                        '</label>';
+    $(sliderfilter).appendTo('.'+ analyzepdfsearch_name +'-search-filter .dataTables_filter');
+   
+    
+  }
+
+  window.reloadAnalyzedPdfSearch = function reloadAnalyzedPdfSearch(analyzepdfsearch_datas) {      
+      var dt_analyzepdfsearch_tables = $('.datatables-analyzepdfsearch'); 
+      for (var i = 0; i < dt_analyzepdfsearch_tables.length; i++) 
+      {      
+          var analyzepdfsearch_name = '';        
+          if(i === 0) analyzepdfsearch_name = 'commercial-invoice';          
+          else if(i === 1) analyzepdfsearch_name = 'sales-invoice';          
+          //else if(i === 2) analyzepdfsearch_name = 'declaration';  
+          
+          var tabSelector = "#navs-analyzepdfsearch-" + analyzepdfsearch_name;
+          var tableSelector = ".datatables-"+ analyzepdfsearch_name +"-analyzepdfsearch";
+
+          if($(tableSelector).length > 0)
+          {
+              if ($.fn.DataTable.isDataTable(tableSelector))
+              {
+                  var dt_analyzepdfsearch = $(tableSelector).DataTable();
+                  var rowsData = analyzepdfsearch_datas['analyzepdf_'+ analyzepdfsearch_name.replace('-', '_') +'_datas'];
+
+                  dt_analyzepdfsearch.clear().rows.add(rowsData).draw();                  
+
+                  initAnalyzepdfSearchTableFeatures(dt_analyzepdfsearch, analyzepdfsearch_name);
+                  
+                  $("#btn-analyzepdfsearch-"+ analyzepdfsearch_name +" span").html(rowsData.length);
+
+                  // Enable/disable tab based on data
+                  if (rowsData.length > 0) {
+                    $(".card.analyzepdfsearch .sk-bounce").hide();
+                    $(".card.analyzepdfsearch .card-header").show();
+
+                      $(tabSelector).css({
+                          'pointer-events': 'auto',
+                          'opacity': '1',
+                          'cursor': 'pointer'
+                      });
+                  } else {
+                    $(".card.analyzepdfsearch .sk-bounce").show();
+                    $(".card.analyzepdfsearch .card-header").hide();
+
+                      $(tabSelector).css({
+                          'pointer-events': 'none',
+                          'opacity': '0.5',
+                          'cursor': 'not-allowed'
+                      });
+                  }
+              }
+          }
+      }
+  }
+
+  window.analyzepdf_commercial_invoice_datas = [];   
+  window.analyzepdf_sales_invoice_datas = [];
+  
+  window.vatregmains = [];
+
+  let currentPage = 1;
+  let lastPage = 1;
+  let isLoading = false;
+  function loadAnalyzePdfSearchData() {
+      if (isLoading) return;
+
+      isLoading = true;
+
+      $(".card.analyzepdfsearch .sk-bounce").show();
+
+      $.ajax({          
+          url: `${analyzePdfUrl}data`,
+          type: "GET",
+          data: {
+              page: currentPage
+          },
+          success: function(result) {
+
+              // append vatregmains only when returned
+              if (result.vatregmains) {
+                  window.vatregmains = result.vatregmains;
+              }
+
+              // attach it back to result for existing functions
+              result.vatregmains = window.vatregmains;
+
+              lastPage = result.last_page;
+
+              let pageData = result.data;
+
+              $.each(pageData, function(index, item) {
+
+                  if (item.invoice_type === 'com') {
+                      window.analyzepdf_commercial_invoice_datas.push(item);
+                  }
+                  else if (item.invoice_type !== 'com') {
+                      window.analyzepdf_sales_invoice_datas.push(item);
+                  }
+                  // else if (item.status === 'declaration') {
+                  //     window.analyzepdf_declaration_datas.push(item);
+                  // }                  
+
+              });
+
+              result.analyzepdfs = [
+                  ...window.analyzepdf_commercial_invoice_datas,
+                  ...window.analyzepdf_sales_invoice_datas                  
+              ];
+
+              let analyzepdfsearch_datas = drawDtTable(result, 'analyzepdf_search');
+console.log(analyzepdfsearch_datas);
+              if (analyzepdfsearch_datas) {
+                  reloadAnalyzedPdfSearch(analyzepdfsearch_datas);
+              }
+
+              isLoading = false;
+
+              if (currentPage < lastPage) {
+
+                  currentPage++;
+
+                  setTimeout(function () {
+                      loadAnalyzePdfSearchData();
+                  }, 100);                  
+              }
+
+              $(".card.analyzepdfsearch .sk-bounce").hide();
+              $(".card.analyzepdfsearch .card-header").show();     
+          },
+          error: function(xhr) {
+              isLoading = false;
+              
+              console.error(xhr);
+
+              $(".card.analyzepdfsearch .sk-bounce").hide();
+              $(".card.analyzepdfsearch .card-header").show();
+          }
+      });
+  }
+
+  // START LOADING
+  loadAnalyzePdfSearchData();
+
   var dt_analyzepdfsearch_tables = $('.datatables-analyzepdfsearch');
 
   for (var i = 0; i < dt_analyzepdfsearch_tables.length; i++) {
@@ -406,10 +643,10 @@ console.log(analyzepdfsearch_name);
         analyzepdfsearch_name = 'sales-invoice';
         analyzepdfsearch_datas = analyzepdf_sales_invoice_datas;
       }
-      else if (i === 2) {
-        analyzepdfsearch_name = 'declaration';
-        analyzepdfsearch_datas = analyzepdf_declaration_datas;
-      }
+      // else if (i === 2) {
+      //   analyzepdfsearch_name = 'declaration';
+      //   analyzepdfsearch_datas = analyzepdf_declaration_datas;
+      // }
 
       let columns = [];
       let columntargets = [];
@@ -418,6 +655,7 @@ console.log(analyzepdfsearch_name);
       let invoiceDateIndex = -1;
       let netAmountIndex = -1;
       let relatedInvoiceIndex = -1;
+      let fetchDateIndex = -1;
 
       // ===================== COMMERCIAL =====================
       if (i === 0) {        
@@ -441,6 +679,7 @@ console.log(analyzepdfsearch_name);
         invoiceDateIndex = 4;
         netAmountIndex = 6;
         relatedInvoiceIndex = 7;
+        fetchDateIndex = 8;
       }
 
       // ===================== SALES =====================
@@ -453,8 +692,9 @@ console.log(analyzepdfsearch_name);
           { data: 'invoice_no', width: '200px' },
           { data: 'invoice_date', width: '150px' },
           { data: 'currency', width: '150px' },
-          { data: 'credit_note', width: '150px' },
+          { data: 'credit_note', width: '150px' },          
           { data: 'net_amount', width: '150px', className: 'text-end' },
+          { data: 'original_net_amount', width: '150px', className: 'text-end' },
           { data: 'vat_rate', width: '150px', className: 'text-end' },
           { data: 'vat_amount', width: '150px', className: 'text-end' },
           { data: 'variance_amount', width: '150px', className: 'text-end' },
@@ -465,44 +705,48 @@ console.log(analyzepdfsearch_name);
           { data: 'action', defaultContent: '', width: '150px' }
         ];
 
-        columntargets = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14];
+        columntargets = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
 
-        actiontargets = 15;
+        actiontargets = 16;
         invoiceDateIndex = 4;
         netAmountIndex = 7;
+        fetchDateIndex = 15;
       }
 
       // ===================== DECLARATION =====================
-      else if (i === 2) {
+      // else if (i === 2) {
 
-        columns = [
-          { data: 'fake_id', width: '100px' },
-          { data: 'client_no', width: '150px' },
-          { data: 'client_name', width: '200px' },
-          { data: 'declaration_no', width: '200px' },
-          { data: 'expo_no', width: '200px' },
-          { data: 'invoice_date', width: '150px' },
-          { data: 'currency', width: '150px' },
-          { data: 'net_amount', width: '150px', className: 'text-end' },
-          { data: 'duties', width: '150px', className: 'text-end' },
-          { data: 'adjustment', width: '150px', className: 'text-end' },
-          { data: 'reference_no', width: '200px' },
-          { data: 'created_at', width: '220px' },
-          { data: 'action', defaultContent: '', width: '150px' }
-        ];
+      //   columns = [
+      //     { data: 'fake_id', width: '100px' },
+      //     { data: 'client_no', width: '150px' },
+      //     { data: 'client_name', width: '200px' },
+      //     { data: 'declaration_no', width: '200px' },
+      //     { data: 'expo_no', width: '200px' },
+      //     { data: 'invoice_date', width: '150px' },
+      //     { data: 'currency', width: '150px' },
+      //     { data: 'net_amount', width: '150px', className: 'text-end' },
+      //     { data: 'duties', width: '150px', className: 'text-end' },
+      //     { data: 'adjustment', width: '150px', className: 'text-end' },
+      //     { data: 'reference_no', width: '200px' },
+      //     { data: 'created_at', width: '220px' },
+      //     { data: 'action', defaultContent: '', width: '150px' }
+      //   ];
 
-        columntargets = [0,1,2,3,4,5,6,7,8,9,10,11];
+      //   columntargets = [0,1,2,3,4,5,6,7,8,9,10,11];
 
-        actiontargets = 12;
-        invoiceDateIndex = 5;
-        netAmountIndex = 7;
-      }
+      //   actiontargets = 12;
+      //   invoiceDateIndex = 5;
+      //   netAmountIndex = 7;
+      //   fetchDateIndex = 11;
+      // }
 
       // ===================== INIT DATATABLE =====================
       var dt_analyzepdfsearch = dt_analyzepdfsearch_table.DataTable({
 
         data: analyzepdfsearch_datas,
-
+        rowId: function (data) {
+            return 'invoice_' + data.id;
+        },
         scrollCollapse: true,
         scrollX: true,
         ordering: true,
@@ -511,7 +755,15 @@ console.log(analyzepdfsearch_name);
         pageLength: 100,
 
         columns: columns,
-
+        createdRow: function (row, data) {
+          // if(data.invoice_no == "CH202601463")
+          //   console.log(data);
+          if (data.sync_status == 1) {
+              $(row).css('background-color', '#d4edda'); // Green
+          } else {
+              $(row).css('background-color', '#f8d7da'); // Red
+          }
+        },
         columnDefs: [
 
           // ================= DATE SORT FIX =================
@@ -545,7 +797,60 @@ console.log(analyzepdfsearch_name);
               }
               return data;
             }
+
+//             render: function (data, type) {
+
+//                 // For sorting/export/raw numeric handling
+//                 if (
+//                     type === 'sort' ||
+//                     type === 'type' ||
+//                     type === 'export'
+//                 ) {
+// console.log(parseFloat(
+//                         String(data)
+//                             .replace(/\./g, '') // remove thousand separator
+//                             .replace(',', '.')  // convert decimal separator
+//                     ) || 0);
+//                     return parseFloat(
+//                         String(data)
+//                             .replace(/\./g, '') // remove thousand separator
+//                             .replace(',', '.')  // convert decimal separator
+//                     ) || 0;
+//                 }
+
+//                 // Display
+//                 return data;
+//             }
           },
+          // ================= FETCH DATE SORT FIX =================
+          {
+            targets: fetchDateIndex,
+            render: function (data, type) {
+
+                if (!data) return '';
+
+                let m = moment(data, [
+                    'YYYY-MM-DDTHH:mm:ss.SSSSSSZ',
+                    'YYYY-MM-DD',
+                    'DD-MM-YYYY',
+                    'YYYY/MM/DD',
+                    'DD/MM/YYYY',
+                    'DD-MM-YYYY hh:mm A'
+                ], true);
+
+                if (!m.isValid()) {
+                    return data;
+                }
+
+                // Sort only by date
+                if (type === 'sort' || type === 'type') {
+                    return m.format('YYYYMMDD');
+                }
+
+                // Display date + time
+                return m.format('DD-MM-YYYY hh:mm A');
+            }
+        },
 
           // // ================= COMMERCIAL COLUMN 7 FIX =================
           // {
@@ -573,6 +878,11 @@ console.log(analyzepdfsearch_name);
             render: function (data, type, full) {
 
               let arr = full.related_sales_invoices || [];
+              // console.log(arr);
+              // console.log(type);
+              // if (type === 'export') {
+              //     return arr.join(', ');
+              // }
 
               if (type === 'sort' || type === 'type') {
                 return arr.length;
@@ -610,8 +920,7 @@ console.log(analyzepdfsearch_name);
                                 data-tab_name="` + analyzepdfsearch_name + `"
                                 data-invoice_no="` + (full['invoice_no'] || full['declaration_no'] || '') + `"
 
-                                data-bs-toggle="offcanvas" 
-                                data-bs-target="#offcanvasAnalyzePdfData">
+                                >
 
                                 <span>
                                   <i class="bx bx-show me-2"></i>Show Data
@@ -654,7 +963,7 @@ console.log(analyzepdfsearch_name);
 
               {
                 extend: 'print',
-                title: 'Analyze PDF',
+                title: 'OCR - Print',
                 text: '<i class="bx bx-printer me-2"></i>Print',
                 className: 'dropdown-item',
                 exportOptions: { columns: columntargets }
@@ -662,7 +971,7 @@ console.log(analyzepdfsearch_name);
 
               {
                 extend: 'csv',
-                title: 'Analyze PDF',
+                title: 'OCR - CSV',
                 text: '<i class="bx bx-file me-2"></i>Csv',
                 className: 'dropdown-item',
                 exportOptions: { columns: columntargets }
@@ -670,17 +979,20 @@ console.log(analyzepdfsearch_name);
 
               {
                 extend: 'excel',
-                title: 'Analyze PDF',
+                title: 'OCR - Excel',
                 text: '<i class="bx bxs-file-export me-2"></i>Excel',
                 className: 'dropdown-item',
-                exportOptions: { columns: columntargets }
+                exportOptions: { columns: columntargets },                          
+                action: function (e, dt, node, config) {
+                    exportToExcel(dt, analyzepdfsearch_name); 
+                }
               },
 
               {
                 extend: 'pdf',
                 orientation: 'landscape',
                 pageSize: 'LEGAL',
-                title: 'Analyze PDF',
+                title: 'OCR - PDF',
                 text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
                 className: 'dropdown-item',
                 exportOptions: { columns: columntargets }
@@ -688,7 +1000,7 @@ console.log(analyzepdfsearch_name);
 
               {
                 extend: 'copy',
-                title: 'Analyze PDF',
+                title: 'OCR - Copy',
                 text: '<i class="bx bx-copy me-2"></i>Copy',
                 className: 'dropdown-item',
                 exportOptions: { columns: columntargets }
@@ -712,6 +1024,7 @@ console.log(analyzepdfsearch_name);
         },        
 
         initComplete: function () {
+          /*
 //console.log(analyzepdfsearch_name);
           //$("."+ analyzepdfsearch_name +"-search-filter").appendTo('.dt-search-filter');
 
@@ -844,9 +1157,15 @@ console.log(analyzepdfsearch_name);
 
           $("#btn-analyzepdfsearch-" + analyzepdfsearch_name + " span")
             .html(analyzepdfsearch_total);
-
+*/
           $(".card.analyzepdfsearch .sk-bounce").hide();
           $(".card.analyzepdfsearch .card-datatable").show();
+
+          var table = this.api();
+
+          initAnalyzepdfSearchTableFeatures(table, analyzepdfsearch_name);   
+
+          createAnalyzepdfSearchButtons(analyzepdfsearch_name);
         }
       });
     }
@@ -929,5 +1248,115 @@ console.log(analyzepdfsearch_name);
       }, 400);
     }
   });
+
+/*
+  function exportToExcel(dt, which_tab) 
+  {  
+      let workbook = XLSX.utils.book_new();
+      let sheetData = [];
+
+      // Define headers     
+      let headers = [];
+      let visibleColumnIndexes = [];              
+
+      dt.columns().every(function(index) {        
+          if (this.visible()) {             
+              let columnData = this.dataSrc(); // Get the data property name       
+              if(columnData != 'id')
+              {
+                if(columnData == 'fake_id')
+                  headers.push('No.'); // Get header text       
+                else
+                  headers.push(this.header().innerText); // Get header text       
+
+                visibleColumnIndexes.push(columnData); // Store the data property name
+              }
+          }
+      });
+
+      // Loop through the main DataTable
+      let allData = [];
+      dt.rows().every(function(rowIdx) {
+          var rowData = this.data();
+         
+          let rowInfo = [];
+          var currency_code = '';
+          const MAX_CELL_LENGTH = 32767;
+
+          visibleColumnIndexes.forEach(function(colName) {                        
+              if(colName == 'pdf')
+                rowInfo.push('-'); // Push the value into the row array
+              else
+              {    
+                currency_code = 'NOK';            
+                // if(colName == 'currency_code')
+                // {
+                //   currency_code = rowData[colName];
+                //   rowInfo.push(currency_code); // Push the value into the row array
+                // }
+                // else 
+                if(colName == 'original_net_amount' || colName == 'net_amount' || colName == 'vat_amount' || colName == 'variance_amount'
+                   || colName == 'freight_amount' || colName == 'discount_amount' || colName == 'total_amount')
+                {
+                  let value = rowData[colName];
+                  if (typeof value === "number") 
+                    rowInfo.push(value); // Directly push the number
+                  else {
+                    
+                    let parsed_value =  parseAmountValue(value, currency_code);
+                    rowInfo.push(parsed_value); // Push the number or an empty string
+                  }                  
+                }
+                //else
+                //  rowInfo.push(rowData[colName]); // Push the value into the row array  
+                else
+                {
+                    let value = rowData[colName];
+
+                    if (String(value).length > MAX_CELL_LENGTH) {
+                        console.error(
+                            `Row ${rowIdx + 1}, Field "${colName}" exceeds limit: ${String(value).length} characters`
+                        );
+                        value = String(value).substring(0, MAX_CELL_LENGTH);
+                    }
+                    // Handle arrays
+                    if (Array.isArray(value)) {
+                        rowInfo.push(value.join(', '));
+                    }
+
+                    // Handle null/undefined
+                    else if (value == null) {
+                        rowInfo.push('');
+                    }
+
+                    // Handle objects if needed
+                    else if (typeof value === 'object') {
+                        rowInfo.push(JSON.stringify(value));
+                    }
+
+                    // Normal values
+                    else {
+                        rowInfo.push(value);
+                    }
+                }
+              }
+          });
+          
+          // Push main row data         
+          allData.push(rowInfo); // Push the rowInfo object to the array   
+      });
+      
+      // Include the headers      
+      allData.unshift(headers); // Add headers as the first row
+
+      // Create the worksheet      
+      let worksheet = XLSX.utils.aoa_to_sheet(allData);
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, "OCR");
+
+      // Export the workbook
+      XLSX.writeFile(workbook, 'OCR-'+ which_tab +'.xlsx');
+  }
+  */
    
 });

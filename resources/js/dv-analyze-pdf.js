@@ -35,7 +35,9 @@ $(function () {
 
   var statusObj = {      
       0: { title: 'Not Sync', class: 'bg-danger' },
-      1: { title: 'Synced', class: 'bg-success' }      
+      1: { title: 'Synced', class: 'bg-success' },
+      2: { title: 'Sync in Progress', class: 'bg-secondary' },
+      3: { title: 'Older VAT Period', class: 'bg-warning' }      
     };
 
   // ajax setup
@@ -86,6 +88,341 @@ $(function () {
   }  
 
   analyzepdfDeleteCommentEditor();
+
+  window.initAnalyzepdfTableFeatures = function initAnalyzepdfTableFeatures(table, analyzepdf_name) { 
+      $("."+ analyzepdf_name +"-search-filter").appendTo('.dt-search-filter');
+
+      // Adding Document Tyoe filter once table initialized
+      if(analyzepdf_name === 'completed')          
+      {  
+        $('#FilterInvoiceType').remove();
+        $('#FilterClientName').remove();
+
+        $('.' + analyzepdf_name + '-search-filter .sub-btns button').remove();
+
+        table
+          .columns(2)
+          .every(function () {
+            var column = this;
+            var select = $(
+              '<select id="FilterInvoiceType" class="form-select text-capitalize"><option value=""> Select Invoice Type </option></select>'
+            )
+              .appendTo('.invoice_type')
+              .on('change', function () {                
+                var val = $(this).val().replace(/-/g, " ");
+                column.search(val ? val : '', true, false).draw();
+              });
+
+            column
+              .data()
+              .unique()
+              .sort()
+              .each(function (d, j) {
+                select.append('<option value="' + d + '">' + d.replace(/-/g, " ") + '</option>');
+              });
+          });
+
+          table
+          .columns(3)
+          .every(function () {
+            var column = this;
+            var select = $(
+              '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
+            )
+              .appendTo('.client_name')
+              .on('change', function () {                
+                var val = $(this).val();//.replace(/-/g, " ");
+                column.search(val ? val : '', true, false).draw();
+              });
+
+            column
+              .data()
+              .unique()
+              .sort()
+              .each(function (d, j) {
+                var selected = (j === 0) ? 'selected' : '';
+                if(d)
+                  select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
+              });
+
+              // clients.forEach(function(client, index) {
+              //     if (client) {
+              //         var selected = (index === 0) ? 'selected' : '';
+
+              //         select.append(
+              //             '<option value="' + client + '" ' + selected + '>' +
+              //             client.replace(/-/g, " ") +
+              //             '</option>'
+              //         );
+              //     }
+              // });
+
+            // manually trigger filter
+            select.trigger('change');  
+          });
+        
+          // table
+          // .columns(8)
+          // .every(function () {
+          //   var column = this;
+          //   var select = $(
+          //     '<select id="FilterStatus" class="form-select text-capitalize"><option value=""> Select Status </option></select>'
+          //   )
+          //     .appendTo('.invoice_status')
+          //     .on('change', function () {                
+          //       var val = $(this).val().replace(/-/g, " ");
+          //       column.search(val ? val : '', true, false).draw();
+          //     });
+
+          //   column
+          //     .data()
+          //     .unique()
+          //     .sort()
+          //     .each(function (d, j) {
+          //       var selected = (d === 0) ? 'selected' : '';
+          //       select.append('<option value="' + statusObj[d].title.replace(/-/g, " ") + '" ' + selected + '>' + statusObj[d].title.replace(/-/g, " ") + '</option>');
+          //     });
+
+          //   // manually trigger filter
+          //   select.trigger('change');  
+          // });
+          
+         
+          $(".dt-dropdown-filter").prependTo('.dt-search-filter .completed-search-filter #DataTables_Table_0_filter'); 
+      }
+
+      createAnalyzepdfButtons(analyzepdf_name);
+
+      var analyzepdf_total = table.data().length;
+      $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(analyzepdf_total);
+
+      // $(".card.analyzepdfs .sk-bounce").hide();
+      // $(".card.analyzepdfs .card-datatable").show(); 
+  }
+
+  function createAnalyzepdfButtons(analyzepdf_name) {
+      var subBtnContainer = '.' + analyzepdf_name + '-search-filter .sub-btns';
+
+      if (!$('#btn_' + analyzepdf_name + '_recapture_invoice').length) {
+          var btn_recapture_invoice =
+              '<button type="button" id="btn_' + analyzepdf_name + '_recapture_invoice" title="Recapture Invoice" class="btn-recapture me-2 my-2 badge rounded-pill bg-label-primary border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_recapture="1" data-tab_name="' + analyzepdf_name + '">' +
+                  '<span><i class="bx bx-refresh"></i> Recapture</span>' +
+              '</button>';
+
+          $(btn_recapture_invoice).appendTo(subBtnContainer);
+      }
+
+
+      if (!$('#btn_' + analyzepdf_name + '_split_invoice').length) {
+          var btn_split_invoice =
+              '<button type="button" id="btn_' + analyzepdf_name + '_split_invoice" title="Split Invoice" class="btn-split me-2 my-2 badge rounded-pill bg-label-dark border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_split="1" data-tab_name="' + analyzepdf_name + '">' +
+                  '<span><i class="bx bx-columns"></i> Split</span>' +
+              '</button>';
+
+          $(btn_split_invoice).appendTo(subBtnContainer);
+      }
+
+
+      if (!$('#btn_' + analyzepdf_name + '_validate_invoice').length) {
+          var btn_validate_invoice =
+              '<button type="button" id="btn_' + analyzepdf_name + '_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="' + analyzepdf_name + '">' +
+                  '<span><i class="bx bx-check"></i> Validate</span>' +
+              '</button>';
+
+          $(btn_validate_invoice).appendTo(subBtnContainer);
+      }
+
+
+      if (analyzepdf_name !== 'deleted' && !$('#btn_' + analyzepdf_name + '_delete_invoice').length) {
+          var btn_delete_invoice =
+              '<button type="button" id="btn_' + analyzepdf_name + '_delete_invoice" title="Delete Invoice" class="btn-delete-analyzepdf my-2 badge rounded-pill bg-label-danger border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_delete="1" data-tab_name="' + analyzepdf_name + '">' +
+                  '<span><i class="bx bx-x"></i> Delete</span>' +
+              '</button>';
+
+          $(btn_delete_invoice).appendTo(subBtnContainer);
+      }
+
+
+      // Append slider only once
+      if (!$('.' + analyzepdf_name + '-search-filter .bx-slider').length) {
+          var sliderfilter =
+              '<label class="mx-2 cursor-pointer analyzepdf-slider-filter" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
+                  '<i class="bx bx-slider"></i>' +
+              '</label>';
+
+          $('.' + analyzepdf_name + '-search-filter .dataTables_filter')
+              .append(sliderfilter);
+      }
+
+
+      // Move export buttons only once
+      var exportTarget = '.dt-analyzepdf-export .' + analyzepdf_name + '-analyzepdf-export';
+
+      if ($(exportTarget).length) {
+          $("." + analyzepdf_name + "-search-filter .dt-buttons.btn-group.flex-wrap")
+              .appendTo(exportTarget);
+      }
+  }
+
+  window.reloadAnalyzedPdf = function reloadAnalyzedPdf(analyzepdf_datas) { 
+  // function reloadAnalyzedPdf(analyzepdf_datas) 
+  // {  
+      var dt_analyzepdf_tables = $('.datatables-analyzepdf');
+      for (var i = 0; i < dt_analyzepdf_tables.length; i++) 
+      {      
+          var analyzepdf_name = '';        
+          if(i === 0) analyzepdf_name = 'completed';          
+          else if(i === 1) analyzepdf_name = 'processing';          
+          else if(i === 2) analyzepdf_name = 'error';  
+          else if(i === 3) analyzepdf_name = 'deleted';     
+
+          var tabSelector = "#navs-analyzepdf-" + analyzepdf_name;
+          var tableSelector = ".datatables-"+ analyzepdf_name +"-analyzepdf";
+
+          if($(tableSelector).length > 0)
+          {
+              if ($.fn.DataTable.isDataTable(tableSelector))
+              {
+                  var dt_analyzepdf = $(tableSelector).DataTable();
+                  var rowsData = analyzepdf_datas['analyzepdf_'+ analyzepdf_name +'_datas'];
+
+                  dt_analyzepdf.clear().rows.add(rowsData).draw();                  
+
+                  initAnalyzepdfTableFeatures(dt_analyzepdf, analyzepdf_name);
+                  
+                  $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(rowsData.length);
+
+                  // Enable/disable tab based on data
+                  if (rowsData.length > 0) {
+                    $(".card.analyzepdfs .sk-bounce").hide();
+                    $(".card.analyzepdfs .card-header").show();
+
+                      $(tabSelector).css({
+                          'pointer-events': 'auto',
+                          'opacity': '1',
+                          'cursor': 'pointer'
+                      });
+                  } else {
+                    $(".card.analyzepdfs .sk-bounce").show();
+                    $(".card.analyzepdfs .card-header").hide();
+
+                      $(tabSelector).css({
+                          'pointer-events': 'none',
+                          'opacity': '0.5',
+                          'cursor': 'not-allowed'
+                      });
+                  }
+              }
+          }
+      }
+  }
+
+  window.analyzepdf_completed_datas = [];   
+  window.analyzepdf_processing_datas = [];
+  window.analyzepdf_error_datas = [];
+  window.analyzepdf_deleted_datas = [];
+ 
+  window.vatregmains = [];
+
+  let currentPage = 1;
+  let lastPage = 1;
+  let isLoading = false;
+  function loadAnalyzePdfData() {
+      if (isLoading) return;
+
+      isLoading = true;
+
+      $(".card.analyzepdfs .sk-bounce").show();
+
+      $.ajax({          
+          url: `${analyzePdfUrl}data`,
+          type: "GET",
+          data: {
+              page: currentPage
+          },
+          success: function(result) {
+
+              // append vatregmains only when returned
+              if (result.vatregmains) {
+                  window.vatregmains = result.vatregmains;
+              }
+
+              // attach it back to result for existing functions
+              result.vatregmains = window.vatregmains;
+
+              lastPage = result.last_page;
+
+              let pageData = result.data;
+
+              $.each(pageData, function(index, item) {
+
+                  if (item.status === 'completed') {
+                      window.analyzepdf_completed_datas.push(item);
+                  }
+                  else if (item.status === 'processing') {
+                      window.analyzepdf_processing_datas.push(item);
+                  }
+                  else if (item.status === 'failed') {
+                      window.analyzepdf_error_datas.push(item);
+                  }
+                  else if (item.status === 'deleted') {
+                      window.analyzepdf_deleted_datas.push(item);
+                  }
+
+              });
+
+              result.analyzepdfs = [
+                  ...window.analyzepdf_completed_datas,
+                  ...window.analyzepdf_processing_datas,
+                  ...window.analyzepdf_error_datas,
+                  ...window.analyzepdf_deleted_datas
+              ];
+
+              let analyzepdf_datas = drawDtTable(result, 'analyzepdf');
+
+              if (analyzepdf_datas) {
+                  reloadAnalyzedPdf(analyzepdf_datas);
+              }
+
+              isLoading = false;
+
+              if (currentPage < lastPage) {
+
+                  currentPage++;
+
+                  setTimeout(function () {
+                      loadAnalyzePdfData();
+                  }, 100);
+
+                  //return;
+              //} else {
+                  
+                  // $(".card.analyzepdf .card-header")
+                  //     .css("opacity", "")
+                  //     .css("pointer-events", "");
+
+              }
+
+              $(".card.analyzepdfs .sk-bounce").hide();
+              $(".card.analyzepdfs .card-header").show();
+          },
+          error: function(xhr) {
+              isLoading = false;
+              
+              console.error(xhr);
+
+              $(".card.analyzepdfs .sk-bounce").hide();
+              $(".card.analyzepdfs .card-header").show();
+
+              // $(".card.analyzepdf .card-header")
+              //     .css("opacity", "")
+              //     .css("pointer-events", "");
+          }
+      });
+  }
+
+  // START LOADING
+  loadAnalyzePdfData();
 
   var dt_analyzepdf_tables = $('.datatables-analyzepdf');
 
@@ -184,8 +521,18 @@ $(function () {
               targets:  3,         
               searchable: true,
               orderable: true,              
-              render: function (data, type, full, meta) {                
-                return full.client_name + '<br><span class="fs-tiny">' + full.client_no + '</span>';
+              render: function (data, type, full, meta) { 
+                let analyzer_id_value = '';
+                if(full.analyzer_id)      
+                  analyzer_id_value = '<span class="badge bg-label-info">'+ full.analyzer_id +'</span>';
+
+                if(full.invoice_type == 'multi-invoices')              
+                  return full.client_name + '<br><span class="fs-tiny">' + full.client_no + '</span><br>' + 
+                    '<span class="badge bg-label-primary">'+ full.invoice_type +'</span><br>' +
+                    analyzer_id_value;
+                else
+                  return full.client_name + '<br><span class="fs-tiny">' + full.client_no + '</span><br>' +
+                    analyzer_id_value;
               }
             }, 
             {
@@ -195,18 +542,101 @@ $(function () {
               orderable: true,              
               className: 'text-break',
               render: function (data, type, full, meta) { 
-                var error_msg = '';
+                var error_msg = '';                
 
-                if (full.status === 'failed') {
-                    error_msg =
-                        '<br>' +
-                        (full.error || '')
-                            //.split('\\n')
-                            .split(/\r?\n|\\n/)
-                            .filter(err => err.trim() !== '')
-                            .map(err => `<span class="badge bg-label-danger text-capitalize me-1 mb-1">${err}</span>`)
-                            .join('<br>');
-                }
+                // if (full.status === 'completed' || full.status === 'failed') {
+                //     const isManualInput = !!full.manual_input_status;
+
+                //     const errorSource = isManualInput
+                //         ? (full.manual_note || 'Manual input')
+                //         : (full.error || '');
+
+                //     const badgeClass = isManualInput
+                //         ? 'bg-label-warning'
+                //         : 'bg-label-danger';
+
+                //     error_msg =
+                //         '<br>' +
+                //         errorSource
+                //             .split(/\r?\n|\\n/)
+                //             .filter(err => err.trim() !== '')
+                //             .map(
+                //                 err =>
+                //                     `<span class="badge ${badgeClass} text-capitalize me-1 mb-1">${err}</span>`
+                //             )
+                //             .join('<br>');
+                // }
+
+                if (full.status === 'completed' || full.status === 'failed' || full.status === 'duplicate') {
+                  const isManualInput = !!full.manual_input_by;
+
+                  let messages = [];
+
+                  if (isManualInput) {
+                      if (full.error) {
+                          messages.push({
+                              text: full.error,
+                              badge: 'bg-label-danger'
+                          });
+                      }
+
+                      if (full.manual_note) {
+                          messages.push({
+                              text: full.manual_note,
+                              badge: 'bg-label-warning'
+                          });
+                      }
+
+                      if (full.force_submitted) {
+                          messages.push({
+                              text: 'Force Submitted',
+                              badge: 'bg-label-info'
+                          });
+                      }
+                      else
+                      {
+                      //if (!messages.length) {
+                          messages.push({
+                              text: 'Manual input',
+                              badge: 'bg-label-warning'
+                          });
+                      }
+                  } else if (full.error) {
+                      messages.push({
+                          text: full.error,
+                          badge: 'bg-label-danger'
+                      });
+                  }
+
+                  const isSearchSave = !!full.search_save_by;
+                  if (isSearchSave) {   
+                      messages.push({
+                          text: 'Search save',
+                          badge: 'bg-label-secondary'
+                      });     
+
+                      if (full.search_save_note) {
+                          messages.push({
+                              text: full.search_save_note,
+                              badge: 'bg-label-secondary'
+                          });
+                      }                      
+                  }
+
+                  error_msg =
+                      '<br>' +
+                      messages
+                          .flatMap(item =>
+                              item.text
+                                  .split(/\r?\n|\\n/)
+                                  .filter(err => err.trim() !== '')
+                                  .map(
+                                      err =>
+                                          `<span class="badge ${item.badge} text-capitalize me-1 mb-1">${err}</span>`
+                                  )
+                          )
+                          .join('<br>');
+              }
                                 
                 return `${full.file_name} ${error_msg}`;
               }
@@ -216,19 +646,20 @@ $(function () {
               targets:  6,         
               searchable: false,
               orderable: true,              
-              render: function (data, type, full, meta) { 
-                if (type === 'sort') {
+              render: function (data, type, full, meta) {                 
+                if (type === 'sort') {                  
                     return moment(full.created_at, 'DD-MM-YYYY').format('YYYYMMDD');
                 }
                 else
                 {
-                  if(full.created_at != '-' && full.updated_at != '-')
+                  //if(full.created_at != '-' && full.updated_at != '-')
+                  if(full.created_at != '' && full.updated_at != '')
                   {
                     if(full.created_at == full.updated_at)
                       return full.created_at;                  
                   }
-                  return ((full.updated_at != '-') ? ('<span class="fw-semibold">' + full.updated_at + '</span><br>') : '') + full.created_at;
-                  //(full.updated_at != '-') ? full.updated_at : full.created_at;
+                  return ((full.updated_at != '') ? ('<span class="fw-semibold">' + moment(full.updated_at).format('DD-MM-YYYY hh:mm A') + '</span><br>') : '') + 
+                    moment(full.created_at).format('DD-MM-YYYY hh:mm A');                  
                 }
               }
             },
@@ -251,7 +682,10 @@ $(function () {
               orderable: true,
               visible: true,
               render: function (data, type, full, meta) {
-                return '<span class="badge '+ statusObj[full.sync_status].class +'">'+ statusObj[full.sync_status].title +'</span>';
+                if(full.sync_status)
+                  return '<span class="badge '+ statusObj[full.sync_status].class +'">'+ statusObj[full.sync_status].title +'</span>';
+                else
+                  return '<span class="badge '+ statusObj[0].class +'">'+ statusObj[0].title +'</span>';
 
                 // if(full.sync_status)           
                 //   return '<span class="badge bg-success">Synced</span>';
@@ -282,6 +716,14 @@ $(function () {
                                       </li>`
                                       ;
 
+                let btn_split_analyzepdf = `<div class="dropdown-divider"></div>
+                                      <li>
+                                        <a href="javascript:;" class="dropdown-item btn-split" id="split-analyzepdf-data" title="Split File" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
+                                          <span><i class="bx bx-columns me-2"></i>Split</span>
+                                        </a>                                     
+                                      </li>`
+                                      ;
+
                 let btn_validate_analyzepdf = `<div class="dropdown-divider"></div>
                                       <li>
                                         <a href="javascript:;" class="dropdown-item btn-validate" id="validate-analyzepdf-data" title="Validate Data" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
@@ -294,11 +736,12 @@ $(function () {
                           <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></a>
                           <ul class="dropdown-menu dropdown-menu-end m-0">` +                            
                             `<li>
-                              <a href="javascript:;" class="dropdown-item btn-show-data" id="show-analyzepdf-data" title="Show Data" data-analyzepdf_id="`+ full['id'] +`" data-analyzepdf_status="`+ full['status'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfData">
+                              <a href="javascript:;" class="dropdown-item btn-show-data" id="show-analyzepdf-data" title="Show Data" data-analyzepdf_id="`+ full['id'] +`" data-analyzepdf_status="`+ full['status'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
                                 <span><i class="bx bx-show me-2"></i>Show Data</span>
                               </a>                                     
                             </li>` +
                             btn_recapture_analyzepdf +
+                            btn_split_analyzepdf +
                             btn_validate_analyzepdf +
                             btn_delete_analyzepdf +
                           `</ul>
@@ -310,8 +753,8 @@ $(function () {
           order: [[1, 'asc']],
           dom:     
             '<"row mx-0 '+ analyzepdf_name +'-search-filter '+ analyzepdf_filter_class +'"' +                      
-            '<"col-sm-12 col-md-3 sub-btns text-start my-auto">' +
-            '<"col-sm-12 col-md-9"lfB>' +            
+            '<"col-sm-12 col-md-4 sub-btns text-start my-auto">' +
+            '<"col-sm-12 col-md-8"lfB>' +            
             '>r' +
             '<"row mx-0"' +
             '<"col-sm-12 p-0"t' +                    
@@ -410,120 +853,132 @@ $(function () {
         ],       
         initComplete: function (settings, json) {
 
-          $("."+ analyzepdf_name +"-search-filter").appendTo('.dt-search-filter');
+          // $("."+ analyzepdf_name +"-search-filter").appendTo('.dt-search-filter');
 
-          // Adding Document Tyoe filter once table initialized
-          if(analyzepdf_name === 'completed')          
-          {          
-            this.api()
-              .columns(2)
-              .every(function () {
-                var column = this;
-                var select = $(
-                  '<select id="FilterInvoiceType" class="form-select text-capitalize"><option value=""> Select Invoice Type </option></select>'
-                )
-                  .appendTo('.invoice_type')
-                  .on('change', function () {                
-                    var val = $(this).val().replace(/-/g, " ");
-                    column.search(val ? val : '', true, false).draw();
-                  });
+          // // Adding Document Tyoe filter once table initialized
+          // if(analyzepdf_name === 'completed')          
+          // {          
+          //   this.api()
+          //     .columns(2)
+          //     .every(function () {
+          //       var column = this;
+          //       var select = $(
+          //         '<select id="FilterInvoiceType" class="form-select text-capitalize"><option value=""> Select Invoice Type </option></select>'
+          //       )
+          //         .appendTo('.invoice_type')
+          //         .on('change', function () {                
+          //           var val = $(this).val().replace(/-/g, " ");
+          //           column.search(val ? val : '', true, false).draw();
+          //         });
 
-                column
-                  .data()
-                  .unique()
-                  .sort()
-                  .each(function (d, j) {
-                    select.append('<option value="' + d + '">' + d.replace(/-/g, " ") + '</option>');
-                  });
-              });
+          //       column
+          //         .data()
+          //         .unique()
+          //         .sort()
+          //         .each(function (d, j) {
+          //           select.append('<option value="' + d + '">' + d.replace(/-/g, " ") + '</option>');
+          //         });
+          //     });
 
-              this.api()
-              .columns(3)
-              .every(function () {
-                var column = this;
-                var select = $(
-                  '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
-                )
-                  .appendTo('.client_name')
-                  .on('change', function () {                
-                    var val = $(this).val();//.replace(/-/g, " ");
-                    column.search(val ? val : '', true, false).draw();
-                  });
+          //     this.api()
+          //     .columns(3)
+          //     .every(function () {
+          //       var column = this;
+          //       var select = $(
+          //         '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
+          //       )
+          //         .appendTo('.client_name')
+          //         .on('change', function () {                
+          //           var val = $(this).val();//.replace(/-/g, " ");
+          //           column.search(val ? val : '', true, false).draw();
+          //         });
 
-                column
-                  .data()
-                  .unique()
-                  .sort()
-                  .each(function (d, j) {
-                    var selected = (j === 0) ? 'selected' : '';
-                    if(d)
-                      select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
-                  });
+          //       column
+          //         .data()
+          //         .unique()
+          //         .sort()
+          //         .each(function (d, j) {
+          //           var selected = (j === 0) ? 'selected' : '';
+          //           if(d)
+          //             select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
+          //         });
 
-                // manually trigger filter
-                select.trigger('change');  
-              });
+          //       // manually trigger filter
+          //       select.trigger('change');  
+          //     });
             
-              this.api()
-              .columns(8)
-              .every(function () {
-                var column = this;
-                var select = $(
-                  '<select id="FilterStatus" class="form-select text-capitalize"><option value=""> Select Status </option></select>'
-                )
-                  .appendTo('.invoice_status')
-                  .on('change', function () {                
-                    var val = $(this).val().replace(/-/g, " ");
-                    column.search(val ? val : '', true, false).draw();
-                  });
+          //     // this.api()
+          //     // .columns(8)
+          //     // .every(function () {
+          //     //   var column = this;
+          //     //   var select = $(
+          //     //     '<select id="FilterStatus" class="form-select text-capitalize"><option value=""> Select Status </option></select>'
+          //     //   )
+          //     //     .appendTo('.invoice_status')
+          //     //     .on('change', function () {                
+          //     //       var val = $(this).val().replace(/-/g, " ");
+          //     //       column.search(val ? val : '', true, false).draw();
+          //     //     });
 
-                column
-                  .data()
-                  .unique()
-                  .sort()
-                  .each(function (d, j) {
-                    var selected = (d === 0) ? 'selected' : '';
-                    select.append('<option value="' + statusObj[d].title.replace(/-/g, " ") + '" ' + selected + '>' + statusObj[d].title.replace(/-/g, " ") + '</option>');
-                  });
+          //     //   column
+          //     //     .data()
+          //     //     .unique()
+          //     //     .sort()
+          //     //     .each(function (d, j) {
+          //     //       var selected = (d === 0) ? 'selected' : '';
+          //     //       select.append('<option value="' + statusObj[d].title.replace(/-/g, " ") + '" ' + selected + '>' + statusObj[d].title.replace(/-/g, " ") + '</option>');
+          //     //     });
 
-                // manually trigger filter
-                select.trigger('change');  
-              });
+          //     //   // manually trigger filter
+          //     //   select.trigger('change');  
+          //     // });
               
              
-              $(".dt-dropdown-filter").prependTo('.dt-search-filter .completed-search-filter #DataTables_Table_0_filter'); 
-          }
+          //     $(".dt-dropdown-filter").prependTo('.dt-search-filter .completed-search-filter #DataTables_Table_0_filter'); 
+          // }
 
-          var btn_recapture_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_recapture_invoice" title="Recapture Invoice" class="btn-recapture me-2 my-2 badge rounded-pill bg-label-primary border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_recapture="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
-                                      '<span><i class="bx bx-refresh"></i> Recapture</span>' +
-                                    '</button>';
-          $(btn_recapture_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+          // var btn_recapture_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_recapture_invoice" title="Recapture Invoice" class="btn-recapture me-2 my-2 badge rounded-pill bg-label-primary border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_recapture="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+          //                             '<span><i class="bx bx-refresh"></i> Recapture</span>' +
+          //                           '</button>';
+          // $(btn_recapture_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
-          var btn_validate_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
-                                      '<span><i class="bx bx-check"></i> Validate</span>' +
-                                    '</button>';
-          $(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+          // var btn_split_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_split_invoice" title="Split Invoice" class="btn-split me-2 my-2 badge rounded-pill bg-label-dark border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_split="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+          //                             '<span><i class="bx bx-columns"></i> Split</span>' +
+          //                           '</button>';
+          // $(btn_split_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
-          if(analyzepdf_name != 'deleted')          
-          {          
-            var btn_delete_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_delete_invoice" title="Delete Invoice" class="btn-delete-analyzepdf my-2 badge rounded-pill bg-label-danger border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_delete="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
-                                        '<span><i class="bx bx-x"></i> Delete</span>' +
-                                      '</button>';
-            $(btn_delete_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
-          }
+          // var btn_validate_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_validate_invoice" title="Validate Invoice" class="btn-validate me-2 my-2 badge rounded-pill bg-label-warning border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_validate="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+          //                             '<span><i class="bx bx-check"></i> Validate</span>' +
+          //                           '</button>';
+          // $(btn_validate_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
 
-          var sliderfilter =  '<label class="mx-2 cursor-pointer" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
-                                '<i class="bx bx-slider"></i>' +
-                              '</label>';
-          $(sliderfilter).appendTo('.'+ analyzepdf_name +'-search-filter .dataTables_filter');
+          // if(analyzepdf_name != 'deleted')          
+          // {          
+          //   var btn_delete_invoice =  '<button type="button" id="btn_'+ analyzepdf_name +'_delete_invoice" title="Delete Invoice" class="btn-delete-analyzepdf my-2 badge rounded-pill bg-label-danger border-0 text-capitalize disabled-opacity" disabled="disabled" data-is_delete="1" data-tab_name="'+ analyzepdf_name +'">' +                                     
+          //                               '<span><i class="bx bx-x"></i> Delete</span>' +
+          //                             '</button>';
+          //   $(btn_delete_invoice).appendTo('.'+ analyzepdf_name +'-search-filter .sub-btns');
+          // }
+
+          // var sliderfilter =  '<label class="mx-2 cursor-pointer" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
+          //                       '<i class="bx bx-slider"></i>' +
+          //                     '</label>';
+          // $(sliderfilter).appendTo('.'+ analyzepdf_name +'-search-filter .dataTables_filter');
          
-          $("."+ analyzepdf_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-analyzepdf-export .'+ analyzepdf_name +'-analyzepdf-export');
+          // $("."+ analyzepdf_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-analyzepdf-export .'+ analyzepdf_name +'-analyzepdf-export');
 
-          var analyzepdf_total = this.api().data().length;
-          $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(analyzepdf_total);
+          // var analyzepdf_total = this.api().data().length;
+          // $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(analyzepdf_total);
 
-          $(".card.analyzepdfs .sk-bounce").hide();
-          $(".card.analyzepdfs .card-datatable").show();          
+          // $(".card.analyzepdfs .sk-bounce").hide();
+          // $(".card.analyzepdfs .card-datatable").show();   
+
+          $(".card.analyzepdfs .sk-bounce").show();
+          $(".card.analyzepdfs .card-header").hide(); 
+
+          var table = this.api();
+
+          initAnalyzepdfTableFeatures(table, analyzepdf_name);       
         }
       });          
     } //if dt exist
@@ -599,645 +1054,657 @@ $(function () {
 
   // edit record
   $(document).on('click', '#show-analyzepdf-data', function () {
-    clearFormItems();
+    $("#offcanvasAnalyzePdfData").offcanvas('show');
+    loadItem($(this).data('analyzepdf_id')); 
+  });  
+  
+//   $(document).on('click', '#show-analyzepdf-data', function () {
+//     clearFormItems();
 
-    var analyzepdf_id = $(this).data('analyzepdf_id'),
-      invoice_no = $(this).data('invoice_no'),
-      tab_name = $(this).data('tab_name'),
-      dtrModal = $('.offcanvas.show');
+//     var analyzepdf_id = $(this).data('analyzepdf_id'),
+//       invoice_no = $(this).data('invoice_no'),
+//       tab_name = $(this).data('tab_name'),
+//       dtrModal = $('.offcanvas.show');
    
-    // hide responsive modal in small screen
-    if (dtrModal.length) {
-      dtrModal.modal('hide');
-    }
+//     // hide responsive modal in small screen
+//     if (dtrModal.length) {
+//       dtrModal.modal('hide');
+//     }
     
-    if($(".offcanvas-body #loader").length == 0)
-    {
-      var loadertext = '<div class="sk-bounce sk-primary sk-center" id="loader">' +
-              '<div class="sk-bounce-dot"></div>' +
-              '<div class="sk-bounce-dot"></div>' +
-            '</div>';        
-      $(loadertext).insertBefore(".offcanvas-body #addAnalyzePdfForm");  
-    }     
-    $("#addAnalyzePdfForm").hide();
-    $("#offcanvasAnalyzePdfData #docViewer").hide();
+//     if($(".offcanvas-body #loader").length == 0)
+//     {
+//       var loadertext = '<div class="sk-bounce sk-primary sk-center" id="loader">' +
+//               '<div class="sk-bounce-dot"></div>' +
+//               '<div class="sk-bounce-dot"></div>' +
+//             '</div>';        
+//       $(loadertext).insertBefore(".offcanvas-body #addAnalyzePdfForm");  
+//     }     
+//     $("#addAnalyzePdfForm").hide();
+//     $("#offcanvasAnalyzePdfData #docViewer").hide();
 
-    let analyzepdf_datas;
-    if(tab_name === 'completed')
-      analyzepdf_datas = analyzepdf_completed_datas;
-    else if(tab_name === 'processing')
-      analyzepdf_datas = analyzepdf_processing_datas;
-    else if(tab_name === 'error')
-      analyzepdf_datas = analyzepdf_error_datas;
-    else if(tab_name === 'commercial-invoice')
-      analyzepdf_datas = analyzepdf_commercial_invoice_datas;
-    else if(tab_name === 'sales-invoice')
-      analyzepdf_datas = analyzepdf_sales_invoice_datas;
-    else if(tab_name === 'declaration')
-      analyzepdf_datas = analyzepdf_declaration_datas;
-    else
-      return; // unknown tab
-console.log(analyzepdf_datas);
+//     let analyzepdf_datas;
+//     if(tab_name === 'completed')
+//       analyzepdf_datas = analyzepdf_completed_datas;
+//     else if(tab_name === 'processing')
+//       analyzepdf_datas = analyzepdf_processing_datas;
+//     else if(tab_name === 'error')
+//       analyzepdf_datas = analyzepdf_error_datas;
+//     else if(tab_name === 'deleted')
+//       analyzepdf_datas = analyzepdf_deleted_datas;
+//     else if(tab_name === 'commercial-invoice')
+//       analyzepdf_datas = analyzepdf_commercial_invoice_datas;
+//     else if(tab_name === 'sales-invoice')
+//       analyzepdf_datas = analyzepdf_sales_invoice_datas;
+//     else if(tab_name === 'declaration')
+//       analyzepdf_datas = analyzepdf_declaration_datas;
+//     else
+//       return; // unknown tab
+// console.log(analyzepdf_datas);
 
-    // get data
-    var filter_analyzepdf_data = analyzepdf_datas.filter(function(analyzepdf_data) {  
-      if(tab_name === 'processing')            
-        return (analyzepdf_data.id === analyzepdf_id && (analyzepdf_data.status == 'processing' || analyzepdf_data.status == 'queued'));
-      else if(tab_name === 'commercial-invoice' || tab_name === 'sales-invoice' || tab_name === 'declaration' || tab_name === 'error')
-        return (analyzepdf_data.id === analyzepdf_id);      
-      else                          
-        return (analyzepdf_data.id === analyzepdf_id && analyzepdf_data.status == tab_name);
-    });
-console.log(filter_analyzepdf_data);
+//     // get data
+//     var filter_analyzepdf_data = analyzepdf_datas.filter(function(analyzepdf_data) {  
+//       if(tab_name === 'processing')            
+//         return (analyzepdf_data.id === analyzepdf_id && (analyzepdf_data.status == 'processing' || analyzepdf_data.status == 'queued'));
+//       else if(tab_name === 'commercial-invoice' || tab_name === 'sales-invoice' || tab_name === 'declaration' || tab_name === 'error'
+//        || tab_name === 'deleted')
+//         return (analyzepdf_data.id === analyzepdf_id);      
+//       else                          
+//         return (analyzepdf_data.id === analyzepdf_id && analyzepdf_data.status == tab_name);
+//     });
+// console.log(filter_analyzepdf_data);
 
-    if(filter_analyzepdf_data)
-    {
-    // if(tab_name === 'commercial-invoice' || tab_name === 'sales-invoice' || tab_name === 'declaration')
-    // {
-      var analyzepdf_data = filter_analyzepdf_data[0]; 
+//     if(filter_analyzepdf_data)
+//     {
+//     // if(tab_name === 'commercial-invoice' || tab_name === 'sales-invoice' || tab_name === 'declaration')
+//     // {
+//       var analyzepdf_data = filter_analyzepdf_data[0]; 
 
-      $('#analyzepdf_id').val(analyzepdf_data.id);      
-      $('#analyzepdf_status').val(analyzepdf_data.status);     
+//       $('#analyzepdf_id').val(analyzepdf_data.id);      
+//       $('#analyzepdf_status').val(analyzepdf_data.status);     
 
-      $('#client_no').val(analyzepdf_data.client_no);       
-      $('#client_name').val(analyzepdf_data.client_name);
+//       $('#client_no').val(analyzepdf_data.client_no);       
+//       $('#client_name').val(analyzepdf_data.client_name);
 
-      $('#invoice_type').val(analyzepdf_data.invoice_type);
-      $('#invoice_no').val(analyzepdf_data.invoice_no);
-      $('#invoice_date').val(analyzepdf_data.invoice_date);
+//       $('#invoice_type').val(analyzepdf_data.invoice_type);
+//       $('#invoice_no').val(analyzepdf_data.invoice_no);
+//       $('#invoice_date').val(analyzepdf_data.invoice_date);
 
-      $('#currency').val(analyzepdf_data.currency);
-      $('#net_amount').val(analyzepdf_data.net_amount);
-
-      $('#exchange_currency').val(analyzepdf_data.exchange_currency);        
-      $('#exchange_net_amount').val(analyzepdf_data.exchange_net_amount);
-
-      if(analyzepdf_data.invoice_type == 'sales' || analyzepdf_data.invoice_type == 'multi-invoices')
-      {
-        $('#credit_note').removeAttr('disabled');
-        $('#credit_note').parent('div').removeClass('d-none');
-
-        $('#net_amount').removeAttr('disabled');
-        $('#net_amount').parent('div').removeClass('d-none');
-
-        $('#vat_rate').removeAttr('disabled');
-        $('#vat_rate').parent('div').removeClass('d-none');
-
-        $('#vat_amount').removeAttr('disabled');
-        $('#vat_amount').parent('div').removeClass('d-none');
-
-        $('#total_amount').removeAttr('disabled');
-        $('#total_amount').parent('div').removeClass('d-none');
-
-        $('#exchange_currency').removeAttr('disabled');
-        $('#exchange_currency').parent('div').removeClass('d-none');
-
-        $('#exchange_rate').removeAttr('disabled');
-        $('#exchange_rate').parent('div').removeClass('d-none');
-
-        $('#exchange_net_amount').removeAttr('disabled');
-        $('#exchange_net_amount').parent('div').removeClass('d-none');
-
-        $('#exchange_vat_amount').removeAttr('disabled');
-        $('#exchange_vat_amount').parent('div').removeClass('d-none');
-
-        $('#exchange_total_amount').removeAttr('disabled');
-        $('#exchange_total_amount').parent('div').removeClass('d-none');
-     
-        $repeater.find('[data-repeater-item]').slice(1).remove();
-        $repeater.find('[data-repeater-item]')
-          .first()
-          .find('.sales-invoice-ref-no')
-          .val('');
-        $repeater
-          .find('[data-repeater-item]')
-          .first()
-          .find('.sales-invoice-ref-no')
-          .attr('disabled', 'disabled');
-        $repeater.parent('div').addClass('d-none');
-
-        var credit_note = (analyzepdf_data.credit_note) ? true : false;
-        $('#credit_note').attr('checked', credit_note);
-
-        $('#vat_rate').val(analyzepdf_data.vat_rate);
-        $('#vat_amount').val(analyzepdf_data.vat_amount);
-        $('#total_amount').val(analyzepdf_data.total_amount);
-
-        //$('#exchange_currency').val(analyzepdf_data.exchange_currency);
-        $('#exchange_rate').val(analyzepdf_data.exchange_rate);
-        //$('#exchange_net_amount').val(analyzepdf_data.exchange_net_amount);
-        $('#exchange_vat_amount').val(analyzepdf_data.exchange_vat_amount);
-        $('#exchange_total_amount').val(analyzepdf_data.exchange_total_amount);
-      } //sales
-      else if(analyzepdf_data.invoice_type === 'com')
-      {
-        $('#credit_note').attr('disabled', 'disabled');
-        $('#credit_note').parent('div').addClass('d-none');
-        
-        $('#vat_rate').attr('disabled', 'disabled');
-        $('#vat_rate').parent('div').addClass('d-none');
-
-        $('#vat_amount').attr('disabled', 'disabled');
-        $('#vat_amount').parent('div').addClass('d-none');
-
-        $('#total_amount').attr('disabled', 'disabled');
-        $('#total_amount').parent('div').addClass('d-none');
-
-        // $('#exchange_currency').attr('disabled', 'disabled');
-        // $('#exchange_currency').parent('div').addClass('d-none');
-
-        $('#exchange_rate').attr('disabled', 'disabled');
-        $('#exchange_rate').parent('div').addClass('d-none');
-
-        // $('#exchange_net_amount').attr('disabled', 'disabled');
-        // $('#exchange_net_amount').parent('div').addClass('d-none'); 
-
-        $('#exchange_vat_amount').attr('disabled', 'disabled');       
-        $('#exchange_vat_amount').parent('div').addClass('d-none'); 
-
-        $('#exchange_total_amount').attr('disabled', 'disabled');
-        $('#exchange_total_amount').parent('div').addClass('d-none');        
-
-        let invoiceArray = analyzepdf_data.related_sales_invoices;
-
-        // Clear existing repeater items except first
-        $repeater.find('[data-repeater-item]').slice(1).remove();
-
-        var $firstItem = $repeater.find('[data-repeater-item]').first();
-        $firstItem.find('.sales-invoice-ref-no').val('');
+//       $('#currency').val(analyzepdf_data.currency);
       
-        // Show container
-        $repeater.parent('div').removeClass('d-none');
+//       // if(tab_name === 'sales-invoice')
+//       //   $('#net_amount').val(analyzepdf_data.calc_net_amount);
+//       // else
+//         $('#net_amount').val(analyzepdf_data.net_amount);
 
-        if (invoiceArray && invoiceArray.length > 0) 
-        {
-          invoiceArray.forEach(function(invoiceValue, index) {
-            if (index === 0) {
-              $firstItem.find('.sales-invoice-ref-no')
-                  .removeAttr('disabled')
-                  .val(invoiceValue);
-            } else {
-              // Create new repeater row using plugin
-              $repeater.find('[data-repeater-create]').click();
+//       $('#exchange_currency').val(analyzepdf_data.exchange_currency);        
+//       $('#exchange_net_amount').val(analyzepdf_data.exchange_net_amount);
 
-              // Set value in last created item
-              $repeater.find('[data-repeater-item]').last()
-                  .find('.sales-invoice-ref-no')
-                  .removeAttr('disabled')
-                  .val(invoiceValue);
-            }
-          });
-        } //related sales invocies
-      }//com
-    }//if value exist
-       
-      if(analyzepdf_data.azure_url)
-      {
-        //Azure Storage Path
-        $.get(analyzePdfUrl + analyzepdf_data.id + '/sas-url', function(response) {
-            if (response.azure_signed_url) {
-                //var pdfUrl = response.azure_signed_url + '#page=' + (response.start_pageno || 1);
-                var pdfUrl = response.azure_signed_url + '#page=1';
-                $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
-            } else {
-                console.log('PDF not available.');
-            }
-        }).fail(function() {
-            console.log('Failed to fetch PDF.');
-        });
-        //Azure Storage Path
-      }
-      else
-      {
-        //Local Storage Path
-        var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=1';
-        // var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=' + 
-        //               (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
-        // if(invoice_type == 'multi-invoices')
-        // {        
-        //   var cleaned = analyzepdf_data.file_name.replace(/_\d+(?=\.pdf$)/i, '');
-        //   pdfUrl = '/storage/ocr/'+ invoice_type +'/' + cleaned + '#page=' + 
-        //               (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
-        // }      
-        $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
-        //Local Storage Path
-      }
+//       if(analyzepdf_data.invoice_type == 'sales' || analyzepdf_data.invoice_type == 'multi-invoices')
+//       {
+//         $('#credit_note').removeAttr('disabled');
+//         $('#credit_note').parent('div').removeClass('d-none');
 
-    /*} //search
-    else
-    {      
-      if(filter_analyzepdf_data.length > 0)
-      {
-        var analyzepdf_data = filter_analyzepdf_data[0]; 
+//         $('#net_amount').removeAttr('disabled');
+//         $('#net_amount').parent('div').removeClass('d-none');
+
+//         $('#vat_rate').removeAttr('disabled');
+//         $('#vat_rate').parent('div').removeClass('d-none');
+
+//         $('#vat_amount').removeAttr('disabled');
+//         $('#vat_amount').parent('div').removeClass('d-none');
+
+//         $('#total_amount').removeAttr('disabled');
+//         $('#total_amount').parent('div').removeClass('d-none');
+
+//         $('#exchange_currency').removeAttr('disabled');
+//         $('#exchange_currency').parent('div').removeClass('d-none');
+
+//         $('#exchange_rate').removeAttr('disabled');
+//         $('#exchange_rate').parent('div').removeClass('d-none');
+
+//         $('#exchange_net_amount').removeAttr('disabled');
+//         $('#exchange_net_amount').parent('div').removeClass('d-none');
+
+//         $('#exchange_vat_amount').removeAttr('disabled');
+//         $('#exchange_vat_amount').parent('div').removeClass('d-none');
+
+//         $('#exchange_total_amount').removeAttr('disabled');
+//         $('#exchange_total_amount').parent('div').removeClass('d-none');
      
-        var parsed_extracted_data = JSON.parse(analyzepdf_data.extracted_data);
-        
-        $('#analyzepdf_id').val(analyzepdf_id);
+//         $repeater.find('[data-repeater-item]').slice(1).remove();
+//         $repeater.find('[data-repeater-item]')
+//           .first()
+//           .find('.sales-invoice-ref-no')
+//           .val('');
+//         $repeater
+//           .find('[data-repeater-item]')
+//           .first()
+//           .find('.sales-invoice-ref-no')
+//           .attr('disabled', 'disabled');
+//         $repeater.parent('div').addClass('d-none');
 
-        var page_no = 1;
-        var invoice_type = analyzepdf_data.invoice_type;
+//         var credit_note = (analyzepdf_data.credit_note) ? true : false;
+//         $('#credit_note').attr('checked', credit_note);
+
+//         $('#vat_rate').val(analyzepdf_data.vat_rate);
+//         $('#vat_amount').val(analyzepdf_data.vat_amount);
+//         $('#total_amount').val(analyzepdf_data.total_amount);
+
+//         //$('#exchange_currency').val(analyzepdf_data.exchange_currency);
+//         $('#exchange_rate').val(analyzepdf_data.exchange_rate);
+//         //$('#exchange_net_amount').val(analyzepdf_data.exchange_net_amount);
+//         $('#exchange_vat_amount').val(analyzepdf_data.exchange_vat_amount);
+//         $('#exchange_total_amount').val(analyzepdf_data.exchange_total_amount);
+//       } //sales
+//       else if(analyzepdf_data.invoice_type === 'com')
+//       {
+//         $('#credit_note').attr('disabled', 'disabled');
+//         $('#credit_note').parent('div').addClass('d-none');
+        
+//         $('#vat_rate').attr('disabled', 'disabled');
+//         $('#vat_rate').parent('div').addClass('d-none');
+
+//         $('#vat_amount').attr('disabled', 'disabled');
+//         $('#vat_amount').parent('div').addClass('d-none');
+
+//         $('#total_amount').attr('disabled', 'disabled');
+//         $('#total_amount').parent('div').addClass('d-none');
+
+//         // $('#exchange_currency').attr('disabled', 'disabled');
+//         // $('#exchange_currency').parent('div').addClass('d-none');
+
+//         $('#exchange_rate').attr('disabled', 'disabled');
+//         $('#exchange_rate').parent('div').addClass('d-none');
+
+//         // $('#exchange_net_amount').attr('disabled', 'disabled');
+//         // $('#exchange_net_amount').parent('div').addClass('d-none'); 
+
+//         $('#exchange_vat_amount').attr('disabled', 'disabled');       
+//         $('#exchange_vat_amount').parent('div').addClass('d-none'); 
+
+//         $('#exchange_total_amount').attr('disabled', 'disabled');
+//         $('#exchange_total_amount').parent('div').addClass('d-none');        
+
+//         let invoiceArray = analyzepdf_data.related_sales_invoices;
+
+//         // Clear existing repeater items except first
+//         $repeater.find('[data-repeater-item]').slice(1).remove();
+
+//         var $firstItem = $repeater.find('[data-repeater-item]').first();
+//         $firstItem.find('.sales-invoice-ref-no').val('');
+      
+//         // Show container
+//         $repeater.parent('div').removeClass('d-none');
+
+//         if (invoiceArray && invoiceArray.length > 0) 
+//         {
+//           invoiceArray.forEach(function(invoiceValue, index) {
+//             if (index === 0) {
+//               $firstItem.find('.sales-invoice-ref-no')
+//                   .removeAttr('disabled')
+//                   .val(invoiceValue);
+//             } else {
+//               // Create new repeater row using plugin
+//               $repeater.find('[data-repeater-create]').click();
+
+//               // Set value in last created item
+//               $repeater.find('[data-repeater-item]').last()
+//                   .find('.sales-invoice-ref-no')
+//                   .removeAttr('disabled')
+//                   .val(invoiceValue);
+//             }
+//           });
+//         } //related sales invocies
+//       }//com
+//     }//if value exist
        
-        if(invoice_type == 'sales' || invoice_type == 'multi-invoices')
-        {        
-          $('#invoice_type').val(invoice_type);
+//       if(analyzepdf_data.azure_url)
+//       {
+//         //Azure Storage Path
+//         $.get(analyzePdfUrl + analyzepdf_data.id + '/sas-url', function(response) {
+//             if (response.azure_signed_url) {
+//                 //var pdfUrl = response.azure_signed_url + '#page=' + (response.start_pageno || 1);
+//                 var pdfUrl = response.azure_signed_url + '#page=1&zoom=page-width';
+//                 $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
+//             } else {
+//                 console.log('PDF not available.');
+//             }
+//         }).fail(function() {
+//             console.log('Failed to fetch PDF.');
+//         });
+//         //Azure Storage Path
+//       }
+//       else
+//       {
+//         //Local Storage Path
+//         var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=1&zoom=page-width';
+//         // var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=' + 
+//         //               (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
+//         // if(invoice_type == 'multi-invoices')
+//         // {        
+//         //   var cleaned = analyzepdf_data.file_name.replace(/_\d+(?=\.pdf$)/i, '');
+//         //   pdfUrl = '/storage/ocr/'+ invoice_type +'/' + cleaned + '#page=' + 
+//         //               (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
+//         // }      
+//         $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
+//         //Local Storage Path
+//       }
+
+//     /*} //search
+//     else
+//     {      
+//       if(filter_analyzepdf_data.length > 0)
+//       {
+//         var analyzepdf_data = filter_analyzepdf_data[0]; 
+     
+//         var parsed_extracted_data = JSON.parse(analyzepdf_data.extracted_data);
+        
+//         $('#analyzepdf_id').val(analyzepdf_id);
+
+//         var page_no = 1;
+//         var invoice_type = analyzepdf_data.invoice_type;
+       
+//         if(invoice_type == 'sales' || invoice_type == 'multi-invoices')
+//         {        
+//           $('#invoice_type').val(invoice_type);
                   
-          let org_no = null;
-          const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+//           let org_no = null;
+//           const getNumeric = str => str ? str.replace(/\D/g, '') : '';
 
-          if(parsed_extracted_data)
-          {
-            let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
-                          ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
-                         );
+//           if(parsed_extracted_data)
+//           {
+//             let vat_numeric = getNumeric( (parsed_extracted_data.supplier.org_number) ? parsed_extracted_data.supplier.org_number.replace(/[a-zA-Z\s]+/g, '') :
+//                           ((parsed_extracted_data.supplier.cvr_number) ?  parsed_extracted_data.supplier.cvr_number.replace(/[a-zA-Z\s]+/g, '') : '')
+//                          );
             
-            if (vat_numeric.length == 17) {
-                org_no = vat_numeric.substring(0, 9);
-            }
-            else
-            {
-              if (vat_numeric.length >= 9)
-                org_no = vat_numeric;      
-            }
-          }
+//             if (vat_numeric.length == 17) {
+//                 org_no = vat_numeric.substring(0, 9);
+//             }
+//             else
+//             {
+//               if (vat_numeric.length >= 9)
+//                 org_no = vat_numeric;      
+//             }
+//           }
 
-          $('#client_no').val(org_no);      
-          $('#client_name').val(analyzepdf_data.client_name);
+//           $('#client_no').val(org_no);      
+//           $('#client_name').val(analyzepdf_data.client_name);
 
-          $('#credit_note').removeAttr('disabled');
-          $('#credit_note').parent('div').removeClass('d-none');
+//           $('#credit_note').removeAttr('disabled');
+//           $('#credit_note').parent('div').removeClass('d-none');
 
-          $('#net_amount').removeAttr('disabled');
-          $('#net_amount').parent('div').removeClass('d-none');
+//           $('#net_amount').removeAttr('disabled');
+//           $('#net_amount').parent('div').removeClass('d-none');
 
-          $('#vat_rate').removeAttr('disabled');
-          $('#vat_rate').parent('div').removeClass('d-none');
+//           $('#vat_rate').removeAttr('disabled');
+//           $('#vat_rate').parent('div').removeClass('d-none');
 
-          $('#vat_amount').removeAttr('disabled');
-          $('#vat_amount').parent('div').removeClass('d-none');
+//           $('#vat_amount').removeAttr('disabled');
+//           $('#vat_amount').parent('div').removeClass('d-none');
 
-          $('#total_amount').removeAttr('disabled');
-          $('#total_amount').parent('div').removeClass('d-none');
+//           $('#total_amount').removeAttr('disabled');
+//           $('#total_amount').parent('div').removeClass('d-none');
 
-          $('#exchange_currency').removeAttr('disabled');
-          $('#exchange_currency').parent('div').removeClass('d-none');
+//           $('#exchange_currency').removeAttr('disabled');
+//           $('#exchange_currency').parent('div').removeClass('d-none');
 
-          $('#exchange_net_amount').removeAttr('disabled');
-          $('#exchange_net_amount').parent('div').removeClass('d-none');
+//           $('#exchange_net_amount').removeAttr('disabled');
+//           $('#exchange_net_amount').parent('div').removeClass('d-none');
 
-          $('#exchange_vat_amount').removeAttr('disabled');
-          $('#exchange_vat_amount').parent('div').removeClass('d-none');
+//           $('#exchange_vat_amount').removeAttr('disabled');
+//           $('#exchange_vat_amount').parent('div').removeClass('d-none');
        
-          $repeater.find('[data-repeater-item]').slice(1).remove();
-          $repeater.find('[data-repeater-item]')
-            .first()
-            .find('.sales-invoice-ref-no')
-            .val('');
-          $repeater
-            .find('[data-repeater-item]')
-            .first()
-            .find('.sales-invoice-ref-no')
-            .attr('disabled', 'disabled');
-          $repeater.parent('div').addClass('d-none');
+//           $repeater.find('[data-repeater-item]').slice(1).remove();
+//           $repeater.find('[data-repeater-item]')
+//             .first()
+//             .find('.sales-invoice-ref-no')
+//             .val('');
+//           $repeater
+//             .find('[data-repeater-item]')
+//             .first()
+//             .find('.sales-invoice-ref-no')
+//             .attr('disabled', 'disabled');
+//           $repeater.parent('div').addClass('d-none');
 
-          if(parsed_extracted_data)
-          {
-            var credit_note = (parsed_extracted_data.credit_note) ? true : false;
-            $('#credit_note').attr('checked', credit_note);
+//           if(parsed_extracted_data)
+//           {
+//             var credit_note = (parsed_extracted_data.credit_note) ? true : false;
+//             $('#credit_note').attr('checked', credit_note);
 
-            let net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';
-            let vat_amount = parsed_extracted_data.vat_amount ? parsed_extracted_data.vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';
-            let total_amount = parsed_extracted_data.total_amount ? parsed_extracted_data.total_amount.replace(/[a-zA-Z\s]+/g, '') : ''; 
-            let discount_amount = parsed_extracted_data.discount_amount ? parsed_extracted_data.discount_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
+//             let net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+//             let vat_amount = parsed_extracted_data.vat_amount ? parsed_extracted_data.vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';
+//             let total_amount = parsed_extracted_data.total_amount ? parsed_extracted_data.total_amount.replace(/[a-zA-Z\s]+/g, '') : ''; 
+//             let discount_amount = parsed_extracted_data.discount_amount ? parsed_extracted_data.discount_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
             
-            if (discount_amount && /^\d$/.test(discount_amount))
-              discount_amount = '';
+//             if (discount_amount && /^\d$/.test(discount_amount))
+//               discount_amount = '';
 
-    console.log("vat rate: " + parsed_extracted_data.vat_rate);
-    console.log("vat amount: " + vat_amount);
-    console.log("net amount: " + net_amount);
-    console.log("discount amount: " + discount_amount);
+//     console.log("vat rate: " + parsed_extracted_data.vat_rate);
+//     console.log("vat amount: " + vat_amount);
+//     console.log("net amount: " + net_amount);
+//     console.log("discount amount: " + discount_amount);
 
-            //calculate vat rate from amount
-            let pass_currency = 'NOK';
-            if(parsed_extracted_data.currency)
-              pass_currency = parsed_extracted_data.currency.trim().replace(/[^\w\s]/g, "");
+//             //calculate vat rate from amount
+//             let pass_currency = 'NOK';
+//             if(parsed_extracted_data.currency)
+//               pass_currency = parsed_extracted_data.currency.trim().replace(/[^\w\s]/g, "");
 
-            if(pass_currency == 'kr')
-              pass_currency = 'DKK';
+//             if(pass_currency == 'kr')
+//               pass_currency = 'DKK';
 
-            let parse_net_amount = parseAmountValue(net_amount);
-            let parse_vat_amount = parseAmountValue(vat_amount);
-            let parse_total_amount = parseAmountValue(total_amount);
-            let parse_discount_amount = parseAmountValue(discount_amount);
-    // console.log("PARSED net amount: " + parse_net_amount);
-    // console.log("PARSED vat amount: " + parse_vat_amount);
-    // console.log("PARSED total amount: " + parse_total_amount);
-    // console.log("PARSED discount amount: " + parse_discount_amount);        
-            if(/,(\d{1,2})$/.test(net_amount))
-            {
-              parse_net_amount = parseAmountValue(net_amount, 'NOK');
-              parse_vat_amount = parseAmountValue(vat_amount, 'NOK');
-              parse_total_amount = parseAmountValue(total_amount, 'NOK');
-              parse_discount_amount = parseAmountValue(discount_amount, 'NOK');
-            }       
+//             let parse_net_amount = parseAmountValue(net_amount);
+//             let parse_vat_amount = parseAmountValue(vat_amount);
+//             let parse_total_amount = parseAmountValue(total_amount);
+//             let parse_discount_amount = parseAmountValue(discount_amount);
+//     // console.log("PARSED net amount: " + parse_net_amount);
+//     // console.log("PARSED vat amount: " + parse_vat_amount);
+//     // console.log("PARSED total amount: " + parse_total_amount);
+//     // console.log("PARSED discount amount: " + parse_discount_amount);        
+//             if(/,(\d{1,2})$/.test(net_amount))
+//             {
+//               parse_net_amount = parseAmountValue(net_amount, 'NOK');
+//               parse_vat_amount = parseAmountValue(vat_amount, 'NOK');
+//               parse_total_amount = parseAmountValue(total_amount, 'NOK');
+//               parse_discount_amount = parseAmountValue(discount_amount, 'NOK');
+//             }       
 
-    console.log("PARSED net amount: " + parse_net_amount);
-    console.log("PARSED vat amount: " + parse_vat_amount);
-    console.log("PARSED total amount: " + parse_total_amount);
-    console.log("PARSED discount amount: " + parse_discount_amount);
+//     console.log("PARSED net amount: " + parse_net_amount);
+//     console.log("PARSED vat amount: " + parse_vat_amount);
+//     console.log("PARSED total amount: " + parse_total_amount);
+//     console.log("PARSED discount amount: " + parse_discount_amount);
 
-            if(parse_discount_amount)
-            {
-              console.log("has discount_amount");
+//             if(parse_discount_amount)
+//             {
+//               console.log("has discount_amount");
 
-              let parse_sub_discount_amount = parse_net_amount - parse_discount_amount;
-              parse_net_amount = parse_sub_discount_amount;
+//               let parse_sub_discount_amount = parse_net_amount - parse_discount_amount;
+//               parse_net_amount = parse_sub_discount_amount;
 
-              console.log(parse_net_amount);
+//               console.log(parse_net_amount);
 
-              // let sub_discount_amount = net_amount - discount_amount;
-              net_amount = parse_sub_discount_amount.toLocaleString('en-IN');
+//               // let sub_discount_amount = net_amount - discount_amount;
+//               net_amount = parse_sub_discount_amount.toLocaleString('en-IN');
               
-              console.log(net_amount);          
-            }
+//               console.log(net_amount);          
+//             }
 
-            if(parse_net_amount > parse_total_amount)
-            {
-              if(parsed_extracted_data.credit_note)
-              {
-                let formatted_net_amount = parseDenmarkFormat(net_amount);        
-                $('#net_amount').val(formatted_net_amount);
+//             if(parse_net_amount > parse_total_amount)
+//             {
+//               if(parsed_extracted_data.credit_note)
+//               {
+//                 let formatted_net_amount = parseDenmarkFormat(net_amount);        
+//                 $('#net_amount').val(formatted_net_amount);
 
-                let formatted_total_amount = parseDenmarkFormat(total_amount);        
-                $('#total_amount').val(formatted_total_amount);
-              }
-              else
-              {
-                let formatted_net_amount = parseDenmarkFormat(total_amount);        
-                $('#net_amount').val(formatted_net_amount);
+//                 let formatted_total_amount = parseDenmarkFormat(total_amount);        
+//                 $('#total_amount').val(formatted_total_amount);
+//               }
+//               else
+//               {
+//                 let formatted_net_amount = parseDenmarkFormat(total_amount);        
+//                 $('#net_amount').val(formatted_net_amount);
 
-                let formatted_total_amount = parseDenmarkFormat(net_amount);        
-                $('#total_amount').val(formatted_total_amount);
-              }          
-            }
-            else
-            {
-              let formatted_net_amount = parseDenmarkFormat(net_amount);        
-              $('#net_amount').val(formatted_net_amount);
+//                 let formatted_total_amount = parseDenmarkFormat(net_amount);        
+//                 $('#total_amount').val(formatted_total_amount);
+//               }          
+//             }
+//             else
+//             {
+//               let formatted_net_amount = parseDenmarkFormat(net_amount);        
+//               $('#net_amount').val(formatted_net_amount);
 
-              let formatted_total_amount = parseDenmarkFormat(total_amount);        
-              $('#total_amount').val(formatted_total_amount);
-            }
+//               let formatted_total_amount = parseDenmarkFormat(total_amount);        
+//               $('#total_amount').val(formatted_total_amount);
+//             }
 
-            let formatted_vat_amount = parseDenmarkFormat(vat_amount);        
-            $('#vat_amount').val(formatted_vat_amount);            
+//             let formatted_vat_amount = parseDenmarkFormat(vat_amount);        
+//             $('#vat_amount').val(formatted_vat_amount);            
 
-    console.log("parse vat amount: " + parse_vat_amount);
-    console.log("parse net amount: " + parse_net_amount);         
-            var calculated_vat_rate = (parse_net_amount == 0) ? 0 : ((parse_vat_amount / parse_net_amount) * 100);
-            //$('#vat_rate').val(vat_rate);
-    console.log("CALCULATED vat rate: " + calculated_vat_rate + " -- " + parsed_extracted_data.currency + " -- " + pass_currency);
-            if(parsed_extracted_data.vat_rate)
-            {          
-              var vat_rate = parseVatRate(parsed_extracted_data.vat_rate);
-    console.log("vat rate: " + vat_rate);
-              if(parsed_extracted_data.vat_rate == calculated_vat_rate)
-                $('#vat_rate').val(vat_rate);
-              else if(calculated_vat_rate > 25)
-              {
-                $('#vat_rate').val(vat_rate);
-              }
-              else
-              {
-                let calculated_vat_rate_result = null;
-                if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
-                  calculated_vat_rate_result = "8,1";
-                else
-                  calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
+//     console.log("parse vat amount: " + parse_vat_amount);
+//     console.log("parse net amount: " + parse_net_amount);         
+//             var calculated_vat_rate = (parse_net_amount == 0) ? 0 : ((parse_vat_amount / parse_net_amount) * 100);
+//             //$('#vat_rate').val(vat_rate);
+//     console.log("CALCULATED vat rate: " + calculated_vat_rate + " -- " + parsed_extracted_data.currency + " -- " + pass_currency);
+//             if(parsed_extracted_data.vat_rate)
+//             {          
+//               var vat_rate = parseVatRate(parsed_extracted_data.vat_rate);
+//     console.log("vat rate: " + vat_rate);
+//               if(parsed_extracted_data.vat_rate == calculated_vat_rate)
+//                 $('#vat_rate').val(vat_rate);
+//               else if(calculated_vat_rate > 25)
+//               {
+//                 $('#vat_rate').val(vat_rate);
+//               }
+//               else
+//               {
+//                 let calculated_vat_rate_result = null;
+//                 if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
+//                   calculated_vat_rate_result = "8,1";
+//                 else
+//                   calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
 
-                $('#vat_rate').val(calculated_vat_rate_result);
-              }
-            }
-            else
-            {
-              let calculated_vat_rate_result = null;
-              if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
-                calculated_vat_rate_result = "8,1";
-              else
-                calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
+//                 $('#vat_rate').val(calculated_vat_rate_result);
+//               }
+//             }
+//             else
+//             {
+//               let calculated_vat_rate_result = null;
+//               if (calculated_vat_rate >= 8 && calculated_vat_rate < 9)
+//                 calculated_vat_rate_result = "8,1";
+//               else
+//                 calculated_vat_rate_result = Math.round(calculated_vat_rate).toString();
 
-              $('#vat_rate').val(calculated_vat_rate_result);
-            }
+//               $('#vat_rate').val(calculated_vat_rate_result);
+//             }
             
-            $('#invoice_date').val(parsed_extracted_data.invoice_date);
+//             $('#invoice_date').val(parsed_extracted_data.invoice_date);
 
-            $('#invoice_no').val(parsed_extracted_data.invoice_number);
+//             $('#invoice_no').val(parsed_extracted_data.invoice_number);
 
-            if(parsed_extracted_data.currency)
-              //$('#currency').val(parsed_extracted_data.currency.trim().substring(0, 3)); 
-              $('#currency').val(pass_currency.trim().substring(0, 3)); 
+//             if(parsed_extracted_data.currency)
+//               //$('#currency').val(parsed_extracted_data.currency.trim().substring(0, 3)); 
+//               $('#currency').val(pass_currency.trim().substring(0, 3)); 
 
-            if(parsed_extracted_data.exchange_currency)
-              $('#exchange_currency').val(parsed_extracted_data.exchange_currency.trim().replace(/[^\w\s]/g, "").substring(0, 3));
+//             if(parsed_extracted_data.exchange_currency)
+//               $('#exchange_currency').val(parsed_extracted_data.exchange_currency.trim().replace(/[^\w\s]/g, "").substring(0, 3));
 
-            let exchange_net_amount = parsed_extracted_data.exchange_net_amount ? parsed_extracted_data.exchange_net_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
-            let formatted_exchange_net_amount = parseDenmarkFormat(exchange_net_amount);       
-            $('#exchange_net_amount').val(formatted_exchange_net_amount);
+//             let exchange_net_amount = parsed_extracted_data.exchange_net_amount ? parsed_extracted_data.exchange_net_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
+//             let formatted_exchange_net_amount = parseDenmarkFormat(exchange_net_amount);       
+//             $('#exchange_net_amount').val(formatted_exchange_net_amount);
 
-            let exchange_vat_amount = parsed_extracted_data.exchange_vat_amount ? parsed_extracted_data.exchange_vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
-            let formatted_exchange_vat_amount = parseDenmarkFormat(exchange_vat_amount);       
-            $('#exchange_vat_amount').val(formatted_exchange_vat_amount); 
-          }      
-        }    
-        else if(invoice_type == 'com')
-        {        
-          $('#invoice_type').val(invoice_type);
+//             let exchange_vat_amount = parsed_extracted_data.exchange_vat_amount ? parsed_extracted_data.exchange_vat_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
+//             let formatted_exchange_vat_amount = parseDenmarkFormat(exchange_vat_amount);       
+//             $('#exchange_vat_amount').val(formatted_exchange_vat_amount); 
+//           }      
+//         }    
+//         else if(invoice_type == 'com')
+//         {        
+//           $('#invoice_type').val(invoice_type);
 
-          let org_no = null;
-          const getNumeric = str => str ? str.replace(/\D/g, '') : '';
+//           let org_no = null;
+//           const getNumeric = str => str ? str.replace(/\D/g, '') : '';
 
-          if(parsed_extracted_data)
-          {
-            let vat_numeric = getNumeric( (parsed_extracted_data.recipient.org_number) ? parsed_extracted_data.recipient.org_number.replace(/[a-zA-Z\s]+/g, '') : '');
+//           if(parsed_extracted_data)
+//           {
+//             let vat_numeric = getNumeric( (parsed_extracted_data.recipient.org_number) ? parsed_extracted_data.recipient.org_number.replace(/[a-zA-Z\s]+/g, '') : '');
             
-            if (vat_numeric && vat_numeric.length == 17) {
-                org_no = vat_numeric.substring(0, 9);
-            }
-            else
-            {
-              if (vat_numeric && vat_numeric.length >= 9)
-                org_no = vat_numeric;      
-            }
-          }
+//             if (vat_numeric && vat_numeric.length == 17) {
+//                 org_no = vat_numeric.substring(0, 9);
+//             }
+//             else
+//             {
+//               if (vat_numeric && vat_numeric.length >= 9)
+//                 org_no = vat_numeric;      
+//             }
+//           }
 
-          $('#client_no').val(org_no);       
-          $('#client_name').val(analyzepdf_data.client_name);
+//           $('#client_no').val(org_no);       
+//           $('#client_name').val(analyzepdf_data.client_name);
 
-          if(parsed_extracted_data)
-          {
-            let net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
-            let formatted_net_amount = parseDenmarkFormat(net_amount);
-            $('#net_amount').val(formatted_net_amount);
-          }
+//           if(parsed_extracted_data)
+//           {
+//             let net_amount = parsed_extracted_data.net_amount ? parsed_extracted_data.net_amount.replace(/[a-zA-Z\s]+/g, '') : '';       
+//             let formatted_net_amount = parseDenmarkFormat(net_amount);
+//             $('#net_amount').val(formatted_net_amount);
+//           }
 
-          $('#credit_note').attr('disabled', 'disabled');
-          $('#credit_note').parent('div').addClass('d-none');
+//           $('#credit_note').attr('disabled', 'disabled');
+//           $('#credit_note').parent('div').addClass('d-none');
           
-          $('#vat_rate').attr('disabled', 'disabled');
-          $('#vat_rate').parent('div').addClass('d-none');
+//           $('#vat_rate').attr('disabled', 'disabled');
+//           $('#vat_rate').parent('div').addClass('d-none');
 
-          $('#vat_amount').attr('disabled', 'disabled');
-          $('#vat_amount').parent('div').addClass('d-none');
+//           $('#vat_amount').attr('disabled', 'disabled');
+//           $('#vat_amount').parent('div').addClass('d-none');
 
-          $('#total_amount').attr('disabled', 'disabled');
-          $('#total_amount').parent('div').addClass('d-none');
+//           $('#total_amount').attr('disabled', 'disabled');
+//           $('#total_amount').parent('div').addClass('d-none');
 
-          $('#exchange_currency').attr('disabled', 'disabled');
-          $('#exchange_currency').parent('div').addClass('d-none');
+//           $('#exchange_currency').attr('disabled', 'disabled');
+//           $('#exchange_currency').parent('div').addClass('d-none');
 
-          $('#exchange_net_amount').attr('disabled', 'disabled');
-          $('#exchange_net_amount').parent('div').addClass('d-none'); 
+//           $('#exchange_net_amount').attr('disabled', 'disabled');
+//           $('#exchange_net_amount').parent('div').addClass('d-none'); 
 
-          $('#exchange_vat_amount').attr('disabled', 'disabled');       
-          $('#exchange_vat_amount').parent('div').addClass('d-none');    
+//           $('#exchange_vat_amount').attr('disabled', 'disabled');       
+//           $('#exchange_vat_amount').parent('div').addClass('d-none');    
           
-          var sales_invoices_raw = (parsed_extracted_data) ? parsed_extracted_data.related_sales_invoices : null;
+//           var sales_invoices_raw = (parsed_extracted_data) ? parsed_extracted_data.related_sales_invoices : null;
 
-          if (sales_invoices_raw) 
-          {
-              if (!Array.isArray(sales_invoices_raw)) {
-                  sales_invoices_raw = [sales_invoices_raw];
-              }
+//           if (sales_invoices_raw) 
+//           {
+//               if (!Array.isArray(sales_invoices_raw)) {
+//                   sales_invoices_raw = [sales_invoices_raw];
+//               }
 
-              var invoiceValues = new Set();
+//               var invoiceValues = new Set();
 
-              sales_invoices_raw.forEach(function(val) {
-                  if (!val) return;
+//               sales_invoices_raw.forEach(function(val) {
+//                   if (!val) return;
 
-                  // Split by commas first
-                  var commaParts = String(val).split(',');
+//                   // Split by commas first
+//                   var commaParts = String(val).split(',');
 
-                  commaParts.forEach(function(part) {                    
-                      part = part.trim().replace(/[.,;]+$/, '');console.log("PART: " + part);
-                      if (!part) return;
+//                   commaParts.forEach(function(part) {                    
+//                       part = part.trim().replace(/[.,;]+$/, '');console.log("PART: " + part);
+//                       if (!part) return;
 
-                      // Match alphanumeric or numeric range first (with optional spaces around dash)
-                      var rangeMatch = part.match(/^([A-Za-z]*)(\d+)\s*-\s*([A-Za-z]*)(\d+)$/);
+//                       // Match alphanumeric or numeric range first (with optional spaces around dash)
+//                       var rangeMatch = part.match(/^([A-Za-z]*)(\d+)\s*-\s*([A-Za-z]*)(\d+)$/);
 
-                      if (rangeMatch) {
-                          var prefixStart = rangeMatch[1];
-                          var startNum = parseInt(rangeMatch[2], 10);
-                          var prefixEnd = rangeMatch[3];
-                          var endNum = parseInt(rangeMatch[4], 10);
+//                       if (rangeMatch) {
+//                           var prefixStart = rangeMatch[1];
+//                           var startNum = parseInt(rangeMatch[2], 10);
+//                           var prefixEnd = rangeMatch[3];
+//                           var endNum = parseInt(rangeMatch[4], 10);
 
-                          if (prefixStart === prefixEnd && startNum <= endNum) {
-                              for (var i = startNum; i <= endNum; i++) {
-                                  invoiceValues.add(
-                                      prefixStart + i.toString().padStart(rangeMatch[2].length, '0')
-                                  );
-                              }
-                          }
-                      } else {
-                          // Not a range: split by spaces (for "123 124 125" or "NO123 NO124")
-                          part.split(/\s+/).forEach(function(p) {
-                              if (p) invoiceValues.add(p);
-                          });
-                      }
-                  });
-              });
+//                           if (prefixStart === prefixEnd && startNum <= endNum) {
+//                               for (var i = startNum; i <= endNum; i++) {
+//                                   invoiceValues.add(
+//                                       prefixStart + i.toString().padStart(rangeMatch[2].length, '0')
+//                                   );
+//                               }
+//                           }
+//                       } else {
+//                           // Not a range: split by spaces (for "123 124 125" or "NO123 NO124")
+//                           part.split(/\s+/).forEach(function(p) {
+//                               if (p) invoiceValues.add(p);
+//                           });
+//                       }
+//                   });
+//               });
             
-              // Optional: convert to array and sort numerically/alphabetically
-              var invoiceArray = Array.from(invoiceValues).sort((a,b) => {
-                  var numA = parseInt(a.replace(/\D+/g,''), 10);
-                  var numB = parseInt(b.replace(/\D+/g,''), 10);
-                  return (numA && numB) ? numA - numB : a.localeCompare(b);
-              });
+//               // Optional: convert to array and sort numerically/alphabetically
+//               var invoiceArray = Array.from(invoiceValues).sort((a,b) => {
+//                   var numA = parseInt(a.replace(/\D+/g,''), 10);
+//                   var numB = parseInt(b.replace(/\D+/g,''), 10);
+//                   return (numA && numB) ? numA - numB : a.localeCompare(b);
+//               });
 
-              console.log(invoiceArray);
-          }                    
+//               console.log(invoiceArray);
+//           }                    
                 
-          // Clear existing repeater items except first
-          $repeater.find('[data-repeater-item]').slice(1).remove();
+//           // Clear existing repeater items except first
+//           $repeater.find('[data-repeater-item]').slice(1).remove();
 
-          var $firstItem = $repeater.find('[data-repeater-item]').first();
-          $firstItem.find('.sales-invoice-ref-no').val('');
+//           var $firstItem = $repeater.find('[data-repeater-item]').first();
+//           $firstItem.find('.sales-invoice-ref-no').val('');
 
-          // Show container
-          $repeater.parent('div').removeClass('d-none');
+//           // Show container
+//           $repeater.parent('div').removeClass('d-none');
 
-          if (invoiceArray && invoiceArray.length > 0) {
+//           if (invoiceArray && invoiceArray.length > 0) {
 
-              invoiceArray.forEach(function(invoiceValue, index) {
+//               invoiceArray.forEach(function(invoiceValue, index) {
 
-                  if (index === 0) {
+//                   if (index === 0) {
 
-                      $firstItem.find('.sales-invoice-ref-no')
-                          .removeAttr('disabled')
-                          .val(invoiceValue);
+//                       $firstItem.find('.sales-invoice-ref-no')
+//                           .removeAttr('disabled')
+//                           .val(invoiceValue);
 
-                  } else {
+//                   } else {
 
-                      // Create new repeater row using plugin
-                      $repeater.find('[data-repeater-create]').click();
+//                       // Create new repeater row using plugin
+//                       $repeater.find('[data-repeater-create]').click();
 
-                      // Set value in last created item
-                      $repeater.find('[data-repeater-item]').last()
-                          .find('.sales-invoice-ref-no')
-                          .removeAttr('disabled')
-                          .val(invoiceValue);
-                  }
+//                       // Set value in last created item
+//                       $repeater.find('[data-repeater-item]').last()
+//                           .find('.sales-invoice-ref-no')
+//                           .removeAttr('disabled')
+//                           .val(invoiceValue);
+//                   }
 
-              });
-          }
+//               });
+//           }
          
-          if(parsed_extracted_data)
-          {
-            $('#invoice_date').val(parsed_extracted_data.invoice_date);
-            $('#invoice_no').val(parsed_extracted_data.invoice_number);
+//           if(parsed_extracted_data)
+//           {
+//             $('#invoice_date').val(parsed_extracted_data.invoice_date);
+//             $('#invoice_no').val(parsed_extracted_data.invoice_number);
 
-            if(parsed_extracted_data.currency)
-              $('#currency').val(parsed_extracted_data.currency.trim().replace(/[^\w\s]/g, "").substring(0, 3));
-          }
-        } //com   
+//             if(parsed_extracted_data.currency)
+//               $('#currency').val(parsed_extracted_data.currency.trim().replace(/[^\w\s]/g, "").substring(0, 3));
+//           }
+//         } //com   
       
       
-        if(analyzepdf_data.azure_url)
-        {
-          //Azure Storage Path
-          $.get(analyzePdfUrl + analyzepdf_data.id + '/sas-url', function(response) {
-              if (response.azure_signed_url) {
-                  var pdfUrl = response.azure_signed_url + '#page=' + (response.start_pageno || 1);
-                  $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
-              } else {
-                  console.log('PDF not available.');
-              }
-          }).fail(function() {
-              console.log('Failed to fetch PDF.');
-          });
-          //Azure Storage Path
-        }
-        else
-        {
-          //Local Storage Path
-          var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=' + 
-                        (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
-          if(invoice_type == 'multi-invoices')
-          {        
-            var cleaned = analyzepdf_data.file_name.replace(/_\d+(?=\.pdf$)/i, '');
-            pdfUrl = '/storage/ocr/'+ invoice_type +'/' + cleaned + '#page=' + 
-                        (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
-          }      
-          $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
-          //Local Storage Path
-        }
-      }
-    }//capture page 
-    */  
-        $("#offcanvasAnalyzePdfData #loader").remove();
-        $("#addAnalyzePdfForm").show();
-        $("#offcanvasAnalyzePdfData #docViewer").show();
+//         if(analyzepdf_data.azure_url)
+//         {
+//           //Azure Storage Path
+//           $.get(analyzePdfUrl + analyzepdf_data.id + '/sas-url', function(response) {
+//               if (response.azure_signed_url) {
+//                   var pdfUrl = response.azure_signed_url + '#page=' + (response.start_pageno || 1);
+//                   $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
+//               } else {
+//                   console.log('PDF not available.');
+//               }
+//           }).fail(function() {
+//               console.log('Failed to fetch PDF.');
+//           });
+//           //Azure Storage Path
+//         }
+//         else
+//         {
+//           //Local Storage Path
+//           var pdfUrl = '/storage/ocr/'+ invoice_type +'/' + analyzepdf_data.file_name + '#page=' + 
+//                         (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
+//           if(invoice_type == 'multi-invoices')
+//           {        
+//             var cleaned = analyzepdf_data.file_name.replace(/_\d+(?=\.pdf$)/i, '');
+//             pdfUrl = '/storage/ocr/'+ invoice_type +'/' + cleaned + '#page=' + 
+//                         (analyzepdf_data.start_pageno ? analyzepdf_data.start_pageno : 1);
+//           }      
+//           $('#offcanvasAnalyzePdfData #docViewer').attr('src', pdfUrl);
+//           //Local Storage Path
+//         }
+//       }
+//     }//capture page 
+//     */  
+//         $("#offcanvasAnalyzePdfData #loader").remove();
+//         $("#addAnalyzePdfForm").show();
+//         $("#offcanvasAnalyzePdfData #docViewer").show();
        
-  });
+//   });
 
   // inovice type change
   $(document).on('change', '#invoice_type', function () {
@@ -1832,7 +2299,20 @@ console.log(filter_analyzepdf_data);
                     //     drawDtTable(progressData, 'analyzepdf');
 
                     // reloadAnalyzedPdf(analyzepdf_datas);
-                    window.location.reload();
+                    
+                    setTimeout(() => {
+                      Swal.fire({
+                        title: 'Recapture completed',
+                        text: 'Page will be reloaded now :)',
+                        icon: 'info',
+                        customClass: {
+                          confirmButton: 'btn btn-success'
+                        }
+                      }).then(function (result) { 
+                          if (result.isConfirmed)
+                              window.location.reload();
+                      });
+                    }, 5000); // Show the alert after 5 seconds    
 
                     return;
                 }
@@ -1892,6 +2372,145 @@ console.log("LOADING--------: " + total);
 
   });
 
+  // split
+  $(document).on('click', '.btn-split', function () {
+    var btn_split = $(this);   
+
+    var analyzepdf_id = $(this).data('analyzepdf_id'),
+      invoice_no = $(this).data('invoice_no'),
+      tab_name = $(this).data('tab_name');
+    
+    var selected_analyzepdf_id = $.map($('#navs-analyzepdf-'+ tab_name +' .form-check-input.dt-checkboxes:checked'), function(c){
+                                  return c.value; 
+                              });
+    
+    analyzepdf_id = (selected_analyzepdf_id.length > 0) ? 0 : analyzepdf_id;
+   
+    btn_split.attr('disabled', 'disabled');
+    btn_split.addClass('disabled-opacity');    
+    btn_split.html('<span><i class="bx bx-refresh me-2"></i>Spliting...</span>');
+
+    $.ajax({      
+      url: `${analyzePdfUrl}${analyzepdf_id}/split`,
+      type: 'GET',           
+      data: 'selected_analyzepdf_id=' + selected_analyzepdf_id,  
+      success: function (response) {  
+        const progressCard = document.getElementById('batch-progress');
+        const bar = document.getElementById('progress-bar');
+        const text = document.getElementById('progress-text');
+
+        const data = response;
+        const total = parseInt(data.total || 0);
+
+        if (total === 0) {
+            text.innerText = "No split to process";
+            progressCard.classList.add('d-none'); // Keep hidden
+            return;
+        }
+       
+        // Only show progress card if there are emails
+        progressCard.classList.remove('d-none');
+        bar.style.width = '0%';
+        bar.innerText = '0%';        
+        text.innerText = `Queuing ${total} split…`;
+
+        // =========================================
+        // REPLACE OLD setInterval BLOCK WITH THIS
+        // =========================================
+
+        let splitPoll = null;
+        let pollingStopped = false;
+
+        async function pollProgress() {
+
+            if (pollingStopped) {
+                return;
+            }
+
+            try {
+
+                const res = await fetch(`/analyzepdf/progress`);
+                const progressData = await res.json();
+
+                const completed =
+                    progressData.completed || 0;
+
+                const percent = Math.min(
+                    100,
+                    Math.round((completed / total) * 100)
+                );
+
+                console.log("COMPLETED:", completed);
+
+                bar.style.width = percent + '%';
+                bar.innerText = percent + '%';
+
+                text.innerText =
+                    `${completed} / ${total} split processed`;
+
+                if (completed >= total && total > 0) {
+
+                    pollingStopped = true;
+
+                    clearTimeout(splitPoll);
+
+                    bar.classList.remove('progress-bar-animated');
+                    bar.classList.add('bg-success');
+
+                    text.innerText =
+                        `All split processed`;
+
+                    btn_split.removeAttr('disabled');
+
+                    btn_split.removeClass(
+                        'disabled-opacity'
+                    );
+
+                    btn_split.html(
+                        '<span><i class="bx bx-columns me-2"></i>Split</span>'
+                    );
+
+                    console.log("LOADING DONE");
+
+                    setTimeout(() => {
+                      Swal.fire({
+                        title: 'Split completed',
+                        text: 'Page will be reloaded now :)',
+                        icon: 'info',
+                        customClass: {
+                          confirmButton: 'btn btn-success'
+                        }
+                      }).then(function (result) { 
+                          if (result.isConfirmed)
+                              window.location.reload();
+                      });
+                    }, 5000); // Show the alert after 5 seconds    
+
+                    return;
+                }
+
+                splitPoll =
+                    setTimeout(pollProgress, 3000);
+
+            }
+            catch (e) {
+
+                console.log(e);
+
+                splitPoll =
+                    setTimeout(pollProgress, 3000);
+            }
+        }
+
+        pollProgress();        
+      },
+      error: function (error) {
+        console.log(error);
+      }
+    });
+
+  });
+
   $(document).on('change', 'th.dt-checkboxes-select-all input.form-check-input', function () {console.log("checkbox change");
       const $td = $(this);
       
@@ -1925,6 +2544,9 @@ console.log("LOADING--------: " + total);
       $(".btn-recapture").attr('disabled', 'disabled');
       $(".btn-recapture").addClass('disabled-opacity');
 
+      $(".btn-split").attr('disabled', 'disabled');
+      $(".btn-split").addClass('disabled-opacity');
+
       $(".btn-validate").attr('disabled', 'disabled');
       $(".btn-validate").addClass('disabled-opacity');
     }
@@ -1939,6 +2561,9 @@ console.log("LOADING--------: " + total);
         $(".btn-recapture").removeAttr('disabled');        
         $(".btn-recapture").removeClass('disabled-opacity');
 
+        $(".btn-split").removeAttr('disabled');        
+        $(".btn-split").removeClass('disabled-opacity');
+
         $(".btn-validate").removeAttr('disabled');        
         $(".btn-validate").removeClass('disabled-opacity');
       }
@@ -1951,6 +2576,9 @@ console.log("LOADING--------: " + total);
 
         $(".btn-recapture").removeAttr('disabled');        
         $(".btn-recapture").removeClass('disabled-opacity');
+
+        $(".btn-split").removeAttr('disabled');        
+        $(".btn-split").removeClass('disabled-opacity');
 
         $(".btn-validate").removeAttr('disabled');        
         $(".btn-validate").removeClass('disabled-opacity');
@@ -2014,7 +2642,7 @@ console.log("LOADING--------: " + total);
             total = total_files || 0;
 
             // Only show progress card if there are emails
-            progressCard.classList.remove('d-none');
+            //progressCard.classList.remove('d-none');
             bar.style.width = '0%';
             bar.innerText = '0%';
             text.innerText = `Queuing ${total} bulk files…`;
@@ -2090,7 +2718,19 @@ console.log("LOADING--------: " + total);
                         //     scrollTop: 0
                         // }, 500);
 
-                        window.location.reload();
+                        setTimeout(() => {
+                          Swal.fire({
+                            title: 'Bulk upload completed',
+                            text: 'Page will be reloaded now :)',
+                            icon: 'info',
+                            customClass: {
+                              confirmButton: 'btn btn-success'
+                            }
+                          }).then(function (result) { 
+                              if (result.isConfirmed)
+                                  window.location.reload();
+                          });
+                        }, 5000); // Show the alert after 5 seconds  
 
                         return;
                     }
@@ -2284,7 +2924,19 @@ console.log("LOADING--------: " + total);
 
                     // reloadAnalyzedPdf(analyzepdf_datas);
 
-                    window.location.reload();
+                    setTimeout(() => {
+                      Swal.fire({
+                        title: 'Validation completed',
+                        text: 'Page will be reloaded now :)',
+                        icon: 'info',
+                        customClass: {
+                          confirmButton: 'btn btn-success'
+                        }
+                      }).then(function (result) { 
+                          if (result.isConfirmed)
+                              window.location.reload();
+                      });
+                    }, 5000); // Show the alert after 5 seconds    
 
                     return;
                 }

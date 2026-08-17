@@ -53,7 +53,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection(config('database.ocr_connection'))
-            ->dropIfExists('dv_ocr_pdfs');
+        // Schema::connection(config('database.ocr_connection'))
+        //     ->dropIfExists('dv_ocr_pdfs');
     }
 };

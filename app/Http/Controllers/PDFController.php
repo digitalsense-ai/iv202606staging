@@ -55,7 +55,7 @@ class PDFController extends Controller
         $overviewContent = view('_partials._content._vatreturn.vatreturn-overview-pdf', compact('logo', 'logo_white', 'vat_reg_id', 'vatreg', 'client', 'tab_name', 'vatreturns', 'pivs_files', 'c79_documents'))->render();
 
         $data = [
-            'title' => 'Welcome to intravat.com',
+            'title' => 'Welcome to mydomain.com',
             'logo' => $logo,
             'declarationContent' => $declarationContent,
             'comInvoiceContent' => $comInvoiceContent,

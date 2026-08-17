@@ -212,6 +212,8 @@ mix.js('resources/js/dv-anyexcel-template-others.js', 'public/js/');
 //mix.js('resources/js/dv-ocr-invoice-pdfs', 'public/js/');
 mix.js('resources/js/dv-analyze-pdf', 'public/js/');
 mix.js('resources/js/dv-analyze-pdf-search', 'public/js/');
+mix.js('resources/js/dv-analyze-pdf-manual-input', 'public/js/');
+mix.js('resources/js/dv-analyze-pdf-synced', 'public/js/');
 
 mix.js('resources/js/dv-crm', 'public/js/');
 

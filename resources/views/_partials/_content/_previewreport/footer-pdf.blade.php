@@ -5,7 +5,7 @@
         <th align="left" valign="middle">
           <h5>IntraVAT ApS</h5>
           <h5>Torvet 9, 1.  DK-Køge 4600</h5>
-          <h5>Tel: +45 88 63 22 99 Mail: <a href="mailto:info@intravat.com" class="text-decoration-none">info@intravat.com</a></h5>
+          <h5>Tel: +45 88 63 22 99 Mail: <a href="mailto:{{ config('mail.mailers.intravatmail.info.username') }}" class="text-decoration-none">{{ config('mail.mailers.intravatmail.info.username') }}</a></h5>
         </th>
         <th align="right" valign="middle">
           <h5 class="">&nbsp;</h5>

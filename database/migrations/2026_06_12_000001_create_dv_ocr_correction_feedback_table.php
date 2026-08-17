@@ -27,7 +27,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection(config('database.ocr_connection'))
-            ->dropIfExists('dv_ocr_correction_feedback');
+        // Schema::connection(config('database.ocr_connection'))
+        //     ->dropIfExists('dv_ocr_correction_feedback');
     }
 };

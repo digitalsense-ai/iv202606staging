@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Helpers;
-
+//use Illuminate\Support\Facades\Log;
 class ExchangeRateHelper
 {
     /**
@@ -19,7 +19,8 @@ class ExchangeRateHelper
      */
     public static function normalize(?string $value): ?string
     {
-        if (!$value) {
+        //if (!$value) {
+        if ($value === null || trim((string) $value) === '') {
             return null;
         }
 
@@ -65,7 +66,8 @@ class ExchangeRateHelper
          */
         $value = preg_replace('/[^0-9.,]/', '', $value);
 
-        if (!$value) {
+        //if (!$value) {
+        if ($value === null || trim((string) $value) === '') {
             return null;
         }
 
@@ -111,14 +113,24 @@ class ExchangeRateHelper
             ''
         );
     }
+    
+    // public static function calculateExchangeRateFromVat(
+    //     float|int|null $exchangeVatAmount,
+    //     float|int|null $baseVatAmount
+    // ): ?float {
 
-    // public static function calculateExchangeRateFromVat($nokVat, $eurVat): ?float
-    // {
-    //     if (!$nokVat || !$eurVat || $eurVat == 0) {
+    //     if (
+    //         empty($exchangeVatAmount) ||
+    //         empty($baseVatAmount) ||
+    //         $baseVatAmount == 0
+    //     ) {
     //         return null;
     //     }
 
-    //     return round($nokVat / $eurVat, 4);
+    //     return round(
+    //         $exchangeVatAmount / $baseVatAmount,
+    //         4
+    //     );
     // }
 
     public static function calculateExchangeRateFromVat(
@@ -126,17 +138,20 @@ class ExchangeRateHelper
         float|int|null $baseVatAmount
     ): ?float {
 
-        if (
-            empty($exchangeVatAmount) ||
-            empty($baseVatAmount) ||
-            $baseVatAmount == 0
-        ) {
+        if ($exchangeVatAmount === null || $baseVatAmount === null) {
             return null;
         }
 
-        return round(
-            $exchangeVatAmount / $baseVatAmount,
-            4
-        );
+        // Business rule: 0.00 / 0.00 => 0.0000
+        if ($exchangeVatAmount == 0.0 && $baseVatAmount == 0.0) {            
+            return 0.0000;
+        }
+
+        // Prevent division by zero
+        if ($baseVatAmount == 0.0) {
+            return null;
+        }
+
+        return round($exchangeVatAmount / $baseVatAmount, 4);
     }
 }

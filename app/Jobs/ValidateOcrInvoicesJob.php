@@ -17,16 +17,23 @@ use App\Jobs\ValidateOcrCommercialInvoiceJob;
 use App\Jobs\ValidateOcrSalesInvoiceJob;
 
 use App\Models\OcrPdf;
+use App\Models\OcrSyncStatus;
+
+use App\Helpers\EnvironmentHelper;
 
 class ValidateOcrInvoicesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
     protected array $invoiceIds;
+    protected bool $manual;
+    protected bool $searchSave;
 
-    public function __construct(public ?string $batchId = null, array $invoiceIds = [])
+    public function __construct(public ?string $batchId = null, array $invoiceIds = [], bool $manual = false, bool $searchSave = false)
     {
         $this->invoiceIds = $invoiceIds;
+        $this->manual = $manual;
+        $this->searchSave = $searchSave;
 
         //$this->onQueue('ocrpdfvalidateinvoices');
         $this->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
@@ -91,29 +98,43 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         */        
         $duplicatesQuery = clone $baseQuery;
 
-        $duplicates = $duplicatesQuery->select('invoice_type', 'duplicate_hash')
+        $duplicates = $duplicatesQuery
+            //->select('invoice_type', 'duplicate_hash')
+            ->selectRaw("
+                CASE
+                    WHEN invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                    ELSE invoice_type
+                END AS invoice_group,
+                duplicate_hash
+            ")
             ->where('status', 'completed')
             ->whereNotNull('duplicate_hash')
-            ->groupBy('invoice_type', 'duplicate_hash')
+            //->groupBy('invoice_type', 'duplicate_hash')
+            ->groupBy('invoice_group', 'duplicate_hash')
             ->havingRaw('COUNT(*) > 1')
             ->get();
 
         foreach ($duplicates as $duplicate) {
 
-            $invoices = OcrPdf::query()->where('invoice_type', $duplicate->invoice_type)
+            $invoiceTypes = $duplicate->invoice_group === 'sales'
+                ? ['sales', 'multi-invoices']
+                : [$duplicate->invoice_group];
+
+            //$invoices = OcrPdf::query()->where('invoice_type', $duplicate->invoice_type)
+            $invoices = OcrPdf::query()->whereIn('invoice_type', $invoiceTypes)
                 ->where('duplicate_hash', $duplicate->duplicate_hash)
                 ->where('status', 'completed')
                 // ->when(!empty($this->invoiceIds), function ($query) {
                 //     $query->whereIn('id', $this->invoiceIds);
                 // })
-                ->orderBy('id') // oldest first
+                ->orderBy('id', 'DESC') // oldest(newest) first
                 ->get();
 
             if ($invoices->count() <= 1) {
                 continue;
             }
 
-            // Keep the oldest invoice as the master/original, even when only
+            // Keep the oldest(newest) invoice as the master/original, even when only
             // validating a batch or recaptured invoice subset.
             $original = $invoices->first();
             $og_invoice_no = $original->extracted_data['invoice_number'] ?? null;
@@ -128,13 +149,17 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                 $duplicateCandidates = $duplicateCandidates->whereIn('id', $this->invoiceIds);
             }
 
-            Log::info('Duplicate group found', [
-                'invoice_type' => $duplicate->invoice_type,
-                'original_id' => $original->id,
-                'duplicate_ids' => $invoices->skip(1)->pluck('id')->toArray(),
-                'duplicate_ids' => $duplicateCandidates->pluck('id')->toArray(),
-            ]);
+            if ($duplicateCandidates->isNotEmpty()) {                
+                Log::info('Duplicate group found', [
+                    //'invoice_type' => $duplicate->invoice_type,
+                    'invoice_type' => $invoiceTypes,
+                    'original_id' => $original->id,
+                    'remaing_duplicate_ids' => $invoices->skip(1)->pluck('id')->toArray(),
+                    'duplicate_ids' => $duplicateCandidates->pluck('id')->toArray(),
+                ]);
+            }
 
+            $environment = EnvironmentHelper::getEnvironment();
             //foreach ($invoices->skip(1) as $invoice) {
             foreach ($duplicateCandidates as $invoice) {
                 $invoice_no = " / Invoice No. " . ($og_invoice_no ?? '');
@@ -143,9 +168,22 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                     'status' => 'duplicate',
                     'duplicate_message' => "Duplicate of invoice ID {$original->id}{$invoice_no}",
                     'validation_status' => 'duplicate',
-                    'sync_status' => 0,
-                    'is_locked' => 1,
+                    //'sync_status' => 0,
+                    //'is_locked' => 1,
                 ]);
+
+                Cache::increment('inbox_completed', 1);                
+                
+                OcrSyncStatus::updateOrCreate(
+                    [
+                        'ocr_pdf_id' => $invoice->id,
+                        'environment' => $environment,
+                    ],
+                    [                    
+                        'sync_status' => 0,
+                        'is_locked' => 1,
+                    ]
+                );
             }
         }
 
@@ -171,17 +209,49 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 
             foreach ($invoices as $invoice) {
 
+                //Cache::increment('inbox_completed', 1);
+
+                // if (!$this->manual) 
+                // {
+                    if($invoice->manual_input_by)
+                        $this->manual =  true;                    
+                    else
+                        $this->manual =  false;
+                // }                
+
+                if($this->manual)
+                {
+                    $invoice->update([
+                        'manual_input_status' => 'validating',
+                    ]);
+                }
+
+                if($invoice->search_save_by)
+                    $this->searchSave =  true;                    
+                else
+                    $this->searchSave =  false;
+                if($this->searchSave)
+                {
+                    $invoice->update([
+                        'search_save_status' => 'validating',
+                    ]);
+                }
+                
                 if ($invoice->invoice_type === 'com') {
                     dispatch((new ValidateOcrCommercialInvoiceJob(
                         $clients,
-                        $invoice->id
+                        $invoice->id,
+                        $this->manual,
+                        $this->searchSave
                     ))->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices')));
                 }
 
                 if ($invoice->invoice_type === 'sales' || $invoice->invoice_type === 'multi-invoices') {                    
                     dispatch((new ValidateOcrSalesInvoiceJob(
                         $clients,
-                        $invoice->id                        
+                        $invoice->id,
+                        $this->manual,
+                        $this->searchSave                        
                     ))->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices')));
                 }
             }

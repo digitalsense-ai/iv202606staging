@@ -139,22 +139,69 @@ class DateHelper
       |--------------------------------------------------------------------------
       */
 
+      // $formats = [
+      //     'j.m.y',
+      //     'j.m.Y',
+      //     'd.m.y',
+      //     'd.m.Y',
+      //     'd-m-y',
+      //     'd-m-Y',
+      //     'd/m/y',
+      //     'd/m/Y',
+      //     'd/M/Y',
+      //     'd F Y',
+      //     'j F Y',
+      //     'd M Y',
+      //     'j M Y',
+      //     'm/d/Y',
+      //     'n/j/Y',
+      //     'dmY',
+      //     'dmy',
+      // ];
+
       $formats = [
-          'j.m.y',
-          'j.m.Y',
-          'd.m.y',
-          'd.m.Y',
-          'd-m-y',
+          // Dash
+          'j-n-Y',
+          'j-n-y',
+          'j-m-Y',
+          'j-m-y',
+          'd-n-Y',
+          'd-n-y',
           'd-m-Y',
-          'd/m/y',
+          'd-m-y',
+
+          // Dot
+          'j.n.Y',
+          'j.n.y',
+          'j.m.Y',
+          'j.m.y',
+          'd.n.Y',
+          'd.n.y',
+          'd.m.Y',
+          'd.m.y',
+
+          // Slash
+          'j/n/Y',
+          'j/n/y',
+          'j/m/Y',
+          'j/m/y',
+          'd/n/Y',
+          'd/n.y',
           'd/m/Y',
+          'd/m/y',
+
+          // Month abbreviations / names
           'd/M/Y',
-          'd F Y',
-          'j F Y',
           'd M Y',
           'j M Y',
+          'd F Y',
+          'j F Y',
+
+          // US
           'm/d/Y',
           'n/j/Y',
+
+          // Compact
           'dmY',
           'dmy',
       ];

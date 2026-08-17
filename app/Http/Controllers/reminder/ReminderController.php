@@ -295,6 +295,9 @@ class ReminderController extends Controller
             {           
               /* -- GET REMINDER USERS FOR ALL COMPANY -- */            
               $reminder_users = UserClient::with(['client', 'client.vatregmain', 'user', 'user.dvuser','user.notificationsettings'])
+                                  ->whereHas('user.dvuser', function ($query) {
+                                    $query->where('is_deleted', 0);                      
+                                  })
                                   ->whereHas('user.notificationsettings', function ($query) use($file_type) {
                                     $query->where('file_type', $file_type);                      
                                   })
@@ -312,7 +315,10 @@ class ReminderController extends Controller
             {
               /* -- GET REMINDER USERS FOR PARTICULAR COMPANY -- */
               $client_id = $request->client_id;//dd($client_id);
-              $reminder_users = UserClient::with(['client', 'client.vatregmain', 'user', 'user.dvuser','user.notificationsettings']) 
+              $reminder_users = UserClient::with(['client', 'client.vatregmain', 'user', 'user.dvuser','user.notificationsettings'])
+                                  ->whereHas('user.dvuser', function ($query) {
+                                    $query->where('is_deleted', 0);                      
+                                  }) 
                                   ->whereHas('user.notificationsettings', function ($query) use($file_type) {
                                     $query->where('file_type', $file_type);                      
                                   })                                           

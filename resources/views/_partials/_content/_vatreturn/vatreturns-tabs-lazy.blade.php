@@ -46,11 +46,11 @@
 		          <button type="button" id="btn-govuk-{{ $vat_reg_id }}" class="btn-govuk nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#navs-vatreturns-govuk-{{ $vat_reg_id }}" aria-controls="navs-vatreturns-govuk-{{ $vat_reg_id }}" aria-selected="false">Gov. UK</button>
 		        </li>
 		        @endif
-
+{{--
 		        <li class="nav-item">
 		          <button type="button" id="btn-vatreturn-control-{{ $vat_reg_id }}" class="btn-vatreturn-control nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#navs-vatreturns-control-{{ $vat_reg_id }}" aria-controls="navs-vatreturns-control-{{ $vat_reg_id }}" aria-selected="false">Control</button>
 		        </li>
-
+--}}
 		        {{-- //DON'T DELETE
 		        @if($vatreg->country == 'NO')
 		        	@php					
@@ -465,7 +465,7 @@
 	        </div>
 	        @endif
 	        <!--/ Gov. UK -->
-
+{{--
 	        <!-- Control -->	        
 	        <div class="tab-pane fade navs-vatreturns-control" id="navs-vatreturns-control-{{ $vat_reg_id }}" role="tabpanel" data-client_id="{{ $client_id }}" data-vat_reg_id="{{ $vat_reg_id }}">
 	        	<!-- Uploaded AnyExcel Files --> 
@@ -497,7 +497,7 @@
 				<!-- Uploaded AnyExcel Files --> 
 	        </div>	        
 	        <!--/ Control -->
-
+--}}
 	        {{-- //DON'T DELETE
 	        @if($vatreg->country == 'NO')
 	        <!-- Commercial Invoices -->        

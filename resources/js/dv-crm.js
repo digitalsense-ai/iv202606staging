@@ -1507,6 +1507,9 @@ $(function () {
                   buttons = '<button class="btn btn-sm btn-icon btn-edit-quote" data-id="'+full['id']+'" title="Edit"><i class="bx bx-edit"></i></button>';
                             //'<button class="btn btn-sm btn-icon btn-delete-quote" data-id="'+full['id']+'" title="Delete"><i class="bx bx-trash"></i></button>';           
 
+                buttons += '<a class="btn btn-sm btn-icon" href="'+crmQuoteUrl+'/'+full['id']+'/contract/docx" title="Download DOCX"><i class="bx bx-file"></i></a>' +
+                           '<a class="btn btn-sm btn-icon" href="'+crmQuoteUrl+'/'+full['id']+'/contract/pdf" title="Download PDF"><i class="bx bxs-file-pdf"></i></a>';
+                           
                 var li_approve = '<li><a href="javascript:;" class="dropdown-item btn-quote-approve" data-id="'+full['id']+'">Approve</a></li>';
                 var li_negotiate = '<li><a href="javascript:;" class="dropdown-item btn-quote-negotiate" data-id="'+full['id']+'" title="Negotiate Quote">Negotiate</a></li>';
                 var li_reject = '<li><a href="javascript:;" class="dropdown-item btn-quote-reject text-danger" data-id="'+full['id']+'">Reject</a></li>';

@@ -62,6 +62,24 @@ $configData = Helper::appClasses();
           }
         @endphp
 
+        @php 
+          if(isset($menu->name) && $menu->name === "Analyze PDF")
+          {
+            $user = Auth::user();
+            $roles = $user?->roles()->pluck('name')->toArray() ?? [];
+            if (
+              in_array('super-admin', $roles, true) ||
+              (
+                  in_array('team-user', $roles, true) &&
+                  in_array($user?->email, config('app.temp_email_list', []), true)
+              )
+            )
+              $displayClass = 'show';
+            else
+              $displayClass = '';                    
+          }
+        @endphp  
+
         @if($displayClass == 'show')
           {{-- main menu --}}
           <li class="menu-item {{$activeClass}} {{$notificationClass}}">

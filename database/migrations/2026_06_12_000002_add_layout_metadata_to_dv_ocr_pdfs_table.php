@@ -20,9 +20,9 @@ return new class extends Migration
     {
         Schema::connection(config('database.ocr_connection'))
             ->table('dv_ocr_pdfs', function (Blueprint $table) {
-                if (Schema::hasColumn('dv_ocr_pdfs', 'layout_metadata')) {
-                    $table->dropColumn('layout_metadata');
-                }
+                // if (Schema::hasColumn('dv_ocr_pdfs', 'layout_metadata')) {
+                //     $table->dropColumn('layout_metadata');
+                // }
             });
     }
 };

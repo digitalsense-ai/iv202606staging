@@ -26,11 +26,14 @@ use App\Models\ImportReconciliationSalesInvoicesData;
 use App\Models\Invoices;
 use App\Models\VATReturns;
 use App\Models\OcrPdf;
+use App\Models\OcrSyncStatus;
 
 use \App\Classes\CommonClass;
 
 //use App\Events\ImportReconciliationComSalesInvoicesEvent;
 use App\Events\OcrInvoicesSyncEvent;
+
+use App\Helpers\EnvironmentHelper;
 
 class InsertComSalesInvoicesFromOcr implements ShouldQueue
 {
@@ -66,7 +69,8 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
     public function handle()
     {      
         try {
-          
+        $environment = EnvironmentHelper::getEnvironment();
+
         $comIds = collect($this->invoice_data)->pluck('com_id')->unique();
         
         $salesIds = collect($this->invoice_data)
@@ -177,6 +181,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                 (
                     str_contains($client, 'rainwear') 
                     || str_contains($client, 'engel')
+                    || str_contains($client, 'berendsohn')
                 )
             ) 
             {
@@ -197,7 +202,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
         $document_status = 'Validated';
             foreach ($invoiceData as $item) {                    
 
-                    DB::transaction(function () use ($item, $salesInvoiceMap, $comInvoices, $salesInvoices, $parsedComCache, $parsedSalesCache, $clientNameCache, $clientId, $document_status, 
+                    DB::transaction(function () use ($environment, $item, $salesInvoiceMap, $comInvoices, $salesInvoices, $parsedComCache, $parsedSalesCache, $clientNameCache, $clientId, $document_status, 
                         &$unique_vat_reg_ids,
                         &$unique_logs,
                         &$salesHash)  {
@@ -303,12 +308,13 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                 $unique_vat_reg_ids[] = $matched_vatregid;
                             if(!in_array($vatRegHeading, $unique_logs, true))
                                 $unique_logs[] = $vatRegHeading;
-
+//Log::info(['com_ocr_pdf_id' => $com_invoice->id]);
                             // Check and Insert into COM
                             $insert_cominvoice = ImportReconciliationComInvoices::updateOrCreate(
                                 [
                                     'vat_reg_id' => $matched_vatregid,
-                                    'invoice_no' => $commercial_invoice_no
+                                    //'invoice_no' => $commercial_invoice_no
+                                    'ocr_pdf_id' => $com_invoice->id//id from OCR table
                                 ],
                                 [
                                     'vat_reg_id' => $matched_vatregid,
@@ -328,8 +334,22 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                 ]
                             );
 
-                            OcrPdf::query()->where('id', $com_invoice->id)
-                                ->update(['sync_status' => 1, 'is_locked' => 0]);
+                            // OcrPdf::query()->where('id', $com_invoice->id)
+                            //     ->update(['sync_status' => 1, 'is_locked' => 0]);
+                            
+                            OcrSyncStatus::updateOrCreate(
+                                [
+                                    'ocr_pdf_id' => $com_invoice->id,
+                                    'environment' => $environment,
+                                ],
+                                [                    
+                                    'sync_status' => true,
+                                    'is_locked' => false,
+                                    'locked_at' => null,
+                                    'synced_at' => now(),
+                                    'updated_at' => now()
+                                ]
+                            );
 
                             //if(count($sales_invoices) > 0)
                             if ($sales_invoices->isNotEmpty())
@@ -385,12 +405,13 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                       $sales_invoice_exchange_net_amount = $processed_sales_extracted_data['exchange_net_amount'];
                                       $sales_invoice_exchange_vat_amount = $processed_sales_extracted_data['exchange_vat_amount'];
                                       $sales_invoice_exchange_total_amount = $processed_sales_extracted_data['exchange_total_amount'];
-
+//Log::info(['sales_ocr_pdf_id' => $sales_invoice->id]);
                                       // Insert or update sales invoice
-                                      ImportReconciliationSalesInvoices::updateOrCreate(
+                                      $insert_salesinvoice = ImportReconciliationSalesInvoices::updateOrCreate(
                                           [
                                               'vat_reg_id' => $matched_vatregid,
-                                              'invoice_no' => $sales_invoice_no,
+                                              //'invoice_no' => $sales_invoice_no,
+                                              'ocr_pdf_id' => $sales_invoice->id,//id from OCR table
                                               'com_invoice_id' => $insert_cominvoice->id,
                                           ],
                                           [
@@ -428,8 +449,24 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                                     {
                                     }
                                     else
-                                      OcrPdf::query()->where('id', $sales_invoice->id)
-                                          ->update(['sync_status' => 1, 'is_locked' => 0]);
+                                    {
+                                      // OcrPdf::query()->where('id', $sales_invoice->id)
+                                      //     ->update(['sync_status' => 1, 'is_locked' => 0]);
+                                        
+                                        OcrSyncStatus::updateOrCreate(
+                                            [
+                                                'ocr_pdf_id' => $sales_invoice->id,
+                                                'environment' => $environment,
+                                            ],
+                                            [                    
+                                                'sync_status' => true,
+                                                'is_locked' => false,
+                                                'locked_at' => null,
+                                                'synced_at' => now(),
+                                                'updated_at' => now()
+                                            ]
+                                        );
+                                    }
                                   }
                               } // end sales loop
                             } // end sales
@@ -438,8 +475,22 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                             //   Log::info('NO Sales Invoices from OCR');
                             // }
                         } else {
-                            OcrPdf::query()->where('id', $com_invoice->id)
-                                ->update(['sync_status' => 0, 'is_locked' => 0]);
+                            // OcrPdf::query()->where('id', $com_invoice->id)
+                            //     ->update(['sync_status' => 0, 'is_locked' => 0]);                           
+
+                            OcrSyncStatus::updateOrCreate(
+                                [
+                                    'ocr_pdf_id' => $com_invoice->id,
+                                    'environment' => $environment,
+                                ],
+                                [                    
+                                    'sync_status' => false,
+                                    'is_locked' => false,
+                                    'locked_at' => null,
+                                    'synced_at' => now(),
+                                    'updated_at' => now()
+                                ]
+                            );
                         }
                     }
                 
@@ -588,9 +639,63 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
         $currency = $currency ? strtoupper(substr(preg_replace('/[^\w]/', '', trim($currency)), 0, 3)) : null;
         $currency = ($currency === 'KR') ? 'DKK' : $currency;
 
-        $og_exchange_rate = Arr::get($parsed_extracted_data, 'exchange_rate', null);        
+        // Client/org number from supplier or recipient
+        //$client_name = null;
+        $org_no = null;
 
-        $exchange_currency = Arr::get($parsed_extracted_data, 'exchange_currency', null);
+        $party = $parsed_extracted_data['supplier'] ?? $parsed_extracted_data['recipient'] ?? null;
+        if ($party) 
+        {
+          $vat_numeric = preg_replace('/\D/', '', $party['org_number'] ?? '');
+          if ($vat_numeric && strlen($vat_numeric) == 17) {
+              $org_no = substr($vat_numeric, 0, 9);
+          } elseif ($vat_numeric && (strlen($vat_numeric) >= 8)) {
+              $org_no = $vat_numeric;
+          }
+
+          //$filtered = $vatregmains->filter(fn($v) => !empty($v->org_no) && preg_replace('/\D/', '', $v->org_no) === $org_no);
+          //$client_name = $filtered->isNotEmpty() ? $filtered->first()->client->client_name : ($party['name'] ?? null);
+        }
+        
+        $client_name = empty($party['name']) ? $client_name : $party['name'];
+        if ( $type == 'sales' &&          
+            !empty($client_name) &&
+            (
+                str_contains(strtolower($client_name), 'rainwear') 
+                || str_contains(strtolower($client_name), 'engel') 
+                || str_contains(strtolower($client_name), 'berendsohn')
+                || str_contains(strtolower($client_name), 'horn bord')                
+            )    
+          ) 
+        {
+            if(str_contains(strtolower($client_name), 'horn bord'))
+            {
+                $invoice_no = ($parsed_extracted_data['order_number'])
+                            ? ltrim((string) $parsed_extracted_data['order_number'], '#')
+                            : $invoice_no;
+            }            
+            else
+            {
+                $invoice_no = ($parsed_extracted_data['no_invoice_number'])
+                            ? ltrim((string) $parsed_extracted_data['no_invoice_number'], '#')
+                            : $invoice_no;
+            }
+        }
+
+        if (!empty($client_name) &&
+            (
+                str_contains(strtolower($client_name), 'dfi-geisler')
+            )    
+          ) 
+        {
+            $invoice_no = ($invoice_no)
+                            ? $invoice_no
+                            : (($invoice_date) ? $invoice_date.replace('/-/', '') : null);
+        }
+
+        if(str_contains(strtolower($client_name), 'stof'))
+            $invoice_no = preg_replace('/-/', '', $invoice_no);
+
         //$exchange_currency = $exchange_currency ? strtoupper(substr(preg_replace('/[^\w]/', '', trim($exchange_currency)), 0, 3)) : null;
         // $exchange_currency = $exchange_currency
         //                         ? strtoupper(
@@ -607,6 +712,8 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
         //                             )
         //                         )
         //                         : null;
+
+        /*
         if ($exchange_currency) 
         {
             $parts = explode('/', $exchange_currency);
@@ -638,8 +745,9 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                 $exchange_currency = $detectedExchangeCurrency;
             }         
         }
+        */
 
-        $exchange_currency = ($exchange_currency === 'KR') ? 'DKK' : $exchange_currency;
+        //$exchange_currency = ($exchange_currency === 'KR') ? 'DKK' : $exchange_currency;
 
         // Net, VAT, total amounts
         $og_net_amount = preg_replace(                    
@@ -651,8 +759,17 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
 // Log::error('OG NET Amount for Invoices from OCR: ' . $og_net_amount);
 // Log::error('PARSED NET Amount for Invoices from OCR: ' . $net_amount);        
 
+        
+        $exchange_currency = Arr::get($parsed_extracted_data, 'exchange_currency', null);
+        $og_exchange_net_amount = preg_replace(                    
+                    '/[^\d.,]/',
+                    '',
+                    Arr::get($parsed_extracted_data, 'exchange_net_amount', '')
+        );
+        $exchange_net_amount = $this->parseAmountValue((string)$og_exchange_net_amount, $exchange_currency);
+
         if($type == 'sales')
-        {          
+        {                  
             $credit_note = false;
             if(isset($parsed_extracted_data['credit_note']))
                 $credit_note = ($parsed_extracted_data['credit_note']) ? true : false;        
@@ -672,11 +789,24 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                     '',
                     Arr::get($parsed_extracted_data, 'additional_charges', '')
             );
+            if(str_contains(strtolower($client_name), 'dfi-geisler'))
+            {
+                $og_freight_amount = '';
+            }
+
             $og_discount_amount = preg_replace(                    
                     '/[^\d.,]/',
                     '',
                     Arr::get($parsed_extracted_data, 'discount_amount', '')
             );
+            if(str_contains(strtolower($client_name), 'rieker')
+                || str_contains(strtolower($client_name), 'woden')
+                || str_contains(strtolower($client_name), 'pier one')
+            )
+            {
+                $og_discount_amount = '';
+            }
+
             $og_total_amount = preg_replace(                    
                     '/[^\d.,]/',
                     '',
@@ -694,6 +824,7 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
             // if ($discount_amount > 0 && $discount_amount <= $net_amount)
             //     $net_amount -= $discount_amount; 
 
+            /*
             if($exchange_currency)
             {
                 $exchange_rate = $this->parseAmountValue((string)$og_exchange_rate, $exchange_currency, true);
@@ -735,62 +866,58 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
             else
             {
                 $exchange_rate = $this->parseAmountValue((string)$og_exchange_rate, $currency, true);
-            }         
-        }
-
-        // Client/org number from supplier or recipient
-        //$client_name = null;
-        $org_no = null;
-
-        $party = $parsed_extracted_data['supplier'] ?? $parsed_extracted_data['recipient'] ?? null;
-        if ($party) 
-        {
-          $vat_numeric = preg_replace('/\D/', '', $party['org_number'] ?? '');
-          if ($vat_numeric && strlen($vat_numeric) == 17) {
-              $org_no = substr($vat_numeric, 0, 9);
-          } elseif ($vat_numeric && (strlen($vat_numeric) >= 8)) {
-              $org_no = $vat_numeric;
-          }
-
-          //$filtered = $vatregmains->filter(fn($v) => !empty($v->org_no) && preg_replace('/\D/', '', $v->org_no) === $org_no);
-          //$client_name = $filtered->isNotEmpty() ? $filtered->first()->client->client_name : ($party['name'] ?? null);
-        }
-        
-        $client_name = empty($party['name']) ? $client_name : $party['name'];
-        if ( $type == 'sales' &&          
-            !empty($client_name) &&
-            (
-                str_contains(strtolower($client_name), 'rainwear') 
-                || str_contains(strtolower($client_name), 'engel') 
-                || str_contains(strtolower($client_name), 'berendsohn')
-                || str_contains(strtolower($client_name), 'horn bord')
-            )    
-          ) 
-        {
-            if(str_contains(strtolower($client_name), 'horn bord'))
-            {
-                $invoice_no = ($parsed_extracted_data['order_number'])
-                            ? ltrim((string) $parsed_extracted_data['order_number'], '#')
-                            : $invoice_no;
             }
-            else
-            {
-                $invoice_no = ($parsed_extracted_data['no_invoice_number'])
-                            ? ltrim((string) $parsed_extracted_data['no_invoice_number'], '#')
-                            : $invoice_no;
-            }
-        }
+            */   
 
-        if(str_contains(strtolower($client_name), 'stof'))
-            $invoice_no = preg_replace('/-/', '', $invoice_no);        
+            $og_exchange_rate = Arr::get($parsed_extracted_data, 'exchange_rate', null);
+            $og_exchange_vat_amount = preg_replace(                    
+                '/[^\d.,]/',
+                '',
+                Arr::get($parsed_extracted_data, 'exchange_vat_amount', '')
+            );
+            $exchange_vat_amount = $this->parseAmountValue((string)$og_exchange_vat_amount, $exchange_currency); 
+
+            $og_exchange_total_amount = preg_replace(                    
+                '/[^\d.,]/',
+                '',
+                Arr::get($parsed_extracted_data, 'exchange_total_amount', '')
+            );
+            $exchange_total_amount = $this->parseAmountValue((string)$og_exchange_total_amount, $exchange_currency);      
+        }        
 
         // Related sales invoices
         $related_sales_invoices = [];
 
         if($type != 'sales')
         {
-          $raw_related = $parsed_extracted_data['related_sales_invoices'] ?? null;
+            //$raw_related = $parsed_extracted_data['related_sales_invoices'] ?? null;
+          
+            $sales_invoices_raw = $parsed_extracted_data['related_sales_invoices'] ?? null;
 
+            if (!empty($sales_invoices_raw)) {
+                $related_sales_invoices = $this->expandSalesInvoiceRefs(
+                    $sales_invoices_raw,
+                    $client_name
+                );
+            } else {
+                $sales_orders_raw = $parsed_extracted_data['related_sales_orders'] ?? null;
+
+                if (!empty($sales_orders_raw)) {
+                    $related_sales_invoices = $this->expandSalesInvoiceRefs(
+                        $sales_orders_raw,
+                        $client_name
+                    );
+                } else {
+                    $shipment_numbers_raw = $parsed_extracted_data['related_shipment_nos'] ?? null;
+
+                    $related_sales_invoices = $this->expandSalesInvoiceRefs(
+                        $shipment_numbers_raw ?? [],
+                        $client_name
+                    );
+                }
+            }
+
+          /*
           if ($raw_related) 
           {
             $raw_related = is_array($raw_related) ? $raw_related : [$raw_related];
@@ -836,16 +963,18 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
 
             $related_sales_invoices = collect($invoiceValues)->unique()->sort()->values()->all();
           }
+          */
                     
           if (
             !empty($salesInvoiceMap) &&
             !empty($client_name) &&
             (
-                str_contains(strtolower($client_name), 'rainwear') || 
-                str_contains(strtolower($client_name), 'engel')
+                str_contains(strtolower($client_name), 'rainwear')
+                //|| str_contains(strtolower($client_name), 'engel')
             )
           ) 
           {  
+            /*
             $matched_sales_invoice = null;
             if ($type !== 'sales' && !empty($related_sales_invoices)) 
             {
@@ -858,6 +987,28 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
                     break;
                 }
               }
+            }
+            */
+
+            if (!empty($related_sales_invoices)) {
+                $clientKey = strtolower(trim($client_name));
+
+                $matchedInvoice = null;
+
+                foreach ($related_sales_invoices as $inv) {
+                    $cleanInv = trim($inv);
+                   
+                    $key = $cleanInv;
+
+                    if (!empty($salesInvoiceMap[$key]) && $matchedInvoice === null) {                        
+                        $matchedInvoice = $salesInvoiceMap[$key];
+                    }
+                }
+
+                if ($matchedInvoice !== null) {
+                    // Use matched sales invoice number
+                    $invoice_no = $matchedInvoice;
+                }
             }
           }//RAINWEAR
         }//sales related invoices        
@@ -873,11 +1024,11 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
             'freight_amount' => $freight_amount,            
             'total_amount' => $total_amount,
             'discount_amount' => $discount_amount,
-            'exchange_rate' => isset($exchange_rate) ? $exchange_rate : null,
-            'exchange_currency' => isset($exchange_currency) ? $exchange_currency : null,
-            'exchange_net_amount' => isset($exchange_net_amount) ? $exchange_net_amount : null,
-            'exchange_vat_amount' => isset($exchange_vat_amount) ? $exchange_vat_amount : null,
-            'exchange_total_amount' => isset($exchange_total_amount) ? $exchange_total_amount : null,
+            'exchange_rate' => $exchange_rate ?? null,
+            'exchange_currency' => $exchange_currency ?? null,
+            'exchange_net_amount' => ($exchange_currency === null) ? null : ($exchange_net_amount ?? null),
+            'exchange_vat_amount' => ($exchange_currency === null) ? null : ($exchange_vat_amount ?? null),
+            'exchange_total_amount' => ($exchange_currency === null) ? null : ($exchange_total_amount ?? null),
             'credit_note' => $credit_note,            
             'org_no' => $org_no
           ];
@@ -892,5 +1043,131 @@ class InsertComSalesInvoicesFromOcr implements ShouldQueue
           ];
 
         return $result;
+    }
+
+    private function expandSalesInvoiceRefs($values, ?string $clientName = null): array
+    {
+        if (empty($values)) {
+            return [];
+        }
+
+        if (!is_array($values)) {
+            $values = [$values];
+        }
+
+        $invoiceValues = [];
+
+        foreach ($values as $val) {
+            if (empty($val)) {
+                continue;
+            }
+
+            $val = (string) $val;
+
+            // Remove spaces around ranges: ABC123 - ABC126 -> ABC123-ABC126
+            $val = preg_replace_callback(
+                '/([A-Za-z]*\d+\s*-\s*[A-Za-z]*\d+)/',
+                fn($m) => preg_replace('/\s+/', '', $m[0]),
+                $val
+            );
+
+            // Beck special handling
+            if (
+                $clientName &&
+                stripos($clientName, 'beck') !== false &&
+                stripos($val, 'bosl') !== false
+            ) {
+                $val = preg_replace('/([A-Za-z]+)\s+(\d+)/', '$1$2', $val);
+            }
+
+            // Split on commas or whitespace
+            $parts = preg_split('/[,\s]+/', $val);
+
+            foreach ($parts as $part) {
+                $part = trim(preg_replace('/[.,;]+$/', '', $part));
+
+                if ($part === '') {
+                    continue;
+                }
+
+                if (
+                    preg_match(
+                        '/^([A-Za-z]*)(\d+)\s*(?:-|\.\.|\.\.\.)\s*([A-Za-z]*)(\d+)$/',
+                        $part,
+                        $matches
+                    )
+                ) {
+                    $prefixStart = $matches[1];
+                    $startNum    = (int) $matches[2];
+                    $prefixEnd   = $matches[3];
+                    $endNum      = (int) $matches[4];
+
+                    // Handle shorthand ranges: 8992-99
+                    if (strlen((string) $endNum) < strlen((string) $startNum)) {
+                        $startStr = (string) $startNum;
+                        $endStr   = (string) $endNum;
+
+                        $endStr = substr(
+                            $startStr,
+                            0,
+                            strlen($startStr) - strlen($endStr)
+                        ) . $endStr;
+
+                        $endNum = (int) $endStr;
+                    }
+
+                    // Handle reversed ranges
+                    if ($startNum > $endNum) {
+                        [$startNum, $endNum] = [$endNum, $startNum];
+                    }
+
+                    if ($prefixStart === $prefixEnd) {
+                        for ($i = $startNum; $i <= $endNum; $i++) {
+                            $invoiceValues[] =
+                                $prefixStart .
+                                str_pad(
+                                    (string) $i,
+                                    strlen($matches[2]),
+                                    '0',
+                                    STR_PAD_LEFT
+                                );
+                        }
+                    }
+                } else {
+                    // Match values like OSDJ 16492, INV123, ABC001
+                    if (
+                        preg_match_all(
+                            '/[A-Za-z]+(?:\s+\d+|\d+)/',
+                            $part,
+                            $matchList
+                        )
+                    ) {
+                        foreach ($matchList[0] as $m) {
+                            $invoiceValues[] = trim($m);
+                        }
+                    } else {
+                        $invoiceValues[] = $part;
+                    }
+                }
+            }
+        }
+
+        $invoiceValues = array_values(array_unique($invoiceValues));
+
+        usort($invoiceValues, function ($a, $b) {
+            preg_match('/\d+/', $a, $m1);
+            preg_match('/\d+/', $b, $m2);
+
+            $numA = isset($m1[0]) ? (int) $m1[0] : null;
+            $numB = isset($m2[0]) ? (int) $m2[0] : null;
+
+            if ($numA !== null && $numB !== null) {
+                return $numA <=> $numB;
+            }
+
+            return strcmp($a, $b);
+        });
+
+        return $invoiceValues;
     }
 }

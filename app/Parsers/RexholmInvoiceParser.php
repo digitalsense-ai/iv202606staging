@@ -4,6 +4,8 @@ namespace App\Parsers;
 use Illuminate\Support\Facades\Log;
 class RexholmInvoiceParser implements ClientInvoiceParserInterface
 {
+    use ParsesInvoiceValues;
+
     public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
         $name = strtolower(trim($clientName ?? ''));
@@ -35,25 +37,82 @@ class RexholmInvoiceParser implements ClientInvoiceParserInterface
         // }
         // else
         // {    
-            $value = $doc['Related Sales Invoices']['valueString'] ?? '';
+            //$value = $doc['Related Sales Invoices']['valueString'] ?? '';
 
-            preg_match_all('/(\d+)\s*\(([^)]+)\)/', $value, $matches, PREG_SET_ORDER);
+            // preg_match_all('/(\d+)\s*\(([^)]+)\)/', $value, $matches, PREG_SET_ORDER);
+
+            // $salesInvoices = [];
+            // $salesOrders   = [];
+
+            // foreach ($matches as $match) {
+            //     $salesInvoices[] = trim($match[1]); // 9010580
+            //     $salesOrders[]   = trim($match[2]); // S4788082
+            // }
+
+            // // Shipment numbers
+            // $shipmentValue = $doc['Related Shipment Numbers']['valueString'] ?? '';
+
+            // preg_match_all('/\(([^)]+)\)/', $shipmentValue, $shipmentMatches);
+
+            // $shipmentNos = array_map('trim', $shipmentMatches[1]);
+//$invoiceNumber = $doc['Invoice Number']['valueString'] ?? null;
+
+            //$value = $doc['Related Sales Invoices']['valueString'] ?? '';
+            $value = $this->getValueString($doc['Related Sales Invoices']['valueString'] ?? '');
+
+            if (is_array($value)) {
+                $value = implode(', ', $value);
+            }
+
+            $value = trim($value);
 
             $salesInvoices = [];
             $salesOrders   = [];
+            if (str_contains($value, '(')) {
+                // Format: 9010580 (S4788082), 9010581 (S4788083)
+                preg_match_all('/(\d+)\s*\(([^)]+)\)/', $value, $matches, PREG_SET_ORDER);
 
-            foreach ($matches as $match) {
-                $salesInvoices[] = trim($match[1]); // 9010580
-                $salesOrders[]   = trim($match[2]); // S4788082
+                foreach ($matches as $match) {
+                    $salesInvoices[] = trim($match[1]);
+                    $salesOrders[]   = trim($match[2]);
+                }
+            } else {
+                // Format: 9010580, 9010581, 9010582
+                $salesInvoices = array_filter(array_map('trim', explode(',', $value)));
+                $salesOrders = [];
             }
 
-            // Shipment numbers
+            //$shipmentValue = $doc['Related Shipment Numbers']['valueString'] ?? '';
             $shipmentValue = $doc['Related Shipment Numbers']['valueString'] ?? '';
 
-            preg_match_all('/\(([^)]+)\)/', $shipmentValue, $shipmentMatches);
+            if (is_array($shipmentValue)) {
+                $shipmentValue = implode(', ', $shipmentValue);
+            }
 
-            $shipmentNos = array_map('trim', $shipmentMatches[1]);
+            $shipmentValue = trim($shipmentValue);
 
+            if (str_contains($shipmentValue, '(')) {
+                // Extract values inside parentheses
+                preg_match_all('/\(([^)]+)\)/', $shipmentValue, $shipmentMatches);
+                $shipmentNos = array_map('trim', $shipmentMatches[1]);
+            } else {
+                // Already comma-separated
+                $shipmentNos = array_filter(array_map('trim', explode(',', $shipmentValue)));
+            }
+// if($invoiceNumber == "PROF03031")
+// {
+//    Log::info([
+//         "clientName" => $clientName,
+//         "clientNo" => $clientNo,
+//         "invoiceNumber" => $invoiceNumber,
+//         "result" => $result,
+//         "doc" => $doc,
+//         "value" => $value,
+//         "salesInvoices" => implode(', ', $salesInvoices),
+//         "salesOrders" => implode(', ', $salesOrders),
+//         "shipmentNos" => implode(', ', $shipmentNos)
+//     ]);
+// }
             return [
                 'related_sales_invoices' => implode(', ', $salesInvoices),
                 'related_sales_orders'   => implode(', ', $salesOrders),

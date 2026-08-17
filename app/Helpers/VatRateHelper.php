@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Helpers;
-
+//use Illuminate\Support\Facades\Log;
 class VatRateHelper
 {
     /**
@@ -114,17 +114,33 @@ class VatRateHelper
         float $netAmount,
         float $vatAmount
     ): ?string {
-
         $calculatedRate = self::calculate(
             $netAmount,
             $vatAmount
         );
+ 
+        $calculatedRateValue = abs((float) str_replace(',', '.', $calculatedRate));
 
         /**
          * No extracted VAT rate
          */
         if (!$extractedVatRate) {
-            return $calculatedRate;
+            /**
+             * Keep extracted if the calculated ranges between 21 to 24
+             */
+            if (($calculatedRateValue >= 21) && 
+                ($calculatedRateValue <= 24)
+            ) {
+                return 25;
+            }
+            
+            // return $calculatedRate;
+
+            if ($calculatedRateValue > 25)
+                return null;
+
+            if ($calculatedRateValue > 0 && $calculatedRateValue < 15)
+                return null;
         }
 
         $normalized = self::normalize($extractedVatRate);
@@ -133,11 +149,16 @@ class VatRateHelper
             return $calculatedRate;
         }
 
+        if($calculatedRateValue == 0 && $normalized !== 0)
+        {
+            return $normalized;
+        }
+
         /**
          * If extracted matches calculated
          */
         if ((float) str_replace(',', '.', $normalized)
-            == (float) str_replace(',', '.', $calculatedRate)) {
+            == $calculatedRateValue) {
 
             return $normalized;
         }
@@ -145,10 +166,25 @@ class VatRateHelper
         /**
          * Keep extracted if unusually high
          */
-        if ((float) str_replace(',', '.', $calculatedRate) > 25) {
+        if ($calculatedRateValue >= 25) {
+            if($normalized === 2)
+                return $calculatedRate;
+            else
+                return $normalized;
+        }
+
+        /**
+         * Keep extracted if the calculated ranges between 21 to 24
+         */
+        if (($calculatedRateValue >= 21) && 
+            ($calculatedRateValue <= 24)
+        ) {
             return $normalized;
         }
 
-        return $calculatedRate;
+        if ($normalized)
+            return $normalized;
+        else
+            return $calculatedRate;
     }
 }

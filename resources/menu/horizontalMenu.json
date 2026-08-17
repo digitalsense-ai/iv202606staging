@@ -48,6 +48,37 @@
       "url": "users"
     },
     {
+      "name": "Analyze PDF",
+      "slug": ["analyze.pdf.index", "analyze.pdf.search", "analyze.pdf.manual-input", "analyze.pdf.synced"],
+      "roles": ["super-admin","team-user"],
+      "submenu": [   
+        {
+          "name": "Capture",
+          "slug": "analyze.pdf.index",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf"          
+        },     
+        {
+          "name": "Search",
+          "slug": "analyze.pdf.search",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf/search"          
+        },
+        {
+          "name": "Manual Input",
+          "slug": "analyze.pdf.manual-input",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf/manual-input"          
+        },
+        {
+          "name": "Synced DB",
+          "slug": "analyze.pdf.synced",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf/synceddb"          
+        }
+      ]
+    },
+    {
       "name": "Reminders",
       "icon": "menu-icon tf-icons bx bx-bell",
       "slug": ["reminders", "reminders.at", "reminders.dk", "reminders.fr", "reminders.no", "reminders.ch", "reminders.gb", "reminder.history"],

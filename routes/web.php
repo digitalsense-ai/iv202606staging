@@ -40,6 +40,8 @@ use App\Http\Controllers\ocr\AnalyzePdfController;
 use App\Http\Controllers\ocr\SplitPdfController;
 //use App\Http\Controllers\ocr\MicrosoftAzureController;
 use App\Http\Controllers\ocr\MailReaderController;
+use App\Http\Controllers\ocr\ManualInputController;
+use App\Http\Controllers\ocr\SyncDbController;
 
 use \App\Classes\DynamicsApiClass;
 use \App\Classes\EconomicApiClass;
@@ -50,6 +52,8 @@ use App\Http\Controllers\crm\QuoteController;
 use App\Http\Controllers\crm\QuoteAddonController;
 use App\Http\Controllers\crm\ReminderController as CRMReminderController;
 use App\Http\Controllers\crm\AddonsController;
+
+use App\Helpers\EnvironmentHelper;
 
 /*
 |--------------------------------------------------------------------------
@@ -235,6 +239,10 @@ Route::middleware([
             Route::get('quotes/{id}/calculate', [QuoteAddonController::class,'calculate'])->name('quotes.calculate');
 
             Route::resource('addons', AddonsController::class);
+
+             Route::get('quotes/{quote}/contract/{format}', [QuoteController::class,'downloadContract'])
+                ->whereIn('format', ['docx', 'pdf'])
+                ->name('quotes.contract.download');
         });
         /* --end CRM -- */
     });
@@ -432,6 +440,7 @@ Route::middleware([
 
             /* -- OCR PDF -- */
             Route::get('analyzepdf', [AnalyzePdfController::class, 'index'])->name('analyze.pdf.index');
+            Route::get('analyzepdf/data', [AnalyzePdfController::class, 'analyzedata'])->name('analyze.pdf.data');
             Route::post('analyzepdf', [AnalyzePdfController::class, 'analyze'])->name('analyze.pdf.post');                
             Route::get('/analyzepdf/batch/{batch}/progress',[AnalyzePdfController::class, 'batchProgress']);
             Route::put('analyzepdf/{analyze_id}', [AnalyzePdfController::class, 'analyzeUpdate'])->name('analyze.pdf.update');
@@ -442,15 +451,22 @@ Route::middleware([
             Route::get('analyzepdf/search', [AnalyzePdfController::class, 'search'])->name('analyze.pdf.search');
             Route::post('analyzepdf/{analyze_id}/delete', [AnalyzePdfController::class, 'deleteAnalyzePdf'])->name('analyze.pdf.delete');
 
-            Route::get('analyzepdf-sync', [AnalyzePdfController::class, 'syncAnalyzePdf'])->name('analyze.pdf.sync');
+            Route::get('analyzepdf-sync', [AnalyzePdfController::class, 'syncAnalyzePdf'])->name('analyze.pdf.sync');            
 
             Route::get('analyzepdf/{analyze_id}/recapture', [AnalyzePdfController::class, 'recapture'])->name('analyze.pdf.recapture');
+
+            Route::get('analyzepdf/{analyze_id}/split', [AnalyzePdfController::class, 'split'])->name('analyze.pdf.split');
 
             // Route::get('/microsoftazure/login', [MicrosoftAzureController::class, 'login'])->name('microsoft.azure.login');
             // Route::get('/oauth/callback', [MicrosoftAzureController::class, 'callback'])->name('microsoft.azure.callback');
             // Route::get('/emails', [MicrosoftAzureController::class, 'listInboxEmails'])->name('microsoft.azure.emails.list');
 
             Route::get('/emails/fetch', [MailReaderController::class, 'fetchInbox'])->name('emails.fetch');
+
+            Route::get('analyzepdf/synceddb', [SyncDbController::class, 'index'])->name('analyze.pdf.synced.db');
+            Route::get('analyzepdf/synceddbdata', [SyncDbController::class, 'syncedDbData'])->name('analyze.pdf.synced.db.data');
+            Route::get('analyzepdf/syncdb', [SyncDbController::class, 'syncDb'])->name('analyze.pdf.sync.db');
+            Route::get('analyzepdf/update-failed-syncdb', [SyncDbController::class, 'updateFailedSyncDb'])->name('analyze.pdf.update.failed.sync.db');
 
             /* -- BULK UPLOAD -- */            
             Route::post('analyzepdf/bulk-upload', [AnalyzePdfController::class, 'ocrBulkUpload'])->name('analyze.pdf.bulk.upload');           
@@ -459,7 +475,6 @@ Route::middleware([
             /* -- RE-LOAD -- */            
             Route::post('analyzepdf/reload', [AnalyzePdfController::class, 'ocrReload'])->name('analyze.pdf.reload');           
             /* --end RE-LOAD -- */
-            /* --end OCR PDF -- */
 
             /* -- SPLIT PDF -- */
             Route::get('splitpdf', [SplitPdfController::class, 'index'])->name('split.pdf.index');
@@ -467,8 +482,34 @@ Route::middleware([
             /* --end SPLIT PDF -- */
 
             /* -- VALIDATE -- */            
-            Route::get('analyzepdf/{analyze_id}/validate', [AnalyzePdfController::class, 'analyzeValidate'])->name('analyze.pdf.validate');           
+            Route::get('analyzepdf/{analyze_id}/validate', [AnalyzePdfController::class, 'analyzeValidate'])->name('analyze.pdf.validate');
             /* --end VALIDATE -- */
+
+            Route::get('analyzepdf/manual-input', [ManualInputController::class, 'index'])
+                ->name('analyze.pdf.manual-input');
+
+            Route::get('analyzepdf/manual-input/queue', [ManualInputController::class, 'queue'])
+                ->name('analyze.pdf.manual-input.queue');
+
+            Route::get('analyzepdf/manual-input/client-lookup', [ManualInputController::class, 'clientLookup'])
+                ->name('analyze.pdf.manual-input.client-lookup');
+
+            Route::get('analyzepdf/manual-input/{id}', [ManualInputController::class, 'show'])
+                ->whereNumber('id')
+                ->name('analyze.pdf.manual-input.show');
+
+            Route::post('analyzepdf/manual-input/{id}/save', [ManualInputController::class, 'save'])
+                ->whereNumber('id')
+                ->name('analyze.pdf.manual-input.save');
+
+            Route::post('analyzepdf/manual-input/{id}/force-submit', [ManualInputController::class, 'forceSubmit'])
+                ->whereNumber('id')
+                ->name('analyze.pdf.manual-input.force-submit');
+
+            Route::delete('analyzepdf/manual-input/{id}', [ManualInputController::class, 'destroy'])
+                ->whereNumber('id')
+                ->name('analyze.pdf.manual-input.delete');
+            /* --end OCR PDF -- */            
         /* --end SETTINGS -- */ 
 
         /* -- REMINDER -- */
@@ -1051,8 +1092,9 @@ Route::middleware([
     Route::post('/set-role', [RoleController::class, 'setRole'])->name('set.role');
     /* --end SELECT ROLE -- */
 
-    /* -- CLEAR CACHE -- */    
-    if(strtolower(env('APP_URL')) !== "https://app.intravat.cloud" || strtolower(config('app.url')) !== "https://app.intravat.cloud")
+    $environment = EnvironmentHelper::getEnvironment();
+    /* -- CLEAR CACHE -- */        
+    if($environment !== 'live')
     {
         Route::get('clear-cache', function() {
             Artisan::call('cache:clear');  

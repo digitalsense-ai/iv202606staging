@@ -9,7 +9,8 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
 {
     use ExtractsCommercialReferences;
 
-    private const KITE_SALES_ORDER_PATTERN = '25\d{9}|10\d{9}|84\d{9}';
+    //private const KITE_SALES_ORDER_PATTERN = '25\d{9}|10\d{9}|84\d{9}';
+    private const KITE_SALES_ORDER_PATTERN = '20\d{9}|25\d{9}|10\d{9}|84\d{9}';
 
     public function supports(?string $clientName, ?string $clientNo, array $doc = [], array $result = [], ?bool $validate = false): bool
     {
@@ -66,6 +67,23 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
         $rows = [];
 
         foreach ($this->kiteOrderTableSections($content) as $section) {
+
+            // Normalize OCR-split shipment numbers           
+            $section = preg_replace_callback(
+                '/(?<!\d)(92(?:\s*\d){9})(?!\d)/',
+                function ($matches) {
+                    $merged = preg_replace('/\s+/', '', $matches[1]);
+
+                    // Log::info('Shipment normalize debug', [
+                    //     'original' => $matches[1],
+                    //     'merged' => $merged,
+                    // ]);
+
+                    return $merged;
+                },
+                $section
+            );           
+
             $tokens = $this->tokensFromTableSection($section);
 
             $currentOrder = null;
@@ -177,7 +195,12 @@ class KiteInvoiceParser implements ClientInvoiceParserInterface
     private function tokensFromTableSection(string $section): array
     {
         //preg_match_all('/(?:25\d{9}|10\d{9}|84\d{9}|92\d{9}|\d{6})/', $section, $matches);        
-        preg_match_all('/(?:' . self::KITE_SALES_ORDER_PATTERN . '|92\d{9}|\d{6})/', $section, $matches);
+        //preg_match_all('/(?:' . self::KITE_SALES_ORDER_PATTERN . '|92\d{9}|\d{6})/', $section, $matches);
+        preg_match_all(
+            '/\b(?:' . self::KITE_SALES_ORDER_PATTERN . '|92\d{9}|\d{6})\b/',
+            $section,
+            $matches
+        );
 
         return array_values(array_map(
             fn ($token) => trim($token),

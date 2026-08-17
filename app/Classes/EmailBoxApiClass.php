@@ -191,7 +191,7 @@ class EmailBoxApiClass
 
       foreach($email_lists as $key => $email)
       {       
-        if($email != config('mail.intravatmail.info.username') && $email != config('mail.intravatmail.import.username') && $email != config('mail.intravatmail.notification.username'))
+        if($email != config('mail.mailers.intravatmail.info.username') && $email != config('mail.mailers.intravatmail.import.username') && $email != config('mail.mailers.intravatmail.notification.username'))
         {
           echo "Email: " . htmlspecialchars($email) . "<br>"; 
 
@@ -206,12 +206,12 @@ class EmailBoxApiClass
          
           //Create a temporary configuration array for each email account
           $config = [
-              'host'          => config('mail.intravatmail.host'),
-              'port'          => config('mail.intravatmail.port'),
-              'encryption'    => config('mail.intravatmail.encryption'),
+              'host'          => config('mail.mailers.intravatmail.host'),
+              'port'          => config('mail.mailers.intravatmail.port'),
+              'encryption'    => config('mail.mailers.intravatmail.encryption'),
               'validate_cert' => true,
               'username'      => $email,
-              'password'      => config('mail.intravatmail.password'),
+              'password'      => config('mail.mailers.intravatmail.password'),
               'protocol'      => 'imap',
               'fetch'         => [
                   'fetch'  => 'Fast',
@@ -310,16 +310,16 @@ class EmailBoxApiClass
       $system = $commonClass->getSystemInfoLazy(); 
       $systemapi = $system->systemapi->first();
 
-      $email = g('mail.intravatmail.import.username'); 
+      $email = config('mail.mailers.intravatmail.import.username'); 
       $storage_path = 'mailbox/cargodeclarationfiles/';     
 
       $config = [
-          'host'          => config('mail.intravatmail.host'),
-          'port'          => config('mail.intravatmail.port'),
-          'encryption'    => config('mail.intravatmail.encryption'),
+          'host'          => config('mail.mailers.intravatmail.host'),
+          'port'          => config('mail.mailers.intravatmail.port'),
+          'encryption'    => config('mail.mailers.intravatmail.encryption'),
           'validate_cert' => true,
-          'username'      => config('mail.intravatmail.import.username'),
-          'password'      => config('mail.intravatmail.import.password'),
+          'username'      => config('mail.mailers.intravatmail.import.username'),
+          'password'      => config('mail.mailers.intravatmail.import.password'),
           'protocol'      => 'imap',
           'fetch'         => [
               'fetch'  => 'Fast',
@@ -533,20 +533,20 @@ class EmailBoxApiClass
   }
   /* --end READ EMAIL FOR CARGO DECLARATION FILES -- */  
 
-  /* -- FORWARD EMAIL TO info@intravat.com -- */  
+  /* -- FORWARD EMAIL TO config('mail.mailers.intravatmail.info.username') -- */  
   public function forwardAutoReplyEmail($emailAddress)
   {
     try 
     {           
-      $email = config('mail.intravatmail.notification.username');
+      $email = config('mail.mailers.intravatmail.notification.username');
             
       $config = [
-          'host'          => config('mail.intravatmail.host'),
-          'port'          => config('mail.intravatmail.port'),
-          'encryption'    => config('mail.intravatmail.encryption'),
+          'host'          => config('mail.mailers.intravatmail.host'),
+          'port'          => config('mail.mailers.intravatmail.port'),
+          'encryption'    => config('mail.mailers.intravatmail.encryption'),
           'validate_cert' => true,
-          'username'      => config('mail.intravatmail.notification.username'),
-          'password'      => config('mail.intravatmail.notification.password'),
+          'username'      => config('mail.mailers.intravatmail.notification.username'),
+          'password'      => config('mail.mailers.intravatmail.notification.password'),
           'protocol'      => 'imap',
           'fetch'         => [
               'fetch'  => 'Fast',
@@ -689,5 +689,5 @@ class EmailBoxApiClass
       }
     }
   }
-  /* --end FORWARD EMAIL TO info@intravat.com -- */  
+  /* --end FORWARD EMAIL TO config('mail.mailers.intravatmail.info.username') -- */  
 }

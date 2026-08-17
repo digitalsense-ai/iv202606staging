@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Helpers\EuropeanNumberHelper;
 use App\Helpers\DateHelper;
-
+use Illuminate\Support\Facades\Log;
 class ValidateOcrInvoiceDuplicateService
 {
     public function generateHash(array $data, ?string $invoiceType = null): string
@@ -27,8 +27,11 @@ class ValidateOcrInvoiceDuplicateService
     {
         $normalized = $this->normalizeByType($data, $invoiceType);
 
+        // return !empty($normalized['invoice_number'])
+        //     && (!empty($normalized['net_amount']) || !empty($normalized['total_amount']));
+
         return !empty($normalized['invoice_number'])
-            && (!empty($normalized['net_amount']) || !empty($normalized['total_amount']));
+            && (!empty($normalized['org_number']) || !empty($normalized['currency']));
     }
 
     private function resolveType(array $data, ?string $invoiceType = null): string
@@ -62,6 +65,12 @@ class ValidateOcrInvoiceDuplicateService
 
     private function normalizeCom(array $data): array
     {
+        // Log::info([           
+        //     'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),           
+        //     'currency' => $this->normalizeIdentifier($data['currency'] ?? null),          
+        //     'org_number' => $this->normalizeIdentifier($data['recipient']['org_number'] ?? null),           
+        // ]);
+
         return [
             // 'invoice_number' => $data['invoice_number'] ?? null,
             // 'invoice_date' => $data['invoice_date'] ?? null,
@@ -71,9 +80,9 @@ class ValidateOcrInvoiceDuplicateService
             // 'shipments' => $data['related_shipment_nos'] ?? null,
             // 'sales_invoices' => $data['related_sales_invoices'] ?? null,
             'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
-            'invoice_date' => $this->normalizeDate($data['invoice_date'] ?? null),
+            //'invoice_date' => $this->normalizeDate($data['invoice_date'] ?? null),
             'currency' => $this->normalizeIdentifier($data['currency'] ?? null),
-            'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
+            //'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
             'org_number' => $this->normalizeIdentifier($data['recipient']['org_number'] ?? null),
             //'shipments' => $this->normalizeList($data['related_shipment_nos'] ?? null),
             //'sales_invoices' => $this->normalizeList($data['related_sales_invoices'] ?? null),
@@ -111,8 +120,11 @@ class ValidateOcrInvoiceDuplicateService
             // 'invoice_number' => $data['invoice_number'] ?? null,
             // 'net_amount' => $data['net_amount'] ?? null,
             'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
-            'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
-            'total_amount' => $this->normalizeAmount($data['total_amount'] ?? null),
+            // 'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
+            // 'total_amount' => $this->normalizeAmount($data['total_amount'] ?? null),
+
+            'currency' => $this->normalizeIdentifier($data['currency'] ?? null),
+            'org_number' => $this->normalizeIdentifier($data['supplier']['org_number'] ?? ($data['supplier']['cvr_number'] ?? ($data['recipient']['org_number'] ?? null))),
         ];
     }
 

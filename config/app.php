@@ -129,7 +129,21 @@ return [
         array_map('trim', explode(',', env('OMIT_EMAIL_LIST', '')))
     ), 
 
-    'dv_user_password' => env('DV_USER_PASSWORD', '12345678'),    
+    'temp_email_list' => array_filter(
+        array_map('trim', explode(',', env('TEMP_EMAIL_LIST', '')))
+    ),
+
+    'dv_user_password' => env('DV_USER_PASSWORD', '12345678'),
+
+    'dv_staging_url' => env('DV_STAGING_URL', '12345678'),
+    'dv_live_url' => env('DV_LIVE_URL', '12345678'),   
+
+    'dv_sftp_secret_id' => env('DV_SFTP_SECRET_ID', '12345678'),  
+    'dv_sftp_secret_key' => env('DV_SFTP_SECRET_KEY', '12345678'),   
+
+    // 'ocr_org_nos' => array_filter(
+    //     array_map('trim', explode(',', env('OCR_ORG_NOS', '')))
+    // ), 
     
     // 'dynamic_365_api_url' => env('APP_DYNMAIC_365_API_URL'),
     // 'dynamic_365_environment' => env('APP_DYNMAIC_365_ENVIRONMENT'),

@@ -195,6 +195,8 @@ class VATRegistrationMainController extends Controller
                       'cds_gateway_userid' => ($request->cds_gateway_userid) ? $request->cds_gateway_userid : NULL,
                       'cds_gateway_password' => ($request->cds_gateway_password) ? $request->cds_gateway_password : NULL,
 
+                      'ocr_sync' => ($request->ocr_sync) ? $request->ocr_sync : 0,
+
                       'anyexcel_template_id' => ($request->anyexcel_template) ? $request->anyexcel_template : NULL,
                       
                       'status' => 1                      
@@ -436,8 +438,8 @@ class VATRegistrationMainController extends Controller
                           'api_env' => ($request->api_environment) ? $request->api_environment : "Production",
                           'api_base_url' => "165.22.78.137",
                           'api_tenant_id' => null,
-                          'api_client_id' => "root",
-                          'api_secret_key' => "dinV@13at",
+                          'api_client_id' => config('app.dv_sftp_secret_id'),
+                          'api_secret_key' => config('app.dv_sftp_secret_key'),
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
                           'status' => 1                
@@ -526,6 +528,8 @@ class VATRegistrationMainController extends Controller
                     'cds_gateway_userid' => ($request->cds_gateway_userid) ? $request->cds_gateway_userid : NULL,
                     'cds_gateway_password' => ($request->cds_gateway_password) ? $request->cds_gateway_password : NULL,
                                           
+                    'ocr_sync' => ($request->ocr_sync) ? $request->ocr_sync : 0,
+                    
                     'anyexcel_template_id' => ($request->anyexcel_template) ? $request->anyexcel_template : NULL,
                         
                     'status' => 1 
@@ -550,7 +554,7 @@ class VATRegistrationMainController extends Controller
                     $client = $vatregmain->client;                
                     $client_name = str_replace(' ', '', $this->commonClass->replaceSpecialCharForFolderName(strtolower($client->client_name)));
 
-                    $create_email = $country . '.' . $client_name . config('mail.intravatmail.domain');
+                    $create_email = $country . '.' . $client_name . config('mail.mailers.intravatmail.domain');
                     $password = config('app.dv_user_password');
 
                     $email_exist = array_values(array_filter($email_lists, function ($email) use($create_email) {
@@ -818,9 +822,9 @@ class VATRegistrationMainController extends Controller
                           'api_name' => "FTP",
                           'api_env' => ($request->api_environment) ? $request->api_environment : "Production",
                           'api_base_url' => "165.22.78.137",
-                          'api_tenant_id' => null,
-                          'api_client_id' => "root",
-                          'api_secret_key' => "dinV@13at",
+                          'api_tenant_id' => null,                          
+                          'api_client_id' => config('app.dv_sftp_secret_id'),
+                          'api_secret_key' => config('app.dv_sftp_secret_key'),
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
                           'status' => 1                

@@ -45,6 +45,7 @@
 </script>
 
 <script src="{{asset('js/dv-common.js')}}"></script>
+{{--
 <script type="text/javascript">
 $(function () {  
     $(".card.analyzepdf .sk-bounce").show();
@@ -57,8 +58,9 @@ $(function () {
     var result = { 'analyzepdfs': {!! json_encode($analyzepdfs) !!}, 'vatregmains': {!! json_encode($vatregmains) !!} };    
     var analyzepdf_datas = drawDtTable(result, 'analyzepdf_search');  
 });
-</script>
+</script>--}}
 <script src="{{asset('js/dv-analyze-pdf.js')}}"></script>
+<script src="{{asset('js/dv-analyze-pdf-manual-input.js')}}"></script>
 <script src="{{asset('js/dv-analyze-pdf-search.js')}}"></script>
 @endsection
 
@@ -172,22 +174,23 @@ $(function () {
                     <thead class="bg-label-primary">
                         <tr>
                             <th>Sl. No.</th>           
-                            <th>Client No.</th>
-                            <th>Client Name</th>
-                            <th>Invoice No.</th>
-                            <th>Invoice Date</th>
-                            <th>Currency</th>
+                            <th data-field="client_no">Client No.</th>
+                            <th data-field="client_name">Client Name</th>
+                            <th data-field="invoice_no">Invoice No.</th>
+                            <th data-field="invoice_date">Invoice Date</th>
+                            <th data-field="currency">Currency</th>
                             @if ($i === 1)
-                                <th>Credit Note</th>
+                                <th data-field="credit_note">Credit Note</th>
                             @endif
-                            <th>Net Amount</th>
+                            <th data-field="net_amount">Net Amount</th>
                             @if ($i === 1)
-                                <th>VAT Rate</th>
-                                <th>VAT Amount</th>
-                                <th>Variance</th>
-                                <th>Freight</th>
-                                <th>Discount Amount</th>
-                                <th>Total Amount</th>                           
+                                <th data-field="original_net_amount">Net Goods Amount</th>
+                                <th data-field="vat_rate">VAT Rate</th>
+                                <th data-field="vat_amount">VAT Amount</th>
+                                <th data-field="variance_amount">Variance</th>
+                                <th data-field="additional_amount">Freight</th>
+                                <th data-field="discount_amount">Discount Amount</th>
+                                <th data-field="total_amount">Total Amount</th>                           
                             @endif
                             @if ($i === 0)
                                 <th>Sales Invoices</th>
@@ -238,6 +241,10 @@ $(function () {
     </div>
     @endif
 
+{{--@include('_partials/_offcanvas/offcanvas-analyzepdf-form-old')--}}
+@php
+    $issearch =  true;
+@endphp
 @include('_partials/_offcanvas/offcanvas-analyzepdf-form')
 @include('_partials/_offcanvas/offcanvas-analyzepdf-filter')
 

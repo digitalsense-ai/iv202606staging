@@ -37,7 +37,8 @@ class EuropeanNumberHelper
         }
 
         $value = trim($value);
-
+        $value = rtrim($value, ",.");
+        
         /**
          * Remove spaces and apostrophes
          */

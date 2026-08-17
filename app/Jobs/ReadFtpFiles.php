@@ -18,7 +18,7 @@ use Storage;
 
 use \App\Classes\CommonClass;
 use \App\Classes\ApiClass;
-
+use App\Helpers\EnvironmentHelper;
 class ReadFtpFiles implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -32,7 +32,7 @@ class ReadFtpFiles implements ShouldQueue
     
     protected $commonClass;   
     protected $apiClass; 
-
+    public $environment;
     /**
      * Create a new job instance.
      *
@@ -49,6 +49,7 @@ class ReadFtpFiles implements ShouldQueue
       
       $this->commonClass = new CommonClass();
       $this->apiClass = new ApiClass();
+      $this->environment = EnvironmentHelper::getEnvironment();
     }
 
     /**
@@ -84,8 +85,8 @@ class ReadFtpFiles implements ShouldQueue
 
               if($file_already_exists)
               {
-                //Applicable only for LIVE
-                if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
+                //Applicable only for LIVE                
+                if($this->environment === "live")
                 {
                   //Move to main folder - if it is archive
                   $oldDirectoryPath = $filepath;     
@@ -151,8 +152,8 @@ class ReadFtpFiles implements ShouldQueue
                     }
                     else
                     {
-                      //Applicable only for LIVE
-                      if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
+                      //Applicable only for LIVE                      
+                      if($this->environment === "live")
                       {
                         $newFileName = $sftp_path . $sftp_foldername . '/Archive/' . $filename;
                         $driver->move($oldDirectoryPath, $newFileName);
@@ -164,8 +165,8 @@ class ReadFtpFiles implements ShouldQueue
                   } //if any match found    
                   else
                   {
-                    //Applicable only for LIVE
-                    if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
+                    //Applicable only for LIVE                    
+                    if($this->environment === "live")
                     {
                       //Move to main folder - if it is archive
                       $oldDirectoryPath = $filepath;     

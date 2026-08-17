@@ -182,6 +182,8 @@ div.dts tbody td { white-space: unset; }
 /*.alert-primary.important { background-color: #e5edfc !important; border-color: #ceddfa !important; color: #5a8dee !important; }*/
 .dt-search-filter .dataTables_length,
 .dt-search-filter .dataTables_filter,
+.dt-synced-filter .dataTables_length,
+.dt-synced-filter .dataTables_filter,
 .dt-invoice-export button,
 .dt-invoice-export .dt-buttons,
 .dt-declaration-export button,
@@ -192,6 +194,8 @@ div.dts tbody td { white-space: unset; }
 .dt-analyzepdf-export .dt-buttons,
 .dt-analyzepdfsearch-export button,
 .dt-analyzepdfsearch-export .dt-buttons,
+.dt-analyzepdfsynced-export button,
+.dt-analyzepdfsynced-export .dt-buttons,
 .dt-quote-export button,
 .dt-quote-export .dt-buttons { display: inline-block !important; margin-right: 0.5rem !important;
   margin-left: 0.5rem !important; margin-top: 0.25rem !important; margin-bottom: 0.25rem !important; }
@@ -433,6 +437,7 @@ html[data-theme="theme-bordered"] .bg-navbar-theme { background: #f9fafb !import
 
 .overflow-scroll-y { overflow-y: scroll !important; overflow-x: hidden !important; }
 .h-px-240 { height: 240px !important; }
+.h-px-180 { height: 180px !important; }
 
 /*.datatables-correct-invoices thead th,
 .datatables-wrong-invoices thead th,
@@ -503,20 +508,27 @@ html[data-theme="theme-bordered"] .bg-navbar-theme { background: #f9fafb !import
 .crm-level-4 td:first-child,
 .crm-level-5 td:first-child { border-left: 3px solid #6c757d; }
 
-table.dataTable.datatables-analyzepdfsearch {
+table.dataTable.datatables-analyzepdfsearch,
+table.dataTable.datatables-analyzepdfsynced {
   width: 100% !important;
   table-layout: fixed !important;
 }
 
 table.dataTable.datatables-analyzepdfsearch th,
-table.dataTable.datatables-analyzepdfsearch td {
+table.dataTable.datatables-analyzepdfsearch td,
+table.dataTable.datatables-analyzepdfsynced th,
+table.dataTable.datatables-analyzepdfsynced td {
   box-sizing: border-box;
 }
 
 #navs-analyzepdfsearch-commercial-invoice .dataTables_scrollHeadInner,
 #navs-analyzepdfsearch-commercial-invoice .dataTables_scrollHeadInner table,
 #navs-analyzepdfsearch-sales-invoice .dataTables_scrollHeadInner,
-#navs-analyzepdfsearch-sales-invoice .dataTables_scrollHeadInner table {
+#navs-analyzepdfsearch-sales-invoice .dataTables_scrollHeadInner table,
+#navs-analyzepdfsynced-commercial-invoice .dataTables_scrollHeadInner,
+#navs-analyzepdfsynced-commercial-invoice .dataTables_scrollHeadInner table,
+#navs-analyzepdfsynced-sales-invoice .dataTables_scrollHeadInner,
+#navs-analyzepdfsynced-sales-invoice .dataTables_scrollHeadInner table {
   width: 100% !important;
 }
 
@@ -525,6 +537,119 @@ table.dataTable.datatables-analyzepdfsearch td {
 .menu-vertical li.menu-item:last-of-type .menu-sub .menu-link .menu-icon.tf-icons.sub-icons::before { 
 	margin-left: -15px; }
 li.menu-item.open:last-of-type .menu-sub .menu-sub li a::before { border: none !important; }
+
+.manual-input-shell {
+  /*height: calc(100vh - 8rem);
+  min-height: 640px;*/
+  height: calc(100vh - 100px);
+  min-height: 0;
+}
+
+.manual-input-shell > [class*="col-"] {
+  height: 100%;
+  min-height: 0;
+}
+
+.manual-input-shell .card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.manual-input-shell .card-header {
+  flex: 0 0 auto;
+}
+
+.manual-input-shell .card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.manual-input-list{
+    width: 300px;
+    flex: 0 0 300px;
+}
+
+/* Queue */
+.manual-input-queue {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.manual-input-queue .list-group-item {
+  cursor: pointer;
+}
+
+.manual-input-queue .list-group-item.active .text-muted,
+.manual-input-queue .list-group-item.active .text-danger {
+  color: rgba(255,255,255,.85) !important;
+}
+
+/* Detail area fills the inside of card-body, respecting card-body padding */
+.manual-input-detail {
+  height: 100%;
+  min-height: 0;
+}
+
+.manual-input-detail > [class*="col-"] {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* PDF fills available card-body inner height */
+.manual-input-pdf-frame {
+  width: 100%;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .5rem;
+  background: #f8f9fa;
+}
+
+/* Form fills available card-body inner height and scrolls only vertically */
+.manual-input-form {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: .35rem;
+}
+
+/* Prevent Bootstrap row gutter from causing horizontal scrollbar inside form */
+.manual-input-form .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.manual-input-form .row > [class*="col-"] {
+  padding-left: .25rem;
+  padding-right: .25rem;
+}
+
+.manual-input-note {
+  min-height: 82px;
+}
+
+.manual-input-empty {
+  min-height: 52vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* No nested scrollbar for sales ref repeater */
+.manual-input-salesinvoice-repeater {
+  max-height: none;
+  overflow: visible;
+}
 
 /*Extra small devices (portrait phones, less than 576px)*/
 @media (max-width: 575.98px) {

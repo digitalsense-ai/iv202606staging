@@ -131,7 +131,7 @@
         },
         {
           "name": "Analyze PDF",
-          "slug": ["analyze.pdf.index", "analyze.pdf.search"],
+          "slug": ["analyze.pdf.index", "analyze.pdf.search", "analyze.pdf.manual-input"],
           "roles": ["super-admin","team-user"],
           "submenu": [   
             {
@@ -145,6 +145,18 @@
               "slug": "analyze.pdf.search",
               "roles": ["super-admin","team-user"],
               "url": "analyzepdf/search"          
+            },
+            {
+              "name": "Manual Input",
+              "slug": "analyze.pdf.manual-input",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf/manual-input"          
+            },
+            {
+              "name": "Synced DB",
+              "slug": "analyze.pdf.synced",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf/synceddb"          
             }
           ]
         }

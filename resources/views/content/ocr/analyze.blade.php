@@ -52,69 +52,7 @@
 </script>
 
 <script src="{{asset('js/dv-common.js')}}"></script>
-<script type="text/javascript">
-$(function () {  
-    $(".card.analyzepdf .sk-bounce").show();
-    $(".card.analyzepdf .card-datatable").hide(); 
-
-    window.analyzepdf_completed_datas = [];   
-    window.analyzepdf_processing_datas = [];
-    window.analyzepdf_error_datas = [];
-    window.analyzepdf_deleted_datas = [];
-    
-    var result = { 'analyzepdfs': {!! json_encode($analyzepdfs) !!}, 'vatregmains': {!! json_encode($vatregmains) !!} };    
-    var analyzepdf_datas = drawDtTable(result, 'analyzepdf');  
-});
-</script>
 <script>
-    /*
-document.getElementById('upload-form').addEventListener('submit', async function (e) {console.log("submitted");
-    e.preventDefault();
-
-    const form = e.target;
-    const formData = new FormData(form);
-
-    const progressCard = document.getElementById('batch-progress');
-    const bar = document.getElementById('progress-bar');
-    const text = document.getElementById('progress-text');
-
-    progressCard.classList.remove('d-none');
-    bar.style.width = '0%';
-    bar.innerText = '0%';
-    text.innerText = 'Uploading…';
-
-    const response = await fetch("{{ url('/analyzepdf') }}", {        
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Accept': 'application/json'  // <-- ADD THIS
-        },
-        body: formData
-    });
-
-    const contentType = response.headers.get('content-type');
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Upload failed:', errorText);
-        text.innerText = '❌ Upload failed';
-        return;
-    }
-
-    if (!contentType || !contentType.includes('application/json')) {
-        const raw = await response.text();
-        console.error('Expected JSON, got:', raw);
-        text.innerText = '❌ Server error';
-        return;
-    }
-
-
-    const data = await response.json();
-    const batchId = data.batch_id;
-
-    pollProgress(batchId);
-});
-*/
 async function pollProgress(batchId) {
     const bar = document.getElementById('progress-bar');
     const text = document.getElementById('progress-text');
@@ -175,84 +113,6 @@ async function pollProgress(batchId) {
     }
 }
 
-window.reloadAnalyzedPdf = function reloadAnalyzedPdf(analyzepdf_datas) { 
-// function reloadAnalyzedPdf(analyzepdf_datas) 
-// {  
-    var dt_analyzepdf_tables = $('.datatables-analyzepdf');
-    for (var i = 0; i < dt_analyzepdf_tables.length; i++) 
-    {      
-        var analyzepdf_name = '';        
-        if(i === 0) analyzepdf_name = 'completed';          
-        else if(i === 1) analyzepdf_name = 'processing';          
-        else if(i === 2) analyzepdf_name = 'error';  
-        else if(i === 3) analyzepdf_name = 'deleted';     
-
-        var tabSelector = "#navs-analyzepdf-" + analyzepdf_name;
-        var tableSelector = ".datatables-"+ analyzepdf_name +"-analyzepdf";
-
-        if($(tableSelector).length > 0)
-        {
-            if ($.fn.DataTable.isDataTable(tableSelector))
-            {
-                var dt_analyzepdf = $(tableSelector).DataTable();
-                var rowsData = analyzepdf_datas['analyzepdf_'+ analyzepdf_name +'_datas'];
-
-                dt_analyzepdf.clear().rows.add(rowsData).draw();
-                $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(rowsData.length);
-
-                // Enable/disable tab based on data
-                if (rowsData.length > 0) {
-                    $(tabSelector).css({
-                        'pointer-events': 'auto',
-                        'opacity': '1',
-                        'cursor': 'pointer'
-                    });
-                } else {
-                    $(tabSelector).css({
-                        'pointer-events': 'none',
-                        'opacity': '0.5',
-                        'cursor': 'not-allowed'
-                    });
-                }
-            }
-        }
-    }
-}
-
-// function reloadAnalyzedPdf(analyzepdf_datas) 
-// {  
-//     var dt_analyzepdf_tables = $('.datatables-analyzepdf');
-//     for (var i = 0; i < dt_analyzepdf_tables.length; i++) 
-//     {      
-//         var analyzepdf_name = '';        
-//         if(i === 0)        
-//           analyzepdf_name = 'completed';          
-//         else if(i === 1)        
-//           analyzepdf_name = 'processing';          
-//         else if(i === 2)       
-//           analyzepdf_name = 'error';     
-
-//         if($('.datatables-'+ analyzepdf_name +'-analyzepdf').length > 0)
-//         {
-//             if ($.fn.DataTable.isDataTable('.datatables-'+ analyzepdf_name +'-analyzepdf'))
-//             {
-//                 $("#navs-analyzepdf-" + analyzepdf_name).css({
-//                   'pointer-events': 'none',
-//                   'opacity': '0.5',
-//                   'cursor': 'not-allowed'
-//                 });
-
-//                 var dt_analyzepdf = $('.datatables-'+ analyzepdf_name +'-analyzepdf').DataTable(); // safely get it
-//                 if (dt_analyzepdf.rows().any())
-//                 {
-//                     dt_analyzepdf.clear().rows.add(analyzepdf_datas['analyzepdf_'+ analyzepdf_name +'_datas']).draw();
-//                     $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(analyzepdf_datas['analyzepdf_'+ analyzepdf_name +'_datas'].length);
-//                 }
-//             }
-//         }
-//     }
-// }
-
 async function fetchInboxAndTrackProgress() {
     const progressCard = document.getElementById('batch-progress');
     const bar = document.getElementById('progress-bar');
@@ -277,7 +137,7 @@ async function fetchInboxAndTrackProgress() {
     }
 
     // Only show progress card if there are emails
-    progressCard.classList.remove('d-none');
+    //progressCard.classList.remove('d-none');
     bar.style.width = '0%';
     bar.innerText = '0%';
     text.innerText = `Queuing ${total} emails…`;
@@ -304,8 +164,22 @@ async function fetchInboxAndTrackProgress() {
             bar.classList.add('bg-success');
             text.innerText = `All emails processed`;
 
-            var analyzepdf_datas = drawDtTable(progressData, 'analyzepdf');            
-            reloadAnalyzedPdf(analyzepdf_datas);
+            //var analyzepdf_datas = drawDtTable(progressData, 'analyzepdf');            
+            //reloadAnalyzedPdf(analyzepdf_datas);
+
+            setTimeout(() => {
+                Swal.fire({
+                  title: 'Reload',
+                  text: 'Page will be reloaded now :)',
+                  icon: 'info',
+                  customClass: {
+                    confirmButton: 'btn btn-success'
+                  }
+                }).then(function (result) { 
+                    if (result.isConfirmed)
+                        window.location.reload();
+                });
+            }, 5000); // Show the alert after 5 seconds  
         }
     }, 3000);
 }
@@ -314,12 +188,8 @@ async function fetchInboxAndTrackProgress() {
 //fetchInboxAndTrackProgress();
 </script>
 
-<script src="{{ asset('js/pdf.min.js') }}"></script>
-<script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "{{ asset('js/pdf.worker.min.js') }}";
-</script>
-
 <script src="{{asset('js/dv-analyze-pdf.js')}}"></script>
+<script src="{{asset('js/dv-analyze-pdf-manual-input.js')}}"></script>
 @endsection
 
 @section('content')
@@ -343,24 +213,30 @@ async function fetchInboxAndTrackProgress() {
 
     <div class="row">
         <div class="col-12">
-            @if(strtolower(env('APP_URL')) === "http://localhost:8000" || strtolower(config('app.url')) === "http://localhost:8000")
-                <a class="btn btn-primary" href="{{ route('analyze.pdf.validate', 'all') }}" target="_blank">Validate</a>
+            @if($environment === "local") 
+                {{--<a class="btn btn-primary" href="{{ route('analyze.pdf.validate', 'all') }}" target="_blank">Validate</a>                --}}
             @else
-                <a href="javascript:fetchInboxAndTrackProgress()" class="btn btn-dark float-end">Fetch Email PDFs</a>
-            @endif
+                @if($environment === "live") 
+                    <a href="javascript:fetchInboxAndTrackProgress()" class="btn btn-dark float-end">Fetch Email PDFs</a>
+                @endif 
+            @endif                    
 
+{{--<a class="btn btn-primary" href="{{ route('analyze.pdf.sync.db') }}" target="_blank">Sync Now</a>
             <div class="btn-group float-end mx-2">
                 <button type="button" class="btn btn-danger dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Sync Now</button>
                 <ul class="dropdown-menu">                    
                     @foreach ($syncclients as $syncclient)
-                        <li><a class="dropdown-item" href="{{ route('analyze.pdf.sync', ['client_id' => $syncclient->id]) }}" target="_blank">{{ $syncclient->client_name }}</a></li>
+                        <li><a class="dropdown-item" href="{{ route('analyze.pdf.sync', ['client_id' => $syncclient['client']?->id, 'country' => $syncclient['country']]) }}" target="_blank">{{ $syncclient['client']?->client_name . ' - ' . $syncclient['country'] }}</a></li>
+
+                        <li><a class="dropdown-item btn-sync-data" href="javascript:;" data-client_id="{{ $syncclient['client']?->id }}" data-country="{{ $syncclient['country'] }}">{{ $syncclient['client']?->client_name . ' - ' . $syncclient['country'] }}</a></li>
                     @endforeach                  
                 </ul>
-            </div>         
+            </div> 
+--}}
         </div>
     </div>
 
-    
+    @if($environment === "local" || $environment === "live") 
     <div class="card my-4 card-ocr-bulk-upload">              
         <div class="card-body">
             <form method="post" action="{{ url('analyzepdf/bulk-upload') }}" enctype="multipart/form-data" class="dropzone needsclick dropzone-ocr-bulk-upload" id="dropzone-ocr-bulk-upload"> 
@@ -384,6 +260,7 @@ async function fetchInboxAndTrackProgress() {
             </form>
         </div>
     </div>
+    @endif
     
     {{-- Upload Form --}} 
     {{--   
@@ -457,7 +334,7 @@ async function fetchInboxAndTrackProgress() {
     </div>
 
     {{-- Extracted Data's --}}
-    @if($analyzepdfs)
+    @if($hasanalyzepdfs)
     <!-- Ajax Sourced Server-side -->
     <div class="card analyzepdfs mt-4">
 
@@ -599,6 +476,10 @@ async function fetchInboxAndTrackProgress() {
     </div>
     @endif
 
+{{--@include('_partials/_offcanvas/offcanvas-analyzepdf-form-old')--}}
+@php
+    $issearch =  false;
+@endphp
 @include('_partials/_offcanvas/offcanvas-analyzepdf-form')
 @include('_partials/_offcanvas/offcanvas-analyzepdf-filter')
 

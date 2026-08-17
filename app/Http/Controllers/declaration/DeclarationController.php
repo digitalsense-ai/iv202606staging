@@ -30,6 +30,8 @@ use App\Events\ImportReconciliationSalesInvoiceDisregardEvent;
 use Webklex\IMAP\Facades\Client as MailBoxClient;
 use Storage;
 
+use App\Helpers\EnvironmentHelper;
+
 class DeclarationController extends Controller
 {  
     public $authUser;
@@ -39,6 +41,7 @@ class DeclarationController extends Controller
     public $apiClass;
     public $cargoDeclarationClass;
     public $ftpClass;
+    public $environment;
    
     public function __construct()
     {
@@ -59,6 +62,8 @@ class DeclarationController extends Controller
             $this->cargoDeclarationClass = new CargoDeclarationClass();
             $this->ftpClass = new FtpClass();
             
+            $this->environment = EnvironmentHelper::getEnvironment();
+
             return $next($request);
         });
     }
@@ -158,6 +163,8 @@ class DeclarationController extends Controller
     {    
         try
         {
+          sleep(2);
+          
           $vatreg = $this->commonClass->getVatRegLazy($vat_reg_id);
 
           $client_id = $vatreg->client_id;
@@ -371,8 +378,8 @@ class DeclarationController extends Controller
               ];
             } 
 
-            /* -- FTP DATA's -- */
-            if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
+            /* -- FTP DATA's -- */            
+            if($this->environment === "live")
             {
               $client_name = $vatreg->client->client_name;
               if (stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
@@ -1579,17 +1586,21 @@ class DeclarationController extends Controller
 
         if(stripos(strtolower($request->invoice_no), ", ") !== false)
         {
+          $ocr_pdf_id = $invoice->ocr_pdf_id ?? null;
+
           $arr_invoice_nos = explode(', ', $request->invoice_no);
           foreach ($arr_invoice_nos as $invoice_no)
           {
             $from = 'specific-invoice-global-search-refresh';
-            $data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, false, $invoice_name, str_replace(['SPG-', '-NO'], '', $invoice_no));
+            $data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, false, $invoice_name, str_replace(['SPG-', '-NO'], '', $invoice_no), $ocr_pdf_id);
           }
         } 
         else
         {
+          $ocr_pdf_id = $invoice->ocr_pdf_id ?? null;
+
           $from = 'specific-invoice-global-search-refresh';
-          $data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, false, $invoice_name, str_replace(['SPG-', '-NO'], '', $request->invoice_no));
+          $data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, false, $invoice_name, str_replace(['SPG-', '-NO'], '', $request->invoice_no), $ocr_pdf_id);
         }       
        
         $vatreg = $this->reloadDeclarations($vat_reg_id);   

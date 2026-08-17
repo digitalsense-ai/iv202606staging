@@ -8,10 +8,11 @@ class CurrencyHelper
         '£' => 'GBP',
         '$' => 'USD',
         '€' => 'EUR',
-        'kr' => 'DKK',
+        //'kr' => 'DKK',
         'NORGE-FULL' => 'NOK',
         'NOK-SALG' => 'NOK',
         'NOK NOK' => 'NOK',
+        'NORSK MOMS' => 'NOK',
         'EURO' => 'EUR',
     ];
 
@@ -137,11 +138,16 @@ class CurrencyHelper
             if (stripos($amount, $symbol) !== false) {
                 $currency = $iso;
                 $amount = str_replace($symbol, '', $amount);
+                $amount = rtrim(trim($amount), ",.)-");
                 break;
             }
         }
+        
+        $amount = rtrim(trim($amount), ",.)-");
 
-        $amount = trim($amount);
+        // if (str_ends_with($amount, '-')) {
+        //     $amount = rtrim(trim($amount), "-");
+        // }
 
         return [$currency, $amount];
     }

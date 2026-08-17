@@ -20,7 +20,9 @@ class CRMQuoteAddon extends Model
 
     protected $casts = [
         'enabled' => 'boolean',
-        'price' => 'decimal:2'
+        'price' => 'decimal:2',
+        'standard_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2'
     ];
 
     /**

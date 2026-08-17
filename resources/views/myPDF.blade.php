@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Laravel Dompdf Add Custom Font Family Example - intravat.com</title>
+    <title>Laravel Dompdf Add Custom Font Family Example - mydomain.com</title>
     <style>
       @page { margin: 0in; }  
       html, body { margin: 0; padding: 0; }  
@@ -247,7 +247,7 @@
             <th align="left" valign="middle">
               <h5>IntraVAT ApS</h5>
               <h5>Torvet 9, 1.  DK-Køge 4600</h5>
-              <h5>Tel: +45 88 63 22 99 Mail: <a href="mailto:info@intravat.com" class="text-decoration-none">info@intravat.com</a></h5>
+              <h5>Tel: +45 88 63 22 99 Mail: <a href="mailto:{{ config('mail.mailers.intravatmail.info.username') }}" class="text-decoration-none">{{ config('mail.mailers.intravatmail.info.username') }}</a></h5>
             </th>
             <th align="right" valign="middle">
               <h5 class="pe-4">&nbsp;</h5>

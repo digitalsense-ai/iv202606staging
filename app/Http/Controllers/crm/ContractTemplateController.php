@@ -12,13 +12,14 @@ class ContractTemplateController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $language = $request->language ?? 'english';
 
-        $templates = ContractTemplate::where('language', $language)
-            ->orderBy('clause_number')
-            ->get();
+        // $templates = ContractTemplate::where('language', $language)
+        //     ->orderBy('clause_number')
+        $templates = CRMContractTemplate::orderBy('clause_number')
+                        ->get();
 
         return view('crm.contract_templates.index', compact(
             'templates',
@@ -39,7 +40,7 @@ class ContractTemplateController extends Controller
      */
     public function store(Request $request)
     {
-        ContractTemplate::create([
+        CRMContractTemplate::create([
             'language' => $request->language,
             'clause_number' => $request->clause_number,
             'title' => $request->title,
@@ -65,7 +66,7 @@ class ContractTemplateController extends Controller
      */
     public function edit(string $id)
     {
-        $template = ContractTemplate::findOrFail($id);
+        $template = CRMContractTemplate::findOrFail($id);
 
         return view('crm.contract_templates.edit', compact('template'));
     }
@@ -75,7 +76,7 @@ class ContractTemplateController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $template = ContractTemplate::findOrFail($id);
+        $template = CRMContractTemplate::findOrFail($id);
 
         $template->update([
             'language' => $request->language,
@@ -93,7 +94,7 @@ class ContractTemplateController extends Controller
      */
     public function destroy(string $id)
     {
-        ContractTemplate::findOrFail($id)->delete();
+        CRMContractTemplate::findOrFail($id)->delete();
 
         return back()->with('success', 'Deleted');
     }

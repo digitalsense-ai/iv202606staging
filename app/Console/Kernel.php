@@ -7,6 +7,8 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 use \App\Classes\CommonClass;
 
+use App\Helpers\EnvironmentHelper;
+
 class Kernel extends ConsoleKernel
 {
     /**
@@ -16,7 +18,9 @@ class Kernel extends ConsoleKernel
      * @return void
      */
     protected function schedule(Schedule $schedule)
-    {        
+    {     
+        $environment = EnvironmentHelper::getEnvironment();
+
         $commonClass = new CommonClass();
         $system = $commonClass->getSystemInfoLazy();
         $systemtaskdates = $system->systemtaskdate;
@@ -37,8 +41,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('crmreminder:task')->hourly();
         
         //$schedule->command('irazure:task')->dailyAt('00:00'); 
-        
-        if(strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud")
+               
+        if($environment === "live")
         {
             $schedule->command('mailbox:task')->dailyAt('00:00'); 
             $schedule->command('irftp:task')->dailyAt('00:00'); 

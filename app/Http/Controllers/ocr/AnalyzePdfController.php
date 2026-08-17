@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Carbon;
 
 use \App\Classes\CommonClass;
 use \App\Classes\FtpClass;
@@ -18,6 +20,7 @@ use App\Models\Client;
 use App\Models\VATRegistrationMain;
 use App\Models\VATRegistration;
 use App\Models\OcrPdf;
+use App\Models\OcrSyncStatus;
 use App\Jobs\SplitPdfJob;
 use App\Services\AzureStorageService;
 use App\Services\OcrCorrectionFeedbackService;
@@ -28,9 +31,11 @@ use App\Repositories\ClientRepository;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 use App\Jobs\ProcessEmailJob;
+use App\Jobs\SyncDbFromOcr;
 
 use App\Helpers\DateHelper;
 use App\Helpers\EuropeanNumberHelper;
+use App\Helpers\EnvironmentHelper;
 
 class AnalyzePdfController extends Controller
 {
@@ -38,7 +43,9 @@ class AnalyzePdfController extends Controller
 
     public $commonClass;
     public $ftpClass;
-   
+    public $environment;
+    public $selectedFields = [];
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -46,7 +53,56 @@ class AnalyzePdfController extends Controller
             $this->commonClass = new CommonClass();
             $this->authUser = $this->commonClass->getAuthUser();   
             
+            $tempEmailList = config('app.temp_email_list', []);
+            if (
+                !$this->authUser ||
+                !(
+                    $this->authUser->role === 'super-admin' ||
+                    (
+                        $this->authUser->role === 'team-user' &&
+                        in_array($this->authUser->email, $tempEmailList, true)
+                    )
+                )
+            ) {
+                abort(403);
+            }
+
+            $this->environment = EnvironmentHelper::getEnvironment();
+
             $this->ftpClass = new FtpClass();
+
+            $this->selectedFields = [
+                'id',   
+                //'client_id',
+                'invoice_type',
+                'file_name',
+                'start_pageno',
+                'end_pageno',
+                'status',
+                'sync_db',
+                //'sync_status',
+                'is_deleted',
+                'deleted_reason',
+                //'is_locked',
+                'extracted_data',
+                'validation_status',
+                'duplicate_message',
+                'error',
+                'azure_url',
+                'azure_sas_url',
+                'manual_input_by',
+                'manual_input_status',                
+                'manual_note',
+                'manual_input_environment',
+                'search_save_by',
+                'search_save_status',                
+                'search_save_note',
+                'search_save_environment',
+                'force_submitted',
+                'analyzer_id',
+                'created_at',
+                'updated_at'
+            ];
 
             return $next($request);
         });
@@ -72,100 +128,262 @@ class AnalyzePdfController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
 
-        $analyzepdfs = OcrPdf::query()
-                        ->select([
-                            'id',   
-                            //'client_id',                         
-                            'invoice_type',
-                            'file_name',
-                            'start_pageno',
-                            'end_pageno',                           
-                            'status',
-                            'sync_status',
-                            'is_deleted',
-                            'deleted_reason',
-                            'is_locked',
-                            'extracted_data',             
-                            'validation_status',
-                            'duplicate_message',
-                            'error',
-                            'azure_url',
-                            'azure_sas_url',               
-                            'created_at',
-                            'updated_at'                           
-                        ])
+        // $analyzepdfs = OcrPdf::query()
+        //                 //->with('syncStatus')
+        //                 ->select($this->selectedFields)
+        //                 //->where('extracted_data', 'LIKE', '%123456789%')
+        //                 ->orderBy('id', 'DESC')            
+        //                 ->get(); 
+        
+        $analyzepdfs = OcrPdf::query()                       
+                        ->select($this->selectedFields)  
+                        ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])                        
+                        //->where('extracted_data', 'LIKE', '%123456789%')                  
                         ->orderBy('id', 'DESC')            
-                        ->get(); 
-      
-        $vatregmains = VATRegistrationMain::with(['client'])
+                        //->get(); 
+                        ->count();
+
+      //dd($env, $analyzepdfs->first());
+        $vatregmains = VATRegistrationMain::
+                        select([
+                            'id',
+                            'org_no',
+                            'vat_no',
+                            'country',
+                            'client_id',
+                        ])
+                        ->with([
+                            'client:id,client_name'
+                        ])  
+                        ->where('ocr_sync', 1)  
+                        //with(['client'])
                         ->orderBy('id', 'ASC')
                         ->get();
 
-        $only_org_no = $this->commonClass->OrgNoForOcr();
-        // $syncclients = $analyzepdfs
-        //                 //->where('client_id', 89)    
-        //                 ->pluck('client')
-        //                 ->filter() // remove nulls
-        //                 ->unique('id')
-        //                 ->filter(function ($client) use ($only_org_no) {
-        //                     return $client->vatregmain->contains(function ($vat) use ($only_org_no) {
-        //                         return in_array($vat->org_no, $only_org_no);
-        //                     });
-        //                 })
-        //                 ->sortBy('client_name')
-        //                 ->values();     
+        // $only_org_no = $this->commonClass->OrgNoForOcr();        
+        // $syncclients = $vatregmains
+        //                 ->filter(function ($vatregmain) use ($only_org_no) {
+        //                     //return in_array($vatregmain->org_no, $only_org_no);
+        //                     $orgNo = preg_replace('/\D+/', '', $vatregmain->org_no ?? '');
+        //                     $vatNo = preg_replace('/\D+/', '', $vatregmain->vat_no ?? '');
 
-        $syncclients = $vatregmains
-                        ->filter(function ($vatregmain) use ($only_org_no) {
-                            return in_array($vatregmain->org_no, $only_org_no);
+        //                     return in_array($orgNo, $only_org_no) || in_array($vatNo, $only_org_no);
+        //                 })
+        //                 // ->pluck('client')
+        //                 // ->filter()
+        //                 // ->unique('id')
+        //                 // ->sortBy('client_name')
+        //                 // ->values();
+        //                 ->map(function ($vatregmain) {
+        //                     return [
+        //                         'id' => $vatregmain->id,
+        //                         'client'  => $vatregmain->client,
+        //                         'country' => $vatregmain->country,
+        //                     ];
+        //                 })
+        //                 ->filter(function ($item) {
+        //                     return $item['client'];
+        //                 })
+        //                 // ->unique(function ($item) {
+        //                 //     return $item['client']->id;
+        //                 // })
+        //                 ->sortBy(function ($item) {
+        //                     return $item['client']->client_name;
+        //                 })
+        //                 ->values();  
+
+        $syncclients = $vatregmains                        
+                        ->map(function ($vatregmain) {
+                            return [
+                                'id' => $vatregmain->id,
+                                'client'  => $vatregmain->client,
+                                'country' => $vatregmain->country,
+                            ];
                         })
-                        ->pluck('client')
-                        ->filter()
-                        ->unique('id')
-                        ->sortBy('client_name')
-                        ->values();   
+                        ->filter(function ($item) {
+                            return $item['client'];
+                        })                        
+                        ->sortBy(function ($item) {
+                            return $item['client']->client_name;
+                        })
+                        ->values(); 
+
+        // $syncdbclients = VATRegistrationMain::
+        //                 select([
+        //                     'id',
+        //                     'org_no',
+        //                     'vat_no',
+        //                     'country',
+        //                     'client_id',
+        //                 ])
+        //                 ->with([
+        //                     'client:id,client_name'
+        //                 ]) 
+        //                 ->orderBy('id', 'ASC')
+        //                 ->get()
+        //                 ->map(function ($vatregmain) {
+        //                     return [
+        //                         'id' => $vatregmain->id,
+        //                         'client'  => $vatregmain->client,
+        //                         'country' => $vatregmain->country,
+        //                     ];
+        //                 })
+        //                 ->filter(function ($item) {
+        //                     return $item['client'];
+        //                 })                        
+        //                 ->sortBy(function ($item) {
+        //                     return $item['client']->client_name;
+        //                 })
+        //                 ->values();
 
         /* -- RETURN VIEW -- */
         return view('content.ocr.analyze', [
           'pageConfigs' => $pageConfigs, 
           'authUser' => $this->authUser,  
-          'vatregmains' => $vatregmains,          
-          'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
-          'syncclients' => $syncclients
+          //'vatregmains' => $vatregmains,          
+          //'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
+          'hasanalyzepdfs' => $analyzepdfs,
+          'syncclients' => $syncclients,
+          //'syncdbclients' => $syncdbclients
+          'environment' => $this->environment
         ]);
         /* --end RETURN VIEW -- */
     }
     /* --end GET /analyzepdf -- */
 
+    /* -- GET /analyzepdf/data -- */
+    // public function analyzeData(Request $request)
+    // {
+    //     $page = (int) ($request->page ?? 1);
+    //     $limit = 1000;
+
+    //     $analyzepdfs = OcrPdf::query()
+    //         ->select($this->selectedFields)
+    //         ->orderByDesc('id')
+    //         ->paginate($limit, ['*'], 'page', $page);
+
+    //     $vatregmains = VATRegistrationMain::
+    //             select([
+    //                 'id',
+    //                 'org_no',
+    //                 'vat_no',
+    //                 'country',
+    //                 'client_id',
+    //             ])
+    //             ->with([
+    //                 'client:id,client_name',
+    //             ])                            
+    //             ->orderBy('id', 'ASC')
+    //             ->get();
+
+    //     return response()->json([
+    //         'data' => $analyzepdfs->items(),
+    //         'current_page' => $analyzepdfs->currentPage(),
+    //         'last_page' => $analyzepdfs->lastPage(),
+    //         'vatregmains' => $vatregmains,
+    //     ]);
+    // }
+
+    public function analyzeData(Request $request)
+    {
+        $page = (int) ($request->page ?? 1);
+        $limit = 50000;
+
+        $analyzepdfs = OcrPdf::query()
+            ->select($this->selectedFields)
+            //->where('extracted_data', 'LIKE', '%123456789%')
+            ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])
+            ->orderByDesc('id')
+            ->paginate($limit, ['*'], 'page', $page);
+
+        $response = [
+            'data' => $analyzepdfs->items(),
+            'current_page' => $analyzepdfs->currentPage(),
+            'last_page' => $analyzepdfs->lastPage(),
+        ];
+
+        if ($page === 1) {
+
+            $response['vatregmains'] = VATRegistrationMain::select([
+                    'id',
+                    'org_no',
+                    'vat_no',
+                    'country',
+                    'client_id',
+                ])
+                ->with([
+                    'client:id,client_name',
+                ])
+                ->orderBy('id', 'ASC')
+                ->get();
+
+        }
+        $response['environment'] = $this->environment;
+        return response()->json($response);
+    }
+
+    // public function analyzeData()
+    // {
+    //     $analyzepdfs = OcrPdf::query()                        
+    //                     ->select($this->selectedFields)
+    //                     //->where('extracted_data', 'LIKE', '%123456789%')
+    //                     //->where('id', '38633')
+    //                     //->where('extracted_data', 'LIKE', '%villy jensen%')
+    //                     ->orderBy('id', 'DESC')            
+    //                     ->get(); 
+    //                     //->paginate(100);
+
+    //     // $clients = OcrPdf::query()
+    //     //     ->whereNotNull('extracted_data')
+    //     //     ->selectRaw("
+    //     //         COALESCE(
+    //     //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.receipient.name')),
+    //     //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name'))
+    //     //         ) as client_name
+    //     //     ")
+    //     //     ->whereRaw("
+    //     //         COALESCE(
+    //     //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.receipient.name')),
+    //     //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name'))
+    //     //         ) IS NOT NULL
+    //     //     ")
+    //     //     ->distinct()
+    //     //     ->orderBy('client_name')
+    //     //     ->pluck('client_name');       
+
+    //     $vatregmains = VATRegistrationMain::
+    //                     select([
+    //                         'id',
+    //                         'org_no',
+    //                         'vat_no',
+    //                         'country',
+    //                         'client_id',
+    //                     ])
+    //                     ->with([
+    //                         'client:id,client_name',
+    //                     ])                            
+    //                     ->orderBy('id', 'ASC')
+    //                     ->get();
+
+    //     return response()->json([
+    //         'vatregmains' => $vatregmains,
+    //         //'clients' => $clients,
+    //         'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
+    //     ], 200);
+    // }
+    /* --end GET /analyzepdf/data -- */
+
     /* -- GET /analyzepdf/search -- */
     public function search()
     {   
         /* -- PAGE CONFIG -- */
-        $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf-search');      
+        $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf');      
         /* --end PAGE CONFIG -- */
 
         $analyzepdfs = OcrPdf::query()
-                        ->select([
-                            'id',   
-                            //'client_id',                         
-                            'invoice_type',
-                            'file_name',
-                            'start_pageno',
-                            'end_pageno',                           
-                            'status',
-                            'sync_status',
-                            'is_deleted',
-                            'deleted_reason',
-                            'is_locked',
-                            'extracted_data',             
-                            'validation_status',
-                            'duplicate_message',
-                            'error',
-                            'azure_url',
-                            'azure_sas_url',               
-                            'created_at',
-                            'updated_at'                           
-                        ])    
+                        ->with('syncStatus')
+                        ->select($this->selectedFields)  
+                        //->where('extracted_data', 'LIKE', '%292640361%')  
                         ->where('status', 'completed')
                         ->where('is_deleted', 0)
                         ->orderBy('id', 'ASC')            
@@ -185,6 +403,180 @@ class AnalyzePdfController extends Controller
         /* --end RETURN VIEW -- */
     }
     /* --end GET /analyzepdf/search -- */    
+
+    // /* -- GET /analyzepdf/synceddb -- */
+    // public function syncedDb()
+    // {   
+    //     /* -- PAGE CONFIG -- */
+    //     $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf');      
+    //     /* --end PAGE CONFIG -- */
+
+    //     $synceddatas = OcrPdfSyncDb::query()
+    //                     ->orderBy('id', 'ASC')
+    //                     ->get(); 
+      
+    //     // $vatregmains = VATRegistrationMain::with(['client'])
+    //     //                 ->orderBy('id', 'ASC')
+    //     //                 ->get();
+
+    //     /* -- RETURN VIEW -- */
+    //     return view('content.ocr.synced', [
+    //       'pageConfigs' => $pageConfigs, 
+    //       'authUser' => $this->authUser,  
+    //       //'vatregmains' => $vatregmains,          
+    //       'synceddatas' => $synceddatas ?? null
+    //     ]);
+    //     /* --end RETURN VIEW -- */
+    // }
+    // /* --end GET /analyzepdf/synced -- */    
+
+    // /* -- GET /analyzepdf/update-failed-syncdb -- */
+    // public function updatefailedsyncdb()
+    // {
+    //     $connection = DB::connection(
+    //         config('database.ocr_connection')
+    //     );
+
+    //     $updated = $connection->table('dv_ocr_pdfs')
+    //         ->where('sync_db', 3)
+    //         ->update([
+    //             'sync_db' => 0,
+    //             'sync_started_at' => null,
+    //         ]);
+
+    //     return response()->json([
+    //         'message' => 'OCR sync failed jobs updated successfully.',
+    //         'updated' => $updated,
+    //     ]);
+    // }
+    // /* -- GET /analyzepdf/update-failed-syncdb -- */
+
+    // /* -- GET /analyzepdf/syncdb -- */
+    // public function syncDb()
+    // {    
+    //     $connection = DB::connection(
+    //         config('database.ocr_connection')
+    //     );
+
+    //     $fetchPeriodFrom = '2026-04-01';
+
+    //     /*
+    //      * Recover records that were stuck in processing
+    //      * for more than 1 hour.
+    //      */
+    //     $connection->table('dv_ocr_pdfs')
+    //         ->where('sync_db', 2)
+    //         ->where('sync_started_at', '<', now()->subHour())
+    //         ->update([
+    //             'sync_db' => 0,
+    //             'sync_started_at' => null,
+    //         ]);
+
+    //     $totalSync = 0;
+    //     do {
+
+    //         /*
+    //          * Claim up to 100 records.
+    //          */
+    //         $ocrPdfIds = $connection->transaction(function () use (
+    //             $connection,
+    //             $fetchPeriodFrom
+    //         ) {
+    //             //$org_no = '292640361';
+    //             // $rows = $connection->select(
+    //             //     "
+    //             //     SELECT p.id
+    //             //     FROM dv_ocr_pdfs p
+    //             //     WHERE p.sync_db = 0
+    //             //       AND p.is_deleted = 0
+    //             //       AND p.status = 'completed'
+    //             //       AND JSON_UNQUOTE(
+    //             //           JSON_EXTRACT(
+    //             //               p.extracted_data,
+    //             //               '$.invoice_date'
+    //             //           )
+    //             //       ) >= ?
+    //             //       AND (
+    //             //           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+    //             //           OR
+    //             //           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+    //             //           OR
+    //             //           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+    //             //         )
+    //             //     ORDER BY p.id ASC
+    //             //     LIMIT 100
+    //             //     FOR UPDATE SKIP LOCKED
+    //             //     ",
+    //             //     [$fetchPeriodFrom, $org_no, $org_no, $org_no]
+    //             // );
+
+    //             $rows = $connection->select(
+    //                 "
+    //                 SELECT p.id
+    //                 FROM dv_ocr_pdfs p
+    //                 WHERE p.sync_db = 0
+    //                   AND p.is_deleted = 0
+    //                   AND p.status = 'completed'
+    //                   AND JSON_UNQUOTE(
+    //                       JSON_EXTRACT(
+    //                           p.extracted_data,
+    //                           '$.invoice_date'
+    //                       )
+    //                   ) >= ?                      
+    //                 ORDER BY p.id ASC
+    //                 LIMIT 100
+    //                 FOR UPDATE SKIP LOCKED
+    //                 ",
+    //                 [$fetchPeriodFrom]
+    //             );
+
+    //             $ids = collect($rows)
+    //                 ->pluck('id')
+    //                 ->values();
+
+    //             if ($ids->isNotEmpty()) {
+
+    //                 $connection->table('dv_ocr_pdfs')
+    //                     ->whereIn('id', $ids)
+    //                     ->update([
+    //                         'sync_db' => 2,
+    //                         'sync_started_at' => now(),
+    //                     ]);
+    //             }
+
+    //             return $ids;
+    //         });
+
+    //         /*
+    //          * Nothing left to process.
+    //          */
+    //         if ($ocrPdfIds->isEmpty()) {
+    //             break;
+    //         }
+
+    //         /*
+    //          * 100 claimed records
+    //          * -> 4 queue jobs x 25 records.
+    //          */
+    //         foreach ($ocrPdfIds->chunk(25) as $chunk) {
+
+    //             Bus::dispatch(
+    //                 (new SyncDbFromOcr(
+    //                     $chunk->all(),
+    //                     $this->authUser
+    //                 ))->onQueue('ocrpdfsyncdb')
+    //             );
+    //         }
+
+    //         $totalSync += count($ocrPdfIds);
+    //     } while (true);
+
+    //     return response()->json([
+    //         'message' => 'OCR sync jobs dispatched successfully.',
+    //         'totalSync' => $totalSync
+    //     ]);
+    // }
+    // /* -- END GET /analyzepdf/syncdb -- */
 
     public function fetchInbox()
     {
@@ -217,7 +609,7 @@ class AnalyzePdfController extends Controller
             else
             {
                 // Queue email processing job
-                ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '')                    
+                ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '', $email['replyAttachments'] ?? [])
                     ->onQueue(config('queue.ocr.inbox', 'ocrpdfinvoices'));
 
                 // // Increment total count for progress bar
@@ -354,27 +746,8 @@ class AnalyzePdfController extends Controller
         $completed = Cache::get('inbox_completed', 0);        
 
         $analyzepdfs = OcrPdf::query()
-                        ->select([
-                            'id',   
-                            //'client_id',                         
-                            'invoice_type',
-                            'file_name',
-                            'start_pageno',
-                            'end_pageno',                           
-                            'status',
-                            'sync_status',
-                            'is_deleted',
-                            'deleted_reason',
-                            'is_locked',
-                            'extracted_data',             
-                            'validation_status',
-                            'duplicate_message',
-                            'error',
-                            'azure_url',
-                            'azure_sas_url',               
-                            'created_at',
-                            'updated_at'                           
-                        ])
+                        ->with('syncStatus')
+                        ->select($this->selectedFields)
                         ->orderBy('id', 'DESC')            
                         ->get();
 
@@ -411,27 +784,8 @@ class AnalyzePdfController extends Controller
             ->values();
 
         $analyzepdfs = OcrPdf::query()
-                        ->select([
-                            'id',   
-                            //'client_id',                         
-                            'invoice_type',
-                            'file_name',
-                            'start_pageno',
-                            'end_pageno',                           
-                            'status',
-                            'sync_status',
-                            'is_deleted',
-                            'deleted_reason',
-                            'is_locked',
-                            'extracted_data',             
-                            'validation_status',
-                            'duplicate_message',
-                            'error',
-                            'azure_url',
-                            'azure_sas_url',               
-                            'created_at',
-                            'updated_at'                           
-                        ])
+                        ->with('syncStatus')
+                        ->select($this->selectedFields)
                         ->orderBy('id', 'DESC')            
                         ->get();
 
@@ -766,8 +1120,8 @@ class AnalyzePdfController extends Controller
 
       // Only run update if something changed
       if (!empty($updates)) {
-            $updates['sync_status'] = 0;
-            $updates['is_locked'] = 0;
+            // $updates['sync_status'] = 0;
+            // $updates['is_locked'] = 0;
 
             foreach ($feedbackItems as $item) {
                 $feedback->capture(
@@ -781,6 +1135,17 @@ class AnalyzePdfController extends Controller
             }
 
             $invoice->update($updates);
+            
+            OcrSyncStatus::updateOrCreate(
+                [
+                    'ocr_pdf_id' => $invoice->id,
+                    'environment' => $this->environment,
+                ],
+                [                    
+                    'sync_status' => 0,
+                    'is_locked' => 0,
+                ]
+            );
 
             $allDocs = OcrPdf::query()->get();
 
@@ -798,27 +1163,8 @@ class AnalyzePdfController extends Controller
             ->values();
 
             $analyzepdfs = OcrPdf::query()
-                            ->select([
-                                'id',   
-                                //'client_id',                         
-                                'invoice_type',
-                                'file_name',
-                                'start_pageno',
-                                'end_pageno',                           
-                                'status',
-                                'sync_status',
-                                'is_deleted',
-                                'deleted_reason',
-                                'is_locked',
-                                'extracted_data',             
-                                'validation_status',
-                                'duplicate_message',
-                                'error',
-                                'azure_url',
-                                'azure_sas_url',               
-                                'created_at',
-                                'updated_at'                           
-                            ])
+                            ->with('syncStatus')
+                            ->select($this->selectedFields)
                           ->orderBy('id', 'DESC')            
                           ->get();
 
@@ -915,27 +1261,8 @@ class AnalyzePdfController extends Controller
             }
 
             $analyzepdfs = OcrPdf::query()
-                            ->select([
-                                'id',   
-                                //'client_id',                         
-                                'invoice_type',
-                                'file_name',
-                                'start_pageno',
-                                'end_pageno',                           
-                                'status',
-                                'sync_status',
-                                'is_deleted',
-                                'deleted_reason',
-                                'is_locked',
-                                'extracted_data',             
-                                'validation_status',
-                                'duplicate_message',
-                                'error',
-                                'azure_url',
-                                'azure_sas_url',               
-                                'created_at',
-                                'updated_at'                           
-                            ])
+                            ->with('syncStatus')
+                            ->select($this->selectedFields)
                             ->orderBy('id', 'DESC')            
                             ->get();
 
@@ -965,6 +1292,7 @@ class AnalyzePdfController extends Controller
       try
       {
         $client_id = $request->client_id;
+        $country = $request->country;
  
         $system = $this->commonClass->getSystemInfoLazy(); 
         $systemapi = $system->systemapi->first();
@@ -986,10 +1314,14 @@ class AnalyzePdfController extends Controller
                                       ->orWhere('product_type', 3)
                                       ->orWhere('product_type', 5); 
                                 });
+        
+        if($country)        
+          $vatregs = $query->where('country', $country);
+
         if($client_id)        
           $vatregs = $query->whereHas('client', function ($subquery) use ($client_id) {                                        
               $subquery->whereIn('id', [$client_id]);
-          });                 
+          });
         
         $vatregs = $query->get();
         /* --end GET ALL VAT REG. FOR PRODUCT TYPE - 2/3 -- */  
@@ -1030,14 +1362,25 @@ class AnalyzePdfController extends Controller
               $org_no = $vatregmain->org_no;        
             else
               $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
-                    
+            
             $check_org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
-        
-            $omit_org_no = $this->commonClass->OrgNoForOcr();
-            if ($check_org_no && in_array($check_org_no, $omit_org_no))
-            {            
+          
+            $fetch_period_from = null;
+            if ($vatregmain->country == 'CH') {
+                $fetch_period_from = ($vatregmain->service_start >= '2026-04-01')
+                    ? '2026-04-01'
+                    : null;
+            } else {
+                $fetch_period_from = ($vatregmain->service_start >= '2026-06-01')
+                    ? '2026-06-01'
+                    : null;
+            }
+            //$omit_org_no = $this->commonClass->OrgNoForOcr();
+            //if ($check_org_no && in_array($check_org_no, $omit_org_no))
+            if ($vatregmain->ocr_sync || !$fetch_period_from)
+            {
                 $insert_invoices = 0;
-                $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from);
+                // $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from, $fetch_period_from);
 
                 if(is_array($insert_invoices))
                 {
@@ -1055,8 +1398,8 @@ class AnalyzePdfController extends Controller
                         stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
                         )
                     ) 
-                    {      
-                        $which_folder = (strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud") ? 'main' : 'archive';
+                    {                              
+                        $which_folder = ($this->environment === "live") ? 'main' : 'archive';
                                            
                         /* -- READ XML FILE FROM FTP -- */
                         $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder); 
@@ -1074,127 +1417,7 @@ class AnalyzePdfController extends Controller
                 } //read all at a time
             } //for 
         }//has vatreg
-
-
-        // foreach($vatregs as $key => $vatreg)
-        // {    
-        //   $client_name = $vatreg->client->client_name;
        
-        //     //$data = $this->commonClass->loadImportReconciliationDatasFromAzureDb($this->authUser, $vatreg, $from, $full_refresh);
-            
-        //     $client_id = $vatreg->client_id;
-        //     $vat_reg_id = $vatreg->id;
-
-        //     $vatregmain = $vatreg->vatregmain; 
-        //     $vat_reg_main_id = $vatreg->vat_reg_main_id;
-
-        //     if($vatregmain->country == 'NO')
-        //       $org_no = $vatregmain->org_no;        
-        //     else
-        //       $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
-                    
-        //     $check_org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
-
-        //     //second female - NO/CH; sports - NO; DFI
-        //     $omit_org_no = $this->commonClass->OrgNoForOcr();
-        //     if ($check_org_no && in_array($check_org_no, $omit_org_no))
-        //     {              
-        //       //sync from OCR extraction
-        //       //$from = str_replace('global', 'ocr', $from);
-
-        //       // $insert_invoices = 0;
-        //       // $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from);
-
-        //       // if(is_array($insert_invoices))
-        //       // {
-        //       //   $data = $insert_invoices['processed'];
-        //       // }
-
-        //       // if($full_refresh && $from == 'ocr-search-refresh')
-        //       // {
-        //       //   if($insert_invoices == 0)
-        //       //       $data = $insert_invoices;
-        //       //   else
-        //       //   {
-        //       //       if(count($insert_invoices['result']) > 0)
-        //       //         $data = $insert_invoices;
-        //       //       else  
-        //       //         $data = $insert_invoices['insert_invoices'];  
-        //       //   }
-        //       // }
-        //       // else  
-        //       //   $data = $insert_invoices;  
-
-        //       //   if($data)
-        //       //   {
-        //       //     if(is_array($data))
-        //       //     {
-        //       //       if($data['insert_invoices'] > 0)
-        //       //         $batchIds[] = [                
-        //       //           'batchId' => $data['insert_invoices'],                
-        //       //         ];
-                   
-        //       //       if($data['result']) 
-        //       //       {       
-        //       //         if($result)                      
-        //       //           //$result = array_merge($result->toArray(), $data['result']);
-        //       //           $result = $result->merge($data['result']);
-        //       //         else     
-        //       //           $result = $data['result'];
-        //       //       }
-        //       //     }
-        //       //     else
-        //       //     {
-        //       //       if($data > 0)
-        //       //       {
-        //       //         $batchIds[] = [
-        //       //           'batchId' => $data              
-        //       //         ];
-        //       //       }
-        //       //     }
-        //       //   }
-
-        //         if(!in_array($vatreg->country, $unique_countries, true))
-        //         {
-        //             if (stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
-        //             stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
-        //             stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
-        //             ) 
-        //             {      
-        //                 $which_folder = (strtolower(env('APP_URL')) === "https://app.intravat.cloud" || strtolower(config('app.url')) === "https://app.intravat.cloud") ? 'main' : 'archive';
-                                           
-        //                 /* -- READ XML FILE FROM FTP -- */
-        //                 $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder); 
-        //                 /* --end READ XML FILE FROM FTP -- */
-                        
-        //                 /* -- READ XML FILE FROM E-FACTO -- */
-        //                 if (stripos(strtolower($client_name), "noscomed") !== false ||
-        //                     stripos(strtolower($client_name), "rexholm") !== false)                    
-        //                   $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder, true);
-        //                 /* --end READ XML FILE FROM E-FACTO -- */
-                      
-        //                 if(!in_array($vatreg->country, $unique_countries, true))                
-        //                     array_push($unique_countries, $vatreg->country);                    
-        //             }
-        //         } //read all at a time
-        //     } //OCR 
-        // }/* --end for VAT REG. -- */
-
-        //$result = ($result) ? $result->values()->toArray() : $result;
-
-        // if($client_id)
-        // {
-        //   session()->forget('ocrResults'.$client_id);
-        //   session()->save();
-        //   session()->put('ocrResults'.$client_id, $result);
-        // }
-        // else
-        // {
-        //   session()->forget('ocrResults');
-        //   session()->save();
-        //   session()->put('ocrResults');
-        // }        
-
         /* -- RETURN JSON -- */
         return response()->json([
           'status' => 200,
@@ -1253,7 +1476,8 @@ class AnalyzePdfController extends Controller
         // unset($arr_selected_analyze_ids[16]);
         // $arr_selected_analyze_ids = array_values($arr_selected_analyze_ids);
         // $selected_analyze_ids = implode(',', $arr_selected_analyze_ids);
-        
+            
+
         $attachments = [];
         $grouped = [
             'sales' => [],
@@ -1270,9 +1494,24 @@ class AnalyzePdfController extends Controller
             // }
             // else
             // {
-                $invoice->sync_status = 0;
-                $invoice->is_locked = 0;
+                $invoice->no_of_attempts = 0;
+                $invoice->sync_db = 0;
+                $invoice->manual_input_status = null;
+                $invoice->search_save_status = null;
+                //$invoice->sync_status = 0;
+                //$invoice->is_locked = 0;
                 $invoice->save();
+                
+                OcrSyncStatus::updateOrCreate(
+                    [
+                        'ocr_pdf_id' => $invoice->id,
+                        'environment' => $this->environment,
+                    ],
+                    [                    
+                        'sync_status' => 0,
+                        'is_locked' => 0,
+                    ]
+                );
 
                 //Get file from Azure storage
                 $sasPaths = $ocrAnalyzeService->getSasUrl($id, 'recapture');
@@ -1344,7 +1583,8 @@ class AnalyzePdfController extends Controller
         }
             
         // Safety check: skip if no attachments
-        if (empty($grouped)) {
+        //if (empty($grouped)) {
+        if (empty($grouped['sales']) && empty($grouped['multi-invoices']) && empty($grouped['com'])) {
             Log::warning("No PDF attachments found for this recapture");
             return;
         }
@@ -1377,12 +1617,171 @@ class AnalyzePdfController extends Controller
         //$azureService = new AzureStorageService();
         //$azureService->deleteFile($sasUrl);
 
+        $total = 0;
+        if(isset($grouped['sales']))
+            $total += count($grouped['sales']);
+
+        if(isset($grouped['com']))
+            $total += count($grouped['com']);
+
+        if(isset($grouped['multi-invoices']))
+            $total += count($grouped['multi-invoices']);
+
         return response()->json([
-            'total' => count($grouped['sales']) + count($grouped['com']),
+            'total' => $total,
             'queued_emails' => $grouped
         ], 202);
     }   
     /* --end GET /analyzepdf/{analyze_id}/recapture -- */
+
+    /* -- GET /analyzepdf/{analyze_id}/split -- */
+    public function split(Request $request, $id)
+    {
+        $ocrAnalyzeService = new OcrAnalyzeService();
+        
+        Cache::forget('inbox_completed');
+        Cache::forget('inbox_total');
+
+        $selected_analyze_ids = ($id == '0') ? $request->selected_analyzepdf_id : $id;
+               
+        $attachments = [];
+        $grouped = [
+            'sales' => [],
+            'com' => [],
+            'multi-invoices' => []
+        ];
+        foreach (explode(',', $selected_analyze_ids) as $id)
+        {            
+            $invoice = OcrPdf::query()->findOrFail($id);
+            
+            $invoice->no_of_attempts = 0;
+            $invoice->sync_db = 0;
+            $invoice->manual_input_status = null;
+            $invoice->search_save_status = null;
+            //$invoice->sync_status = 0;
+            //$invoice->is_locked = 0;
+            $invoice->save();
+            
+            OcrSyncStatus::updateOrCreate(
+                [
+                    'ocr_pdf_id' => $invoice->id,
+                    'environment' => $this->environment,
+                ],
+                [                    
+                    'sync_status' => 0,
+                    'is_locked' => 0,
+                ]
+            );
+
+            //Get file from Azure storage
+            $sasPaths = $ocrAnalyzeService->getSasUrl($id, 'split');
+
+            $sasUrl = $sasPaths['signedUrl'];
+            $blobPath = $sasPaths['blobPath'];
+            
+            $prevCapture = [
+                'prevId' => $id,
+                'sasUrl' => $sasUrl,
+                'blobPath' => $blobPath,
+                'split' => true
+            ];
+
+            //Save it in local
+            $sasUrl = html_entity_decode($sasUrl);
+            
+            // Encode only unsafe characters in path
+            $parts = parse_url($sasUrl);
+
+            $path = implode('/',
+                array_map(function ($segment) {
+                    return rawurlencode(rawurldecode($segment));
+                }, explode('/', $parts['path']))
+            );
+
+            $rebuiltUrl =
+                $parts['scheme'] . '://' .
+                $parts['host'] .
+                $path .
+                (isset($parts['query']) ? '?' . $parts['query'] : '');
+           
+            $stream = fopen($rebuiltUrl, 'r');
+
+
+            $fileName = basename($invoice->file_name);
+            
+            Storage::disk('local')->put('ocr/' . $fileName, $stream);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }               
+            $fullPath = storage_path('app/ocr/' . $fileName);            
+
+            // Unique batch ID for this email
+            $batchId = (string) Str::uuid();
+            
+            $mailService = new MicrosoftMailService();            
+
+            $content = file_get_contents($fullPath);
+            $contentBytes = base64_encode($content);
+
+            // Safe deletion
+            if (file_exists($fullPath)) {
+                unlink($fullPath);
+            }
+
+            $attachment = [
+                'name' => $fileName,
+                'contentBytes' => $contentBytes,
+                'prevCapture' => $prevCapture,
+                'prevFolder' => 'multi-invoices'
+            ];
+            $grouped = $mailService->groupFiles($attachment, null, $grouped);            
+        }
+            
+        // Safety check: skip if no attachments      
+        if (empty($grouped['sales']) && empty($grouped['multi-invoices']) && empty($grouped['com'])) {
+            Log::warning("No PDF attachments found for this split");
+            return;
+        }
+
+        $clients = app(ClientRepository::class)->all();
+
+        $ocrAnalyzeService = new OcrAnalyzeService();
+
+        foreach ($grouped as $folder => $items) {
+            if (!empty($items)) {
+                // Trigger analysis for stored PDFs   
+                $paths = [];
+                $prevCaptures = [];
+
+                foreach ($items as $item) {
+                    $paths[] = $item['path'];
+                    $prevCaptures[] = $item['prevCapture'];
+                }
+             
+                $ocrAnalyzeService->analyze($clients, $paths, $folder, $batchId, null, $prevCaptures);
+            }
+        }
+
+        // Mark as queued in UI
+        $grouped['attachments'] = ['status' => 'queued'];
+
+        $total = 0;
+        if(isset($grouped['sales']))
+            $total += count($grouped['sales']);
+
+        if(isset($grouped['com']))
+            $total += count($grouped['com']);
+
+        if(isset($grouped['multi-invoices']))
+            $total += count($grouped['multi-invoices']);
+
+        return response()->json([
+            'total' => $total,
+            'queued_emails' => $grouped
+        ], 202);
+    }   
+    /* --end GET /analyzepdf/{analyze_id}/split -- */
 
     /* -- POST /analyzepdf/bulk-upload -- */
     public function ocrBulkUpload(Request $request)
@@ -1469,9 +1868,12 @@ class AnalyzePdfController extends Controller
             {
                 $selected_analyze_ids = [];
 
-                $selected_analyze_ids = OcrPdf::query()->where('status', 'completed')
+                $selected_analyze_ids = OcrPdf::query()
+                                ->where('status', 'completed')
+                                ->where('is_deleted', 0)
+                                ->where('sync_db', 0)
                                 ->where('invoice_type', 'com')                                
-                                ->where('extracted_data', 'LIKE', '%932337274%')  
+                                //->where('extracted_data', 'LIKE', '%123456789%')  
                                 ->orderBy('id', 'ASC')            
                                 ->pluck('id')
                                 ->toArray(); 
@@ -1485,6 +1887,13 @@ class AnalyzePdfController extends Controller
                     : [$id];
             }
 
+            OcrPdf::query()
+                ->whereIn('id', $selected_analyze_ids)
+                ->update([
+                    'no_of_attempts' => 0,
+                    'sync_db' => 0,
+                ]);
+    
             //dispatch((new ValidateOcrInvoicesJob(null, $selected_analyze_ids))->onQueue('ocrpdfvalidateinvoices'));
 
             ValidateOcrInvoicesJob::dispatch(null, $selected_analyze_ids)
