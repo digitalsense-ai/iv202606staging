@@ -2277,7 +2277,7 @@ dd($firstFile, $readcargofiles);
         ];
 
         // Public IP (client and vendor)
-        $vendorPublicIp = '165.22.78.137';
+        $vendorPublicIp = config('app.dv_sftp_ip_address');
         $clientPublicIp = $_SERVER['REMOTE_ADDR'] ?? '203.0.113.45';
         $clientPort = $_SERVER['REMOTE_PORT'] ?? '5000';
 

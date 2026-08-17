@@ -138,6 +138,7 @@ return [
     'dv_staging_url' => env('DV_STAGING_URL', '12345678'),
     'dv_live_url' => env('DV_LIVE_URL', '12345678'),   
 
+    'dv_sftp_ip_address' => env('DV_SFTP_IP_ADDRESS', '12345678'),  
     'dv_sftp_secret_id' => env('DV_SFTP_SECRET_ID', '12345678'),  
     'dv_sftp_secret_key' => env('DV_SFTP_SECRET_KEY', '12345678'),   
 
