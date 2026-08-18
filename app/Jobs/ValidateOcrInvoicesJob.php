@@ -149,7 +149,7 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                 $duplicateCandidates = $duplicateCandidates->whereIn('id', $this->invoiceIds);
             }
 
-            if ($duplicateCandidates->isNotEmpty()) {                
+            if ($duplicateCandidates->isNotEmpty()) {
                 Log::info('Duplicate group found', [
                     //'invoice_type' => $duplicate->invoice_type,
                     'invoice_type' => $invoiceTypes,
@@ -171,8 +171,6 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                     //'sync_status' => 0,
                     //'is_locked' => 1,
                 ]);
-
-                Cache::increment('inbox_completed', 1);                
                 
                 OcrSyncStatus::updateOrCreate(
                     [
@@ -195,6 +193,10 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         
         //->where('status', '!=', 'duplicate')
         $query = clone $baseQuery;
+// Log::info('ValidateOcrInvoicesJob', [    
+//     'invoiceIds count' => count($this->invoiceIds),
+//     'empty_or_not' => empty($this->invoiceIds)    
+// ]);
 
         if (empty($this->invoiceIds))
             $query->where('status', 'completed');
@@ -208,8 +210,6 @@ class ValidateOcrInvoicesJob implements ShouldQueue
         ->chunkById(500, function ($invoices) use ($clients) {
 
             foreach ($invoices as $invoice) {
-
-                //Cache::increment('inbox_completed', 1);
 
                 // if (!$this->manual) 
                 // {

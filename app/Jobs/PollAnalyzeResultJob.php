@@ -531,6 +531,28 @@ class PollAnalyzeResultJob implements ShouldQueue
 
         $batchId = $currentInvoice->batch_id;
 
+        $cacheKey = "ocr_email_batch_finalized:{$batchId}";
+
+        if (!Cache::add($cacheKey, true, now()->addHours(6))) {
+            return;
+        }
+
+        try {
+            if (!$this->emailMessageId) {
+                return;
+            }
+
+            $mailService = app(MicrosoftMailService::class);
+
+            $mailService->addCategory($this->emailMessageId);
+            $mailService->markEmailAsRead($this->emailMessageId);
+            $mailService->moveEmailToFolder($this->emailMessageId);
+
+        } catch (\Throwable $e) {
+            Cache::forget($cacheKey);
+            throw $e;
+        }
+        
         // if($type)
         // {
             // $invoiceType = $currentInvoice->invoice_type;
@@ -647,7 +669,7 @@ class PollAnalyzeResultJob implements ShouldQueue
         
         $rowsCount = count($rows);
 
-        // Log::warning([
+        // Log::warning("Validate OCR from EMAILS {$this->filePath}", [
         //     'rows_count' => $rowsCount,
         //     'invoiceType' => $invoiceType,
         //     'invoiceNo' => $invoiceNo,
@@ -657,6 +679,7 @@ class PollAnalyzeResultJob implements ShouldQueue
         //if ($rowsCount > 10000) {
         if(!$invoiceNo || !$clientOrgNo)
         {
+            //Log::warning("Cannot Validate OCR {$this->filePath}");
             Log::warning("Cannot Validate OCR {$this->filePath}", [
                 'rows_count' => $rowsCount,
                 'invoiceType' => $invoiceType,
@@ -670,7 +693,7 @@ class PollAnalyzeResultJob implements ShouldQueue
             ->pluck('id')
             ->values()
             ->toArray();
-        
+
         $remaining = OcrPdf::query()
             ->where('batch_id', $batchId)
             ->whereNotIn('status', ['completed', 'failed', 'duplicate', 'timeout'])
@@ -701,6 +724,10 @@ class PollAnalyzeResultJob implements ShouldQueue
             $invoice->save();            
         }
 
+        if (empty($selected_invoice_ids)) {
+            return;
+        }
+
         // if($type)
         // {
         //     // $total = Cache::get('inbox_total', 0);
@@ -712,28 +739,6 @@ class PollAnalyzeResultJob implements ShouldQueue
         // }
         // else            
         //     ValidateOcrInvoicesJob::dispatch($batchId)
-        //         ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));        
-
-        $cacheKey = "ocr_email_batch_finalized:{$batchId}";
-
-        if (!Cache::add($cacheKey, true, now()->addHours(6))) {
-            return;
-        }
-
-        try {
-            if (!$this->emailMessageId) {
-                return;
-            }
-
-            $mailService = app(MicrosoftMailService::class);
-
-            $mailService->addCategory($this->emailMessageId);
-            $mailService->markEmailAsRead($this->emailMessageId);
-            $mailService->moveEmailToFolder($this->emailMessageId);
-
-        } catch (\Throwable $e) {
-            Cache::forget($cacheKey);
-            throw $e;
-        }
+        //         ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));                
     }
 }

@@ -805,6 +805,15 @@ class CustomSalesInvoiceMapper
                 unset($mapresult['change_invoice_type']);            
         }
 
+        $chkSpecificText = OcrFallbackFieldExtractor::chkSpecificText($content, 'norsk moms');        
+        if($chkSpecificText)
+        {            
+            if (blank($vat_amount))
+                $mapresult['change_invoice_type'] = true;
+            else
+                unset($mapresult['change_invoice_type']);            
+        }
+
         if ($invalid_invoice_type !== null)
         {            
             $mapresult['invalid_invoice_type'] = true;            

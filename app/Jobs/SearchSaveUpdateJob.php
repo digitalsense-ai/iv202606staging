@@ -21,7 +21,7 @@ class SearchSaveUpdateJob implements ShouldQueue
         public bool $forceSubmitted = false,
         public ?int $userId = null
     ) {
-        $this->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
+        //$this->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
     }
 
     public function handle(OcrInvoiceCorrectionService $correctionService): void

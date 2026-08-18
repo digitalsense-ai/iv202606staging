@@ -138,7 +138,7 @@ class AnalyzePdfController extends Controller
         $analyzepdfs = OcrPdf::query()                       
                         ->select($this->selectedFields)  
                         ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])                        
-                        //->where('extracted_data', 'LIKE', '%123456789%')                  
+                        ->where('extracted_data', 'LIKE', '%980188744%')                  
                         ->orderBy('id', 'DESC')            
                         //->get(); 
                         ->count();
@@ -287,11 +287,11 @@ class AnalyzePdfController extends Controller
     public function analyzeData(Request $request)
     {
         $page = (int) ($request->page ?? 1);
-        $limit = 50000;
+        $limit = 1000;
 
         $analyzepdfs = OcrPdf::query()
             ->select($this->selectedFields)
-            //->where('extracted_data', 'LIKE', '%123456789%')
+            ->where('extracted_data', 'LIKE', '%980188744%')
             ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])
             ->orderByDesc('id')
             ->paginate($limit, ['*'], 'page', $page);
@@ -1872,19 +1872,23 @@ class AnalyzePdfController extends Controller
                                 ->where('status', 'completed')
                                 ->where('is_deleted', 0)
                                 ->where('sync_db', 0)
-                                ->where('invoice_type', 'com')                                
-                                //->where('extracted_data', 'LIKE', '%123456789%')  
+                                ->whereNot('invoice_type', 'com')                                
+                                //->where('extracted_data', 'LIKE', '%986211195%')  
                                 ->orderBy('id', 'ASC')            
                                 ->pluck('id')
                                 ->toArray(); 
 
-                dd("change the query");
+                dd($selected_analyze_ids, "change the query");
             }
             else
             {
                 $selected_analyze_ids = ($id == '0')
                     ? explode(',', $request->selected_analyzepdf_id)
                     : [$id];
+            }
+
+            if (empty($selected_analyze_ids)) {
+                return;
             }
 
             OcrPdf::query()

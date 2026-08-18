@@ -360,6 +360,7 @@ class MicrosoftMailService
         // Skip files starting with EAD or ESCAN_        
         if (
             preg_match('/^(ATT|EAD|ESCAN_|Payment information|Mainifest)/i', $fileName)
+            || preg_match('/-\s*(EAD|SAD|Tarif)/i', $fileName)
             || stripos($fileName, 'AJONEDDCPA') !== false
             || stripos($fileName, 'Mva-melding') !== false
             || stripos($fileName, 'kontoudtog') !== false  

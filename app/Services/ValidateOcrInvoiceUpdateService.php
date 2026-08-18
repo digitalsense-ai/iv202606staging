@@ -58,9 +58,9 @@ class ValidateOcrInvoiceUpdateService
 
         
         if($changed)
-        {        
+        {                   
             Cache::increment('inbox_completed', 1);
-
+                 
             //if($invoice->validation_status == 'not_yet_validated')
             //    $invoice->og_extracted_data = $invoice->extracted_data ?? [];      
 

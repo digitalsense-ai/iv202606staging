@@ -320,7 +320,15 @@ class CustomComInvoiceMapper
         {
             if($mapresult['change_invoice_type'])
             {
+                if(strtolower($invoice_type) === "invoice")
+                {
+                    $validInvoiceType = OcrFallbackFieldExtractor::checkInvoiceType($content);
 
+                    if($validInvoiceType)
+                       unset($mapresult['change_invoice_type']);     
+                    else
+                        $mapresult['change_invoice_type'] = true;
+                }
             }
             else
             {
@@ -387,7 +395,8 @@ class CustomComInvoiceMapper
         {       
             $mapresult['invalid_invoice_type'] = true;
         }
-
+//Log::info("COM mapresult change_invoice_type: " . ($mapresult['change_invoice_type'] ?? null));
+    //Log::info("COM mapresult invalid_invoice_type: " . ($mapresult['invalid_invoice_type'] ?? null));
         return $mapresult;        
     }
 }
