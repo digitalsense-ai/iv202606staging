@@ -569,27 +569,29 @@ console.log(analyzepdfsearch_name);
 
               let pageData = result.data;
 
-              $.each(pageData, function(index, item) {
+              // $.each(pageData, function(index, item) {
 
-                  if (item.invoice_type === 'com') {
-                      window.analyzepdf_commercial_invoice_datas.push(item);
-                  }
-                  else if (item.invoice_type !== 'com') {
-                      window.analyzepdf_sales_invoice_datas.push(item);
-                  }
-                  // else if (item.status === 'declaration') {
-                  //     window.analyzepdf_declaration_datas.push(item);
-                  // }                  
+              //     if (item.invoice_type === 'com') {
+              //         window.analyzepdf_commercial_invoice_datas.push(item);
+              //     }
+              //     else if (item.invoice_type !== 'com') {
+              //         window.analyzepdf_sales_invoice_datas.push(item);
+              //     }
+              //     // else if (item.status === 'declaration') {
+              //     //     window.analyzepdf_declaration_datas.push(item);
+              //     // }                  
 
-              });
+              // });
 
-              result.analyzepdfs = [
-                  ...window.analyzepdf_commercial_invoice_datas,
-                  ...window.analyzepdf_sales_invoice_datas                  
-              ];
+              // result.analyzepdfs = [
+              //     ...window.analyzepdf_commercial_invoice_datas,
+              //     ...window.analyzepdf_sales_invoice_datas                  
+              // ];
+
+              result.analyzepdfs = pageData;
 
               let analyzepdfsearch_datas = drawDtTable(result, 'analyzepdf_search');
-console.log(analyzepdfsearch_datas);
+
               if (analyzepdfsearch_datas) {
                   reloadAnalyzedPdfSearch(analyzepdfsearch_datas);
               }
@@ -1158,8 +1160,8 @@ console.log(analyzepdfsearch_datas);
           $("#btn-analyzepdfsearch-" + analyzepdfsearch_name + " span")
             .html(analyzepdfsearch_total);
 */
-          $(".card.analyzepdfsearch .sk-bounce").hide();
-          $(".card.analyzepdfsearch .card-datatable").show();
+          $(".card.analyzepdfsearch .sk-bounce").show();
+          $(".card.analyzepdfsearch .card-datatable").hide();
 
           var table = this.api();
 

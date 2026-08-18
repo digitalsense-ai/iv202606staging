@@ -7912,7 +7912,7 @@ class CommonClass
 
         //$omit_org_no = $this->OrgNoForOcr();
         //if ($check_org_no && in_array($check_org_no, $omit_org_no))
-        if ($vatregmain->ocr_sync || !$fetch_period_from)
+        if ($vatregmain->ocr_sync && $fetch_period_from)
         {          
           //sync from OCR extraction
           $from = str_replace('global', 'ocr', $from);

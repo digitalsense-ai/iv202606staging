@@ -3403,25 +3403,33 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
              //console.log(analyzepdfs);
         if(type == 'analyzepdf')
         {
-          analyzepdf_completed_datas = [];
-          analyzepdf_processing_datas = [];
-          analyzepdf_error_datas = [];
-          analyzepdf_deleted_datas = [];
+          // analyzepdf_completed_datas = [];
+          // analyzepdf_processing_datas = [];
+          // analyzepdf_error_datas = [];
+          // analyzepdf_deleted_datas = [];
 
-          var analyzepdf_completed_start = 1;
-          var analyzepdf_processing_start = 1;
-          var analyzepdf_error_start = 1;
-          var analyzepdf_deleted_start = 1;
+          // var analyzepdf_completed_start = 1;
+          // var analyzepdf_processing_start = 1;
+          // var analyzepdf_error_start = 1;
+          // var analyzepdf_deleted_start = 1;
+
+          var analyzepdf_completed_start = analyzepdf_completed_datas.length + 1;
+          var analyzepdf_processing_start = analyzepdf_processing_datas.length + 1;
+          var analyzepdf_error_start = analyzepdf_error_datas.length + 1;
+          var analyzepdf_deleted_start = analyzepdf_deleted_datas.length + 1;
         }
         else if(type == 'analyzepdf_search')
         {
-          analyzepdf_commercial_invoice_datas = [];
-          analyzepdf_sales_invoice_datas = [];
+          // analyzepdf_commercial_invoice_datas = [];
+          // analyzepdf_sales_invoice_datas = [];
           //analyzepdf_declaration_datas = [];
 
-          var analyzepdf_commercial_invoice_start = 1;
-          var analyzepdf_sales_invoice_start = 1;
+          // var analyzepdf_commercial_invoice_start = 1;
+          // var analyzepdf_sales_invoice_start = 1;
           //var analyzepdf_declaration_start = 1;
+
+          var analyzepdf_commercial_invoice_start = analyzepdf_commercial_invoice_datas.length + 1;
+          var analyzepdf_sales_invoice_start = analyzepdf_sales_invoice_datas.length + 1;
         }
 
         let salesInvoiceMap = {};

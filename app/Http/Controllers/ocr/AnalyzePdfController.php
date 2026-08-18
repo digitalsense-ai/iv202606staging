@@ -138,7 +138,13 @@ class AnalyzePdfController extends Controller
         $analyzepdfs = OcrPdf::query()                       
                         ->select($this->selectedFields)  
                         ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])                        
-                        ->where('extracted_data', 'LIKE', '%980188744%')                  
+                        //->where('extracted_data', 'LIKE', '%123456789%')      
+                        ->orderByRaw("
+                            COALESCE(
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                            ) ASC
+                        ")            
                         ->orderBy('id', 'DESC')            
                         //->get(); 
                         ->count();
@@ -287,12 +293,18 @@ class AnalyzePdfController extends Controller
     public function analyzeData(Request $request)
     {
         $page = (int) ($request->page ?? 1);
-        $limit = 1000;
+        $limit = 10000;
 
         $analyzepdfs = OcrPdf::query()
             ->select($this->selectedFields)
-            ->where('extracted_data', 'LIKE', '%980188744%')
+            //->where('extracted_data', 'LIKE', '%123456789%')
             ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])
+            ->orderByRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) ASC
+            ")
             ->orderByDesc('id')
             ->paginate($limit, ['*'], 'page', $page);
 
@@ -1377,7 +1389,7 @@ class AnalyzePdfController extends Controller
             }
             //$omit_org_no = $this->commonClass->OrgNoForOcr();
             //if ($check_org_no && in_array($check_org_no, $omit_org_no))
-            if ($vatregmain->ocr_sync || !$fetch_period_from)
+            if ($vatregmain->ocr_sync && $fetch_period_from)
             {
                 $insert_invoices = 0;
                 // $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from, $fetch_period_from);

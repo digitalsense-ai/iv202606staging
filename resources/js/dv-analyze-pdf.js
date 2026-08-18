@@ -354,29 +354,31 @@ $(function () {
 
               let pageData = result.data;
 
-              $.each(pageData, function(index, item) {
+              // $.each(pageData, function(index, item) {
 
-                  if (item.status === 'completed') {
-                      window.analyzepdf_completed_datas.push(item);
-                  }
-                  else if (item.status === 'processing') {
-                      window.analyzepdf_processing_datas.push(item);
-                  }
-                  else if (item.status === 'failed') {
-                      window.analyzepdf_error_datas.push(item);
-                  }
-                  else if (item.status === 'deleted') {
-                      window.analyzepdf_deleted_datas.push(item);
-                  }
+              //     if (item.status === 'completed') {
+              //         window.analyzepdf_completed_datas.push(item);
+              //     }
+              //     else if (item.status === 'processing') {
+              //         window.analyzepdf_processing_datas.push(item);
+              //     }
+              //     else if (item.status === 'failed') {
+              //         window.analyzepdf_error_datas.push(item);
+              //     }
+              //     else if (item.status === 'deleted') {
+              //         window.analyzepdf_deleted_datas.push(item);
+              //     }
 
-              });
+              // });
 
-              result.analyzepdfs = [
-                  ...window.analyzepdf_completed_datas,
-                  ...window.analyzepdf_processing_datas,
-                  ...window.analyzepdf_error_datas,
-                  ...window.analyzepdf_deleted_datas
-              ];
+              // result.analyzepdfs = [
+              //     ...window.analyzepdf_completed_datas,
+              //     ...window.analyzepdf_processing_datas,
+              //     ...window.analyzepdf_error_datas,
+              //     ...window.analyzepdf_deleted_datas
+              // ];
+
+              result.analyzepdfs = pageData;
 
               let analyzepdf_datas = drawDtTable(result, 'analyzepdf');
 

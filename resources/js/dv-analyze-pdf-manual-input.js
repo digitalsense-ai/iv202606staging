@@ -206,6 +206,17 @@ $(function () {
         '</button>'
       );
     });
+
+    // Update counter based on filtered items
+    if (current) {
+        const position = items.findIndex(item => item.id === current.id);
+
+        if (position >= 0) {
+            updateCounter(position + 1, items.length);
+        } else {
+            updateCounter(null, items.length);
+        }
+    }
   }
 
   function loadQueue(selectFirst = true) {
