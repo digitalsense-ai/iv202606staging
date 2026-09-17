@@ -142,7 +142,7 @@ $(function () {
     ),
   };  
 
-  window.expandSalesInvoiceRefs = function expandSalesInvoiceRefs(values, client_name) {  
+  window.expandSalesInvoiceRefs = function expandSalesInvoiceRefs(values, client_name) {     
       if (!values) {
           return [];
       }
@@ -493,7 +493,7 @@ $(function () {
       $(".selected-no").text("Selected " + numberChecked);
     }
 
-    window.drawDtTable = function drawDtTable(result, type)
+    window.drawDtTable = function drawDtTable(result, type, completedOnly = false)
     {      
       if(type == 'companies')
       {    
@@ -1554,8 +1554,8 @@ $(function () {
       
         var vatregmain = declarations['vatregmain'];
         var vatreturns = declarations['vatreturns'];
-        var client = declarations['client'];
-      
+        var client = declarations['client'];              
+
         var importreconciliationfiles = declarations['importreconciliationfiles'];
         
         var importreconciliationcominvoices = declarations['importreconciliationcominvoices'];
@@ -1650,6 +1650,15 @@ $(function () {
             }
           }
 
+          if(cominvoice['data_from'] === 'ocr' || cominvoice['data_from'] === 'ocr-refresh' 
+               || cominvoice['data_from'] === 'specific-ocr-refresh' 
+               || cominvoice['data_from'] === 'specific-invoice-ocr-refresh'
+               || cominvoice['data_from'] === 'ocr-auto-refresh'
+          )  
+          {
+            allow = false;
+          }
+
           //if(cominvoice['category_type'] != 'MA' && cominvoice['category_type'] != 'SO')
           if(cominvoice['category_type'] != 'SO' && allow)
           {  
@@ -1657,14 +1666,19 @@ $(function () {
             var filter_rematch_com_invoice_id_count = 0;
             var filter_other_period_rematch_com_invoice_id_count = 0;            
 
+            // if(cominvoice['data_from'] == 'azure' || cominvoice['data_from'] == 'global-search-refresh' 
+            //    || cominvoice['data_from'] == 'specific-global-search-refresh' 
+            //    || cominvoice['data_from'] == 'specific-invoice-global-search-refresh'
+            //    || cominvoice['data_from'] == 'cron'
+            //    || cominvoice['data_from'] == 'ocr'
+            //    || cominvoice['data_from'] == 'ocr-search-refresh' 
+            //    || cominvoice['data_from'] == 'specific-ocr-search-refresh' 
+            //    || cominvoice['data_from'] == 'specific-invoice-ocr-search-refresh')  
             if(cominvoice['data_from'] == 'azure' || cominvoice['data_from'] == 'global-search-refresh' 
                || cominvoice['data_from'] == 'specific-global-search-refresh' 
                || cominvoice['data_from'] == 'specific-invoice-global-search-refresh'
                || cominvoice['data_from'] == 'cron'
-               || cominvoice['data_from'] == 'ocr'
-               || cominvoice['data_from'] == 'ocr-search-refresh' 
-               || cominvoice['data_from'] == 'specific-ocr-search-refresh' 
-               || cominvoice['data_from'] == 'specific-invoice-ocr-search-refresh')  
+            )  
             {            
               if(com_invoice_date in modal_cominvoices)   
               {}
@@ -1953,11 +1967,67 @@ $(function () {
            
                 var sub_invoices = [];
                 $.each(importreconciliationsalesinvoices, function (idx1, invoice) {
-                     
-                  if((cominvoice['rematch_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
-                    && (cominvoice['category_type'] != 'RE') )
-                  //if(cominvoice['rematch_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
+                                                    
+                  // if (ocr_sales_allow) {
+                  //     // Already allowed, leave it true
+                  // } else if (!invoice['ocr_pdf_id']) {
+                  //     ocr_sales_allow = true;
+                  // }
+
+                  var ocr_sales_allow = false;          
+                  if (client.client_name && 
+                    (
+                      client.client_name.toLowerCase().indexOf('aubo production') > -1 ||
+                      client.client_name.toLowerCase().indexOf('beck') > -1 ||
+                      client.client_name.toLowerCase().indexOf('dfi-geisler') > -1 ||
+                      client.client_name.toLowerCase().indexOf('noscomed') > -1 ||
+                      client.client_name.toLowerCase().indexOf('rexholm') > -1 ||
+                      client.client_name.toLowerCase().indexOf('villy') > -1
+                    )
+                  )
                   {
+                    ocr_sales_allow = true;
+                  }
+
+                  const invoiceMatches =
+                    (
+                      cominvoice['rematch_com_invoice_id'] !== null
+                        ? cominvoice['rematch_com_invoice_id']
+                        : cominvoice['id']
+                    ) == invoice['com_invoice_id'];
+
+                  const isNotRE = cominvoice['category_type'] != 'RE';
+
+                  if (ocr_sales_allow) {
+                    ocr_sales_allow = invoiceMatches && isNotRE;
+                  } else {
+                    ocr_sales_allow = invoiceMatches && isNotRE && !invoice['ocr_pdf_id'];
+                  }
+
+                  // if((cominvoice['rematch_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
+                  //   && (cominvoice['category_type'] != 'RE') && ocr_sales_allow)
+                  // if (
+                  //     (
+                  //         (cominvoice['rematch_com_invoice_id'] !== null
+                  //             ? cominvoice['rematch_com_invoice_id']
+                  //             : cominvoice['id']
+                  //         ) == invoice['com_invoice_id']
+                  //     )
+                  //     && cominvoice['category_type'] != 'RE'
+                  //     && ocr_sales_allow
+                  // )
+                  if(ocr_sales_allow)
+                  //if(cominvoice['rematch_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
+                  {                    
+                    // var excludedDataFrom = type === 'declaration-new-ocr' ? 'azure' : 'ocr';
+                    // var rematchInvoice = importreconciliationcominvoices.find(function (irci) {
+                    //     return irci.id === invoice['com_invoice_id'] &&
+                    //            irci.data_from !== excludedDataFrom;
+                    // });
+
+                    // var invoice_allow = !!rematchInvoice;
+
+                    //if(invoice_allow) {
                     var invoice_date = moment(invoice['invoice_date']).format('MM-Y');
                                        
                     // if(!invoice['disregard_invoice'])
@@ -1974,10 +2044,10 @@ $(function () {
 
                       var sales_xml_id = null;
 
-                      var sales_net_amount = (invoice['convert_net_amount']) ? invoice['convert_net_amount'] : invoice['net_amount'];                      
+                      var sales_net_amount = (invoice['convert_net_amount']) ? (parseFloat(invoice['convert_net_amount']) > 0 ? invoice['convert_net_amount'] : invoice['net_amount']) : invoice['net_amount'];                      
                       var sales_shipping = (invoice['convert_net_amount']) ? '' : invoice['shipping'];
                       var sales_variance = (invoice['convert_net_amount']) ? '' : invoice['variance'];
-                      var sales_vat_amount = (invoice['convert_vat_amount']) ? invoice['convert_vat_amount'] : invoice['vat_amount'];
+                      var sales_vat_amount = (invoice['convert_vat_amount']) ? (parseFloat(invoice['convert_vat_amount']) > 0 ? invoice['convert_vat_amount'] : invoice['vat_amount']) : invoice['vat_amount'];
                       var sales_adjustment_amount = (invoice['convert_net_amount']) ? '' : invoice['adjustment_amount'];
                       var sales_currency = (invoice['convert_currency_code']) ? invoice['convert_currency_code'] : invoice['currency_code'];
 
@@ -2139,6 +2209,7 @@ $(function () {
                         }
                       }
                     //}//NOT disregard sales invoices
+                   // }//invoice match with ocr or not (invoice_allow)
                   }//com_invoice_id match
                 }); //Sales Invoices
                         
@@ -2388,12 +2459,21 @@ $(function () {
         }
         /*Credit Notes / No Sales References in GS but has SFTP Files*/
 
-        var dt_declarations_tables = $('.datatables-declarations');       
+        //var dt_declarations_tables = $('.datatables-declarations');       
+        var dt_declarations_tables = $('.datatables-declarations');
+        // The consolidated declaration screen has one DataTable but still needs
+        // data for every month in the VAT period.
+        var declaration_period_count = parseInt(dt_declarations_tables.first().data('period-count'), 10);
+        if (!Number.isInteger(declaration_period_count) || declaration_period_count < 1) {
+          declaration_period_count = dt_declarations_tables.length;
+        }
+
         var declaration_datas = [];
         //var control_class = '';
         var control_html = '';
         let compare_month_year = '';
-        for (var i = 0; i < dt_declarations_tables.length; i++) 
+        //for (var i = 0; i < dt_declarations_tables.length; i++) 
+        for (var i = 0; i < declaration_period_count; i++)
         {         
           compare_month_year = moment(declarations['service_start']).add(i, 'month').format('MM-Y');
 
@@ -2816,7 +2896,8 @@ $(function () {
         return {
           'declaration_first_datas' : declaration_first_datas, 
           'declaration_second_datas' : declaration_second_datas,
-          'declaration_third_datas' : declaration_third_datas
+          'declaration_third_datas' : declaration_third_datas,
+          'declaration_datas' : declaration_first_datas.concat(declaration_second_datas, declaration_third_datas)
         };  
 /*
         var ivf_first = false;
@@ -3164,6 +3245,1453 @@ $(function () {
         };  
 */            
       }//declaration 
+      else if(type == 'declaration-new-ocr')
+      {   
+        var declarations = result['declarations'];
+
+        var other_period_importreconciliationcominvoices = declarations['other_period_importreconciliationcominvoices'];
+      
+        var vatregmain = declarations['vatregmain'];
+        var vatreturns = declarations['vatreturns'];
+        var client = declarations['client'];
+        
+        var importreconciliationfiles = declarations['importreconciliationfiles'];
+        
+        var importreconciliationcominvoices = declarations['importreconciliationcominvoices'];
+        var importreconciliationsalesinvoices = declarations['importreconciliationsalesinvoices'];
+      
+        var importvatfiles = declarations['importvatfiles'];
+        var importreconciliationswissfiles = declarations['importreconciliationswissfiles'];
+      
+        var currency_locale = 'da-DK';
+        var currency_style = 'NOK';
+        let vat_percent = 0.25;
+        let add_month = 1;
+
+        declaration_first_datas = [];
+        declaration_second_datas = [];
+      
+        //var declaration_first_start = 1;
+        //var declaration_second_start = 1;  
+
+        if(vatregmain['country'] == 'CH')
+        {
+          currency_locale = 'fr-FR';
+          currency_style = 'CHF';
+          vat_percent = 0.081;
+          add_month = 2;
+
+          declaration_third_datas = [];
+          var declaration_third_start = 1;  
+        }              
+        
+        var org_no = (vatregmain['org_no']) ? vatregmain['org_no'] : '-';
+      
+        //var start_month_year = moment(declarations['service_start']).format('MM-Y');
+        //var end_month_year = moment(declarations['service_start']).add(add_month, 'month').format('MM-Y');
+     
+        var total_com_invoice_net_amount = [];
+
+        var total_vat_amount = [];
+        var total_net_amount = [];    
+
+        var modal_cominvoices = [];
+        var sub_cominvoices = [];
+       
+        let arr_lope_no = [];
+
+        $.each(importreconciliationcominvoices, function (idx, cominvoice) {
+
+          var com_invoice_date = (cominvoice['month_year']) ? cominvoice['month_year'] : moment(cominvoice['invoice_date']).format('MM-Y');
+
+          /*Disallow MA - EkspTypeNavn*/
+          var allow = true;
+          if(cominvoice['category_type'] == 'MA' || cominvoice['category_type'] == 'FU')
+          {
+            var filter_importvatfile_xml_datas = importvatfiles.filter(function(importvatfile) {                                        
+                return (importvatfile.month_year === com_invoice_date && importvatfile.file_type === "xml");
+            });
+  
+            if(filter_importvatfile_xml_datas.length > 0)
+            {
+              var filter_importvatfile_xml = filter_importvatfile_xml_datas[0]['xml'].filter(function(xml_data) { 
+                var expo_type = xml_data['Ekspedisjon']['EkspType']['EkspTypeNavn'];                 
+                var xml_lope_no = xml_data['Ekspedisjon']['EkspedisjonsId']['LopeNr'];                                               
+                return (cominvoice['lope_no'] == xml_lope_no && expo_type.toLowerCase().indexOf('utførsel') !== -1);                
+              });
+  
+              if(filter_importvatfile_xml.length > 0)
+              {
+                allow = false;
+
+                if(cominvoice['data_from'] == 'ivf')
+                {
+                  if(com_invoice_date in modal_cominvoices)   
+                  {}
+                  else
+                    modal_cominvoices[com_invoice_date] = [];
+
+                  var filter_rematch_ocr_com_invoice_id = importreconciliationcominvoices.filter(function(obj) {                            
+                    return (obj.rematch_ocr_com_invoice_id === cominvoice['id']);
+                  });
+                  filter_rematch_ocr_com_invoice_id_count = filter_rematch_ocr_com_invoice_id.length;
+
+                  modal_cominvoices[com_invoice_date].push(
+                    {
+                      "id": cominvoice['id'],                    
+                      "co_invoice_no": cominvoice['invoice_no'],
+                      "disabled": (filter_rematch_ocr_com_invoice_id_count == 0) ? false : true,
+                      "other_period": false
+                    } 
+                  );
+                } //IVF
+              }
+            }
+          }
+
+          if(cominvoice['data_from'] === 'azure' || cominvoice['data_from'] === 'global-search-refresh' 
+               || cominvoice['data_from'] === 'specific-global-search-refresh' 
+               || cominvoice['data_from'] === 'specific-invoice-global-search-refresh'
+               || cominvoice['data_from'] === 'cron'
+          )  
+          {
+            allow = false;
+          }
+
+          //if(cominvoice['category_type'] != 'MA' && cominvoice['category_type'] != 'SO')
+          if(cominvoice['category_type'] != 'SO' && allow)
+          {  
+            //var com_invoice_date = (cominvoice['month_year']) ? cominvoice['month_year'] : moment(cominvoice['invoice_date']).format('MM-Y');
+            var filter_rematch_ocr_com_invoice_id_count = 0;
+            var filter_other_period_rematch_ocr_com_invoice_id_count = 0;            
+
+            if(cominvoice['data_from'] == 'ocr'
+               || cominvoice['data_from'] == 'ocr-search-refresh' 
+               || cominvoice['data_from'] == 'specific-ocr-search-refresh' 
+               || cominvoice['data_from'] == 'specific-invoice-ocr-search-refresh'
+               || cominvoice['data_from'] == 'ocr-auto-refresh'
+              )  
+            {            
+              if(com_invoice_date in modal_cominvoices)   
+              {}
+              else
+                modal_cominvoices[com_invoice_date] = [];
+
+              var filter_rematch_ocr_com_invoice_id = importreconciliationcominvoices.filter(function(obj) {                            
+                return (obj.rematch_ocr_com_invoice_id === cominvoice['id']);                
+              });
+              filter_rematch_ocr_com_invoice_id_count = filter_rematch_ocr_com_invoice_id.length;
+
+              modal_cominvoices[com_invoice_date].push(
+                {
+                  "id": cominvoice['id'],                    
+                  "co_invoice_no": cominvoice['invoice_no'],
+                  "disabled": (filter_rematch_ocr_com_invoice_id_count == 0) ? false : true,
+                  "other_period": false
+                } 
+              );
+            }                      
+              
+            if(filter_rematch_ocr_com_invoice_id_count == 0)  
+            {
+              if(com_invoice_date in sub_cominvoices)   
+              {}
+              else
+                sub_cominvoices[com_invoice_date] = [];
+
+              var rematch_com_invoice_no = '-';
+              var com_net_amount = (cominvoice['net_amount']) ? ((cominvoice['category_type'] == 'RE') ? 0 : cominvoice['net_amount']) : 0;
+              //var com_net_amount = (cominvoice['net_amount']) ? cominvoice['net_amount'] : 0;
+
+              var convert_currency_code = (cominvoice['convert_currency_code']) ? cominvoice['convert_currency_code'] : null;
+              var convert_net_amount = (cominvoice['convert_net_amount']) ? cominvoice['convert_net_amount'] : null;
+              var convert_vat_amount = (cominvoice['convert_vat_amount']) ? cominvoice['convert_vat_amount'] : null;
+              var convert_total_amount = (cominvoice['convert_total_amount']) ? cominvoice['convert_total_amount'] : null;
+              var exchange_rate = (cominvoice['exchange_rate']) ? cominvoice['exchange_rate'] : null;
+
+              if(cominvoice['rematch_ocr_com_invoice_id'])
+              {
+                var filter_rematch_ocr_com_invoice_id = importreconciliationcominvoices.filter(function(obj) {                
+                    return (obj.id === cominvoice['rematch_ocr_com_invoice_id']);
+                });
+               
+                if(filter_rematch_ocr_com_invoice_id.length > 0)
+                {
+                  rematch_com_invoice_no = filter_rematch_ocr_com_invoice_id[0]['invoice_no'];              
+                  com_net_amount = (cominvoice['disregard_invoice']) ? 0 : ((cominvoice['category_type'] == 'RE') ? 0 : filter_rematch_ocr_com_invoice_id[0]['net_amount']);       
+                  //com_net_amount = (cominvoice['disregard_invoice']) ? 0 : filter_rematch_ocr_com_invoice_id[0]['net_amount'];       
+
+                  convert_currency_code = (filter_rematch_ocr_com_invoice_id[0]['convert_currency_code']) ? filter_rematch_ocr_com_invoice_id[0]['convert_currency_code'] : null;
+                  convert_net_amount = (filter_rematch_ocr_com_invoice_id[0]['convert_net_amount']) ? filter_rematch_ocr_com_invoice_id[0]['convert_net_amount'] : null;
+                  convert_vat_amount = (filter_rematch_ocr_com_invoice_id[0]['convert_vat_amount']) ? filter_rematch_ocr_com_invoice_id[0]['convert_vat_amount'] : null;
+                  convert_total_amount = (filter_rematch_ocr_com_invoice_id[0]['convert_total_amount']) ? filter_rematch_ocr_com_invoice_id[0]['convert_total_amount'] : null;
+                  exchange_rate = (filter_rematch_ocr_com_invoice_id[0]['exchange_rate']) ? filter_rematch_ocr_com_invoice_id[0]['exchange_rate'] : null; 
+                }
+              }
+              
+              var net_amount_co_invoice = 0;
+              if(cominvoice['omr_kurs'])
+              {
+                if(cominvoice['omr_kurs'] == 100)                    
+                  net_amount_co_invoice = cominvoice['ivf_net_amount'];            
+                else 
+                {                             
+                  let currency_value = cominvoice['currency_code'];  
+                  
+                  let omr_kurs_value = 1;
+                  if(currency_value == 'DKK')   
+                  {  
+                    omr_kurs_value = cominvoice['omr_kurs'].replace(/[,.]/g, ""); 
+                    omr_kurs_value = omr_kurs_value.substr(0, 1) + "." + omr_kurs_value.substr(1);
+                  }
+                  // else if(currency_value == 'USD' || currency_value == 'EUR')   
+                  // {
+                  //   omr_kurs_value = cominvoice['omr_kurs'].replace(/[,.]/g, ""); 
+                  //   omr_kurs_value = omr_kurs_value.substr(0, 2) + "." + omr_kurs_value.substr(2);
+                  // }
+                  else if(currency_value == 'USD' || currency_value == 'EUR')   
+                  {
+                    omr_kurs_value = parseFloat(cominvoice['omr_kurs'].replace(",", "."));
+                  }
+
+                  net_amount_co_invoice = cominvoice['ivf_net_amount'] * omr_kurs_value;
+                }
+              }
+              else
+                net_amount_co_invoice = cominvoice['net_amount']; 
+
+              if(cominvoice['category_type'] == 'RE')
+              {                
+                if (cominvoice['statistical_value'].startsWith("-")) 
+                  //net_amount_co_invoice = '-' + net_amount_co_invoice;
+                  net_amount_co_invoice = -1 * net_amount_co_invoice;
+                else
+                {                                
+                  let parsed_stat_val =  parseAmountValue(cominvoice['statistical_value'], cominvoice['currency']);
+                  if (parsed_stat_val == 0)       
+                    net_amount_co_invoice = 0;                  
+                }
+              } //Refund
+              else if(cominvoice['category_type'] == 'EB')
+              {             
+                net_amount_co_invoice = cominvoice['statistical_value'];
+              } //Recalculation
+
+              var final_com_invoice_no = (cominvoice['rematch_ocr_com_invoice_id']) ? rematch_com_invoice_no : cominvoice['invoice_no'];
+
+              /* Cargo File */
+              var cargo_file_id = "";    
+              if(vatregmain['country'] == 'CH')
+              {
+                var filter_cargo_pdf = importreconciliationswissfiles.filter(function(obj) {   
+                  if(obj.invoice_no)
+                    return ((obj.o_file_name.indexOf(cominvoice['lope_no']) !== -1) && 
+                      (obj.invoice_no.indexOf(final_com_invoice_no) !== -1 || final_com_invoice_no.indexOf(obj.invoice_no) !== -1 ||
+                        obj.invoice_no.indexOf(cominvoice['invoice_no']) !== -1 || cominvoice['invoice_no'].indexOf(obj.invoice_no) !== -1));   
+                  else
+                    return (obj.o_file_name.indexOf(cominvoice['lope_no']) !== -1); 
+                });
+
+                if(filter_cargo_pdf.length > 0)
+                  cargo_file_id = filter_cargo_pdf[0]['id'];
+              } 
+              else
+              {
+                var filter_importvatfile = importvatfiles.filter(function(importvatfile) {                                        
+                    return (importvatfile.month_year === com_invoice_date && importvatfile.file_type === "xml");
+                });
+            
+                if(filter_importvatfile.length > 0)
+                {
+                  var filter_cargo_pdf = filter_importvatfile[0]['cargodeclarationfiles'].filter(function(obj) {   
+                    if(obj.cargo_com_invoice_nos)                                     
+                      return (obj.run_no === cominvoice['lope_no'] && (obj.cargo_com_invoice_nos.indexOf(final_com_invoice_no) !== -1));
+                    else
+                      return false;
+                  });
+                  if(filter_cargo_pdf.length > 0)
+                    cargo_file_id = filter_cargo_pdf[0]['id'];
+                }
+              }
+              /* Cargo File */
+              
+              /* Group same lope no. - but NOT with split */              
+              var already_lope_no_exist = false;                            
+              if(cominvoice['lope_no'])
+              {
+                if(cominvoice['expo_no'])
+                {
+                  if (!arr_lope_no.includes(cominvoice['expo_no'] + cominvoice['lope_no']))                  
+                  {               
+                    arr_lope_no.push(cominvoice['expo_no'] + cominvoice['lope_no']);                    
+                  }
+                  else
+                  {
+                    if(cominvoice['no_of_split'] && cominvoice['rematch_ocr_com_invoice_id'])
+                      already_lope_no_exist = true;
+                  }
+                }
+              }              
+              /* Group same lope no. - but NOT with split */
+
+              if(already_lope_no_exist)
+              {                              
+                var index = sub_cominvoices[com_invoice_date].findIndex(element => (element.expo_no === cominvoice['expo_no'] && element.lope_no === cominvoice['lope_no']));
+
+                if(index >= 0)
+                {    
+                  if(!cominvoice['disregard_invoice']) 
+                  {             
+                    var prev_com_invoice_no = sub_cominvoices[com_invoice_date][index]["co_invoice_no"];
+                    sub_cominvoices[com_invoice_date][index]["co_invoice_no"] = prev_com_invoice_no + ', ' + final_com_invoice_no;
+  
+                    var prev_o_com_invoice_no = sub_cominvoices[com_invoice_date][index]["orginal_co_invoice_no"];
+                    if(prev_o_com_invoice_no != cominvoice['invoice_no'])
+                      sub_cominvoices[com_invoice_date][index]["orginal_co_invoice_no"] = prev_o_com_invoice_no + ', ' + cominvoice['invoice_no'];
+  
+                    var prev_com_invoice_id = sub_cominvoices[com_invoice_date][index]["group_lope_no"];
+                    sub_cominvoices[com_invoice_date][index]["group_lope_no"] = prev_com_invoice_id + '***' + cominvoice['id'];
+                  }
+
+                  var prev_currency_code = sub_cominvoices[com_invoice_date][index]["currency"];
+
+                  var prev_com_net_amount = sub_cominvoices[com_invoice_date][index]["com_net_amount"];                  
+                  let parsed_cominvoice_net_amount =  parseAmountValue(prev_com_net_amount, prev_currency_code);   
+
+                  if(parsed_cominvoice_net_amount == com_net_amount)        
+                  {  
+                  }
+                  else
+                  {    
+                    let gross_com_net_amount = parseFloat(parsed_cominvoice_net_amount) + parseFloat(com_net_amount);
+                    
+                    sub_cominvoices[com_invoice_date][index]["com_net_amount"] = new Intl.NumberFormat(currency_locale, {
+            style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(gross_com_net_amount);
+                  }
+                }
+              }//lope no already exists
+              else
+              {  
+                let country_vat_amount = 0;
+                if(vatregmain['country'] == 'NO')
+                {
+          //         country_vat_amount = new Intl.NumberFormat(currency_locale, {
+          // style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((net_amount_co_invoice * vat_percent));
+
+                  country_vat_amount = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(((parseFloat(cominvoice['statistical_value']) + parseFloat(cominvoice['duties']) + parseFloat(cominvoice['adjustment'])) * vat_percent));
+                }
+                else if(vatregmain['country'] == 'CH')
+                {
+                  country_vat_amount = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(cominvoice['vat_amount']);
+                }
+
+                var index = sub_cominvoices[com_invoice_date].push(
+                    {
+                      "id": cominvoice['id'],
+                      "country": vatregmain['country'],
+                      "pdf": cargo_file_id,
+                      "co_invoice_no": (cominvoice['disregard_type']) ? final_com_invoice_no : ((cominvoice['disregard_invoice']) ? '-' : final_com_invoice_no),     
+                      "orginal_co_invoice_no": cominvoice['invoice_no'],
+                      "co_invoice_date": moment(cominvoice['invoice_date']).format('DD-MM-YYYY'),
+                      "expo_date": (cominvoice['expo_date']) ? cominvoice['expo_date'] : '-', 
+                      "expo_no": (cominvoice['expo_no']) ? cominvoice['expo_no'] : '-',   
+                      "lope_no": (cominvoice['lope_no']) ? ((cominvoice['disregard_type'] == 'lopeno') ? '-' : cominvoice['lope_no']) : '-',     
+                      "duties": (cominvoice['duties']) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(cominvoice['duties']) : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                      "vat_on_duties": new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((cominvoice['duties'] * vat_percent)),
+                      "adjustment": (cominvoice['adjustment']) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(cominvoice['adjustment']) : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                      "vat_on_adjustment": new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((cominvoice['adjustment'] * vat_percent)),
+                      "statistical_value": (cominvoice['statistical_value']) ? new Intl.NumberFormat(currency_locale, {                
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(cominvoice['statistical_value']) : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                      "category_type": cominvoice['category_type'],
+                      "category_desc": (cominvoice['category_desc']) ? cominvoice['category_desc'] : '',
+                      "o_invoice_date": cominvoice['invoice_date'],
+                      "ivf_net_amount": (cominvoice['ivf_net_amount']) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(cominvoice['ivf_net_amount']) : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                      "com_net_amount": new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(com_net_amount),
+                      "net_amount_co_invoice": new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(net_amount_co_invoice),
+                      "import_vat": country_vat_amount,                
+                      "currency": cominvoice['currency_code'],
+                      "doc_status": cominvoice['doc_status'], 
+                      "unmatch": cominvoice['unmatch'], 
+                      "rematch_ocr_com_invoice_id": cominvoice['rematch_ocr_com_invoice_id'],
+                      "doc_id": cominvoice['doc_id'],
+
+                      "convert_currency_code": convert_currency_code,
+                      "convert_net_amount": (convert_net_amount) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(convert_net_amount) : null,
+                      "convert_vat_amount": (convert_vat_amount) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(convert_vat_amount) : null,
+                      "convert_total_amount": (convert_total_amount) ? new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(convert_total_amount) : null,
+                      "exchange_rate": exchange_rate,
+
+                      "disregard_invoice": cominvoice['disregard_invoice'],
+                      "disregard_type": cominvoice['disregard_type'],
+                      "disregarded_no": (cominvoice['disregard_type'] == 'lopeno') ? cominvoice['lope_no'] : ((cominvoice['disregard_invoice']) ? final_com_invoice_no : ''),
+                      "disregard_reason": cominvoice['disregard_reason'],
+                      "disregard_comment": cominvoice['disregard_comment'],
+                      "disregard_comment_visiblity": cominvoice['disregard_comment_visiblity'],
+
+                      "comment_reason": cominvoice['comment_reason'],
+                      "comment": cominvoice['comment'],
+                      "comment_visiblity": cominvoice['comment_visiblity'],
+                      "no_of_split": cominvoice['no_of_split'],
+                      "group_lope_no": cominvoice['id']
+                    } 
+                  ); 
+                }//else 
+            
+                if(cominvoice['currency_code'] == 'NOK')
+                {             
+                  if(com_invoice_date in total_com_invoice_net_amount)            
+                    total_com_invoice_net_amount[com_invoice_date] += parseFloat(net_amount_co_invoice);
+                  else
+                    total_com_invoice_net_amount[com_invoice_date] = parseFloat(net_amount_co_invoice);
+                } 
+           
+                var sub_invoices = [];
+                $.each(importreconciliationsalesinvoices, function (idx1, invoice) {
+
+                  // if (ocr_sales_allow) {
+                  //     // Already allowed, leave it true
+                  // } else if (invoice['ocr_pdf_id']) {
+                  //     ocr_sales_allow = true;
+                  // }
+                  
+                  var ocr_sales_allow = false;          
+                  if (client.client_name && 
+                    (
+                      client.client_name.toLowerCase().indexOf('aubo production') > -1 ||
+                      client.client_name.toLowerCase().indexOf('beck') > -1 ||
+                      client.client_name.toLowerCase().indexOf('dfi-geisler') > -1 ||
+                      client.client_name.toLowerCase().indexOf('noscomed') > -1 ||
+                      client.client_name.toLowerCase().indexOf('rexholm') > -1 ||
+                      client.client_name.toLowerCase().indexOf('villy') > -1
+                    )
+                  )
+                  {
+                    ocr_sales_allow = true;
+                  }
+          
+                  const invoiceMatches =
+                    (
+                      cominvoice['rematch_ocr_com_invoice_id'] !== null
+                        ? cominvoice['rematch_ocr_com_invoice_id']
+                        : cominvoice['id']
+                    ) == invoice['com_invoice_id'];
+
+                  const isNotRE = cominvoice['category_type'] != 'RE';
+
+                  /*
+                  if (ocr_sales_allow) {                    
+
+                    //if(!invoiceMatches && cominvoice['data_from'] === 'ivf')
+                    if(!invoiceMatches && cominvoice['rematch_ocr_com_invoice_id'] !== null)
+                    {
+                      const invoiceOtherMatches = (
+                        cominvoice['rematch_com_invoice_id'] !== null
+                          ? cominvoice['rematch_com_invoice_id']
+                          : cominvoice['id']
+                      ) == invoice['com_invoice_id'];
+
+                      ocr_sales_allow = (invoiceMatches || invoiceOtherMatches) && isNotRE;
+                    }
+                    else
+                      ocr_sales_allow = invoiceMatches && isNotRE;
+                    
+                  } else {
+                    ocr_sales_allow = invoiceMatches && isNotRE && invoice['ocr_pdf_id'];
+                  }
+                  */
+
+                  if (ocr_sales_allow) {
+
+                    if (!invoiceMatches && cominvoice['rematch_ocr_com_invoice_id'] !== null) {
+
+                      const invoiceOtherMatches = (
+                        cominvoice['rematch_com_invoice_id'] !== null
+                          ? cominvoice['rematch_com_invoice_id']
+                          : cominvoice['id']
+                      ) == invoice['com_invoice_id'];
+                      
+                      var filter_already_match = importreconciliationsalesinvoices.filter(function(obj) {
+                        return String(obj.com_invoice_id) === String(cominvoice['rematch_ocr_com_invoice_id'])
+                          && String(obj.invoice_no) === String(invoice['invoice_no'])
+                        ;
+                      });
+
+                      var filter_sales_ftp = importreconciliationfiles.filter(function(obj) {
+                        return obj.invoice_no === invoice['invoice_no'];
+                      });
+
+                      ocr_sales_allow =
+                        filter_sales_ftp.length > 0 &&
+                        filter_already_match.length === 0 &&
+                        invoiceOtherMatches &&
+                        isNotRE;
+
+                    } else {
+
+                      if (invoice['ocr_pdf_id']) {
+
+                        ocr_sales_allow =
+                          invoiceMatches &&
+                          isNotRE &&
+                          invoice['ocr_pdf_id'];
+
+                      } else {
+
+                        // const invoiceOtherMatches = (
+                        //   cominvoice['rematch_com_invoice_id'] !== null
+                        //     ? cominvoice['rematch_com_invoice_id']
+                        //     : cominvoice['id']
+                        // ) == invoice['com_invoice_id'];
+
+                        var filter_sales_ftp = importreconciliationfiles.filter(function(obj) {
+                          return obj.invoice_no === invoice['invoice_no'];
+                        });
+
+                        ocr_sales_allow =
+                          filter_sales_ftp.length > 0 &&
+                          invoiceMatches &&
+                          isNotRE;
+                      }
+                    }
+
+                  } else {
+
+                    ocr_sales_allow =
+                      invoiceMatches &&
+                      isNotRE &&
+                      invoice['ocr_pdf_id'];
+                  }
+
+
+                  // if((cominvoice['rematch_ocr_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
+                  //   && (cominvoice['category_type'] != 'RE') && ocr_sales_allow)
+                  // if (
+                  //     (
+                  //         (cominvoice['rematch_ocr_com_invoice_id'] !== null
+                  //             ? cominvoice['rematch_ocr_com_invoice_id']
+                  //             : cominvoice['id']
+                  //         ) == invoice['com_invoice_id']
+                  //     )
+                  //     && cominvoice['category_type'] != 'RE'
+                  //     && ocr_sales_allow
+                  // )
+                  if(ocr_sales_allow)
+                  //if(cominvoice['rematch_ocr_com_invoice_id'] == invoice['com_invoice_id'] || cominvoice['id'] == invoice['com_invoice_id'])
+                  {
+
+                    // // var rematchInvoice = importreconciliationcominvoices.find(function (irci) {
+                    // //     return irci.id === cominvoice['rematch_ocr_com_invoice_id'];
+                    // // });
+
+                    // // var invoice_allow = !!rematchInvoice && (
+                    // //     (type === 'declaration-new-ocr' && rematchInvoice.data_from === 'ocr') ||
+                    // //     (type === 'declaration' && rematchInvoice.data_from !== 'ocr')
+                    // // );
+
+                    // var excludedDataFrom = type === 'declaration-new-ocr' ? 'azure' : 'ocr';
+                    // var rematchInvoice = importreconciliationcominvoices.find(function (irci) {
+                    //     return irci.id === invoice['com_invoice_id'] &&
+                    //            irci.data_from !== excludedDataFrom;
+                    // });
+
+                    // var invoice_allow = !!rematchInvoice;
+
+                    // // var rematchInvoice = importreconciliationcominvoices.find(function (irci) {
+                    // //     return irci.id === invoice['com_invoice_id'] &&
+                    // //            (type !== 'declaration' || irci.data_from !== 'ocr');
+                    // // });
+
+                    // // var invoice_allow = !!rematchInvoice;
+
+                    //if(invoice_allow) {
+                    var invoice_date = moment(invoice['invoice_date']).format('MM-Y');
+                                       
+                    // if(!invoice['disregard_invoice'])
+                    // {                         
+                        
+                      var credit_note_symbol = '';
+                      if(parseInt(invoice['credit_note']) == 1)
+                        credit_note_symbol = '-';
+
+                      var edit_from = "xml";                      
+                      var filter_sales_pdf = importreconciliationfiles.filter(function(obj) {                                        
+                          return (obj.invoice_no === invoice['invoice_no']);
+                      });
+
+                      var sales_xml_id = null;
+
+                      var sales_net_amount = (invoice['convert_net_amount']) ? (parseFloat(invoice['convert_net_amount']) > 0 ? invoice['convert_net_amount'] : invoice['net_amount']) : invoice['net_amount'];                      
+                      var sales_shipping = (invoice['convert_net_amount']) ? '' : invoice['shipping'];
+                      var sales_variance = (invoice['convert_net_amount']) ? '' : invoice['variance'];
+                      var sales_vat_amount = (invoice['convert_vat_amount']) ? (parseFloat(invoice['convert_vat_amount']) > 0 ? invoice['convert_vat_amount'] : invoice['vat_amount']) : invoice['vat_amount'];
+                      var sales_adjustment_amount = (invoice['convert_net_amount']) ? '' : invoice['adjustment_amount'];
+                      var sales_currency = (invoice['convert_currency_code']) ? invoice['convert_currency_code'] : invoice['currency_code'];
+
+                      if(filter_sales_pdf.length > 0)
+                      {
+                        sales_xml_id = filter_sales_pdf[0]['id'];
+
+                        if(filter_sales_pdf[0]['salesinvoicesdata'])
+                        {
+                          edit_from = filter_sales_pdf[0]['salesinvoicesdata']['id'];
+                          
+                          //Extract converted amount from note
+                          var tax_total_net_amount = 0;
+                          var tax_total_amount = 0;
+                          var tax_total_amount_currency_code = '';
+                          if(filter_sales_pdf[0]['salesinvoicesdata']['currency_code'] != 'NOK')
+                          {
+                            var footer_note = $.trim(filter_sales_pdf[0]['salesinvoicesdata']['converted_note']);                              
+                            if(footer_note.indexOf(' alt ') != -1)  
+                            { 
+                              let arr_footer_note = footer_note.split(" ");
+
+                              // Find indexes where value is 'NOK'
+                              let indexes = arr_footer_note
+                                  .map((val, i) => val === 'NOK' ? i : -1)
+                                  .filter(i => i !== -1);
+
+                              // Get and normalize the next values
+                              let amountsAfterNOK = indexes.map(i => {
+                                  let val = arr_footer_note[i + 1];
+                                  if (val === undefined) return null;
+
+                                  return val
+                                      .toString()
+                                      .replace(/\./g, '')
+                                      .replace(/'/g, '')
+                                      .replace(/,/g, '.');
+                              });
+
+                              tax_total_net_amount = amountsAfterNOK[0];
+                              tax_total_amount = amountsAfterNOK[1];
+                              tax_total_amount_currency_code = 'NOK';
+                            }
+                          }//if not NOK
+                          //Extract converted amount from note
+
+                          if(filter_sales_pdf[0]['salesinvoicesdata']['note'])
+                          {
+                            sales_net_amount = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_net_amount'];
+                            //sales_shipping = filter_sales_pdf[0]['salesinvoicesdata']['shipping'];
+                            sales_vat_amount = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_amount'];
+                            sales_currency = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_amount_currency_code'];  
+
+                            sales_variance = filter_sales_pdf[0]['salesinvoicesdata']['allowance_charge'];                                                  
+                          }
+                          else
+                          {
+                            if(filter_sales_pdf[0]['salesinvoicesdata']['currency_code'] != 'NOK')
+                            {
+                              sales_net_amount = tax_total_net_amount;                          
+                              sales_vat_amount = tax_total_amount;
+                              sales_currency = tax_total_amount_currency_code;
+                            }
+                            else
+                            {
+                              sales_net_amount = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_net_amount'];                             
+                              sales_vat_amount = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_amount'];
+                              sales_currency = filter_sales_pdf[0]['salesinvoicesdata']['tax_total_amount_currency_code'];
+
+                              sales_variance = filter_sales_pdf[0]['salesinvoicesdata']['allowance_charge'];  
+                            }
+                          }
+                        }
+                      }
+
+                      var vat_check_25 = 0;
+                      if(sales_net_amount > 0)
+                      {  
+                        var invoice_shipping = (sales_shipping) ? parseFloat(sales_shipping) : 0;
+                        var invoice_variance = (sales_variance) ? parseFloat(sales_variance) : 0;
+                        var invoice_net_amount = (sales_net_amount) ? parseFloat(sales_net_amount) : 0;
+                        var invoice_vat_amount = (sales_vat_amount) ? parseFloat(sales_vat_amount) : 0;
+                        var invoice_adjustment_amount = (sales_adjustment_amount) ? parseFloat(sales_adjustment_amount) : 0;
+
+                        var invoice_vat_percent = (invoice_vat_amount/((invoice_net_amount + invoice_shipping + invoice_variance) - invoice_adjustment_amount)) * 100;
+
+                        var minimum_fraction_digits = (vatregmain['country'] == 'CH') ? 1 : 0;
+                       
+                        vat_check_25 = new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: minimum_fraction_digits, maximumFractionDigits: minimum_fraction_digits}).format(invoice_vat_percent);      
+        //                 vat_check_25 = new Intl.NumberFormat(currency_locale, {
+        // style: 'decimal', currency: currency_style, minimumFractionDigits: 0, maximumFractionDigits: 0}).format(((invoice_vat_amount/(invoice_net_amount + invoice_shipping)) * 100));      
+                      }
+
+                      sub_invoices.push(
+                        {
+                          "id": invoice['id'],
+                          "pdf": sales_xml_id,
+                          "edit_from": edit_from,                          
+                          "invoice_no": invoice['invoice_no'],
+                          "invoice_date": moment(invoice['invoice_date']).format('DD-MM-YYYY'),
+                          "o_invoice_date": invoice['invoice_date'],
+                          "is_net_amount_null": (sales_net_amount) ? false : true,
+                          "net_amount": ((sales_net_amount == 0) ? '' : credit_note_symbol) + (sales_net_amount ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_net_amount) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "shipping": ((sales_shipping == 0) ? '' : credit_note_symbol) + (sales_shipping ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_shipping) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "variance": ((sales_variance == 0) ? '' : credit_note_symbol) + (sales_variance ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_variance) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "vat_amount": ((sales_vat_amount == 0) ? '' : credit_note_symbol) + (sales_vat_amount ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_vat_amount) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "adjustment_amount": ((sales_adjustment_amount == 0) ? '' : credit_note_symbol) + (sales_adjustment_amount ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_adjustment_amount) : new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                          "vat_check_25": vat_check_25,
+                          "currency": sales_currency,
+                          "credit_note": parseInt(invoice['credit_note']),
+                          "doc_status": invoice['doc_status'],    
+                          "comment_reason": invoice['comment_reason'],
+                          "comment": invoice['comment'],
+                          "comment_visiblity": invoice['comment_visiblity'],
+
+                          "convert_currency_code": invoice['convert_currency_code'],
+                          "convert_net_amount": (invoice['convert_net_amount']) ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_net_amount']) : null,
+                          "convert_vat_amount": (invoice['convert_vat_amount']) ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_vat_amount']) : null,
+                          "convert_total_amount": (invoice['convert_total_amount']) ? new Intl.NumberFormat(currency_locale, {
+        style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_total_amount']) : null,
+                          "exchange_rate": invoice['exchange_rate'],
+
+                          "disregard_invoice": invoice['disregard_invoice'],                          
+                          "disregard_reason": invoice['disregard_reason'],  
+                          "disregard_comment": invoice['disregard_comment'],  
+                          "disregard_comment_visiblity": invoice['disregard_comment_visiblity']
+                        } 
+                      );
+
+                      if(invoice['currency_code'] == 'NOK')
+                      {     
+                        if(sales_vat_amount)  
+                        {         
+                          if(invoice_date in total_vat_amount)            
+                            total_vat_amount[invoice_date] += parseFloat(sales_vat_amount);
+                          else
+                            total_vat_amount[invoice_date] = parseFloat(sales_vat_amount);
+                        }
+
+                        if(sales_net_amount)  
+                        {
+                          if(invoice_date in total_net_amount) 
+                            total_net_amount[invoice_date] += parseFloat(sales_net_amount);
+                          else
+                            total_net_amount[invoice_date] = parseFloat(sales_net_amount);
+                        }
+                      }
+                    //}//NOT disregard sales invoices
+                    //}//invoice match with ocr or not (invoice_allow)
+                  }//com_invoice_id match
+                }); //Sales Invoices
+                        
+                if(already_lope_no_exist)
+                {
+                  if(index >= 0)
+                  {
+                    var prev_sub_invoices = sub_cominvoices[com_invoice_date][index]['invoices'];                      
+                    sub_cominvoices[com_invoice_date][index]['invoices'] = prev_sub_invoices.concat(sub_invoices);
+                  }
+                }
+                else
+                  sub_cominvoices[com_invoice_date][index-1]['invoices'] = sub_invoices;              
+            }//remove already matched com.invoices 
+          } //not MA and SO
+        });  //Com. Invoices
+
+        /*Other Periods Com. Invoices*/        
+        var modal_cominvoices_other_periods = [];
+
+        $.each(other_period_importreconciliationcominvoices, function (idx, other_period) {   
+          if(other_period['invoice_no'] != '')      
+          {
+            modal_cominvoices_other_periods.push(
+              {
+                "id": other_period['id'],                    
+                "co_invoice_no": other_period['invoice_no'],
+                "other_period": true
+              } 
+            );
+          }
+        });
+
+        if(Object.keys(modal_cominvoices_other_periods).length > 0)        
+          modal_cominvoices_other_periods.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));              
+        /*Other Periods Com. Invoices*/
+
+        /*Credit Notes / No Sales References in GS but has SFTP Files*/
+        var filter_credit_note_files = importreconciliationfiles.filter(function(obj) {                                        
+            return (obj.credit_note) || 
+              (!importreconciliationsalesinvoices.some(function(e) {
+                return e.invoice_no === obj.invoice_no;
+              })
+            );
+        }); 
+        
+        if(filter_credit_note_files.length > 0)
+        {      
+          filter_credit_note_files.sort((a, b) => a.invoice_no.localeCompare(b.invoice_no));
+
+          var credit_note_symbol = '';
+          var sub_invoices = [];    
+          $.each(filter_credit_note_files, function (idx, credit_note) {            
+            var invoice = credit_note['salesinvoicesdata'];
+            var sales_xml_id = credit_note['id'];
+            var edit_from = 'xml';//invoice['id'];
+
+            if(invoice)
+            {
+              var sales_net_amount = invoice['tax_total_net_amount'];
+              var sales_shipping = 0;
+              var sales_variance = 0;
+              var sales_vat_amount = invoice['tax_total_amount'];
+              var sales_currency = invoice['tax_total_amount_currency_code'];
+
+              /*Convert EUR to NOK*/              
+              //Extract converted amount from note
+              var tax_total_net_amount = 0;
+              var tax_total_amount = 0;
+              var tax_total_amount_currency_code = '';
+              if(invoice['currency_code'] != 'NOK')
+              {
+                var footer_note = $.trim(invoice['converted_note']);                              
+                if(footer_note.indexOf(' alt ') != -1)  
+                { 
+                  let arr_footer_note = footer_note.split(" ");
+
+                  // Find indexes where value is 'NOK'
+                  let indexes = arr_footer_note
+                      .map((val, i) => val === 'NOK' ? i : -1)
+                      .filter(i => i !== -1);
+
+                  // Get and normalize the next values
+                  let amountsAfterNOK = indexes.map(i => {
+                      let val = arr_footer_note[i + 1];
+                      if (val === undefined) return null;
+
+                      return val
+                          .toString()
+                          .replace(/\n.*/, '')
+                          .replace(/\./g, '')
+                          .replace(/'/g, '')
+                          .replace(/,/g, '.');
+                  });
+
+                  tax_total_net_amount = amountsAfterNOK[0];
+                  tax_total_amount = amountsAfterNOK[1];
+                  tax_total_amount_currency_code = 'NOK';
+                }
+              }//if not NOK
+              //Extract converted amount from note
+
+              if(!invoice['note'])              
+              {
+                if(invoice['currency_code'] != 'NOK')
+                {
+                  sales_net_amount = tax_total_net_amount;                          
+                  sales_vat_amount = tax_total_amount;
+                  sales_currency = tax_total_amount_currency_code;
+                }                
+              }              
+              /*Convert EUR to NOK*/
+
+              var vat_check_25 = 0;
+              if(sales_net_amount > 0)
+              {  
+                var invoice_shipping = (sales_shipping) ? parseFloat(sales_shipping) : 0;
+                var invoice_variance = (sales_variance) ? parseFloat(sales_variance) : 0;
+                var invoice_net_amount = (sales_net_amount) ? parseFloat(sales_net_amount) : 0;
+                var invoice_vat_amount = (sales_vat_amount) ? parseFloat(sales_vat_amount) : 0;
+
+                var invoice_vat_percent = (invoice_vat_amount/(invoice_net_amount + invoice_shipping + invoice_variance)) * 100;
+
+                var minimum_fraction_digits = (vatregmain['country'] == 'CH') ? 1 : 0;
+               
+                vat_check_25 = new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: minimum_fraction_digits, maximumFractionDigits: minimum_fraction_digits}).format(invoice_vat_percent);      
+              }
+                
+              sub_invoices.push(
+                {
+                  "id": invoice['id'],//salesinvoicedata ID
+                  "pdf": sales_xml_id,
+                  "edit_from": edit_from,                          
+                  "invoice_no": invoice['invoice_no'],
+                  "invoice_date": moment(invoice['invoice_date']).format('DD-MM-YYYY'),
+                  "o_invoice_date": invoice['invoice_date'],
+                  "is_net_amount_null": (sales_net_amount) ? false : true,
+                  "net_amount": ((sales_net_amount == 0) ? '' : credit_note_symbol) + (sales_net_amount ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_net_amount) : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                  "shipping": ((sales_shipping == 0) ? '' : credit_note_symbol) + (sales_shipping ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_shipping) : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                  "variance": ((sales_variance == 0) ? '' : credit_note_symbol) + (sales_variance ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_variance) : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                  "vat_amount": ((sales_vat_amount == 0) ? '' : credit_note_symbol) + (sales_vat_amount ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(sales_vat_amount) : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0)),
+                  "adjustment_amount": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                  "vat_check_25": vat_check_25,
+                  "currency": sales_currency,
+                  "credit_note": parseInt(invoice['credit_note']),
+                  "doc_status": null,    
+                  "comment_reason": null,
+                  "comment": null,
+                  "comment_visiblity": null,
+
+                  "convert_currency_code": null,
+                  "convert_net_amount": (invoice['convert_net_amount']) ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_net_amount']) : null,
+                  "convert_vat_amount": (invoice['convert_vat_amount']) ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_vat_amount']) : null,
+                  "convert_total_amount": (invoice['convert_total_amount']) ? new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(invoice['convert_total_amount']) : null,
+                  "exchange_rate": invoice['exchange_rate'],
+
+                  "disregard_invoice": null,                          
+                  "disregard_reason": null,  
+                  "disregard_comment": null,  
+                  "disregard_comment_visiblity": null
+                } 
+              );
+            }//invoice
+          });
+
+          if(sub_invoices)
+          {
+            filter_credit_note_files.sort((a, b) => a.month_year.localeCompare(b.month_year));
+
+            if(filter_credit_note_files[0].month_year in sub_cominvoices)   
+            {}
+            else
+              sub_cominvoices[filter_credit_note_files[0].month_year] = [];
+
+            var index = sub_cominvoices[filter_credit_note_files[0].month_year].push(
+              {
+                "id": '-',
+                "country": vatregmain['country'],
+                "pdf": '-',
+                "co_invoice_no": '-',     
+                "orginal_co_invoice_no": '-',   
+                "expo_no": '-',   
+                "lope_no": '-',     
+                "duties": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "vat_on_duties": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "adjustment": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "vat_on_adjustment": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "statistical_value": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "category_type": null,
+                "category_desc": 'Credit Notes/Missing Ref.',//'Credit Notes',
+                "o_invoice_date": '-',   
+                "ivf_net_amount": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "com_net_amount": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "net_amount_co_invoice": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "import_vat": new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                "currency": null,
+                "doc_status": '-',
+                "unmatch": null,
+                "rematch_ocr_com_invoice_id": null,
+                "doc_id": null,
+
+                "convert_currency_code": null,
+                "convert_net_amount": null,
+                "convert_vat_amount": null,
+                "convert_total_amount": null,
+                "exchange_rate": '-',
+
+                "disregard_invoice": null,
+                "disregard_type": null,
+                "disregarded_no": null,
+                "disregard_reason": null,
+                "disregard_comment": null,
+                "disregard_comment_visiblity": null,
+
+                "comment_reason": null,
+                "comment": null,
+                "comment_visiblity": null,
+                "no_of_split": null,
+                "group_lope_no": null,
+
+                "invoices": sub_invoices,
+              } 
+            );
+          } //sub_invoices
+        }
+        /*Credit Notes / No Sales References in GS but has SFTP Files*/
+
+        //var dt_declarations_tables = $('.datatables-declarations');       
+        var dt_declarations_tables = $('.datatables-declarations-new-ocr');
+        // The consolidated declaration screen has one DataTable but still needs
+        // data for every month in the VAT period.
+        var declaration_period_count = parseInt(dt_declarations_tables.first().data('period-count'), 10);
+        if (!Number.isInteger(declaration_period_count) || declaration_period_count < 1) {
+          declaration_period_count = dt_declarations_tables.length;
+        }
+
+        var declaration_datas = [];
+        //var control_class = '';
+        var control_html = '';
+        let compare_month_year = '';
+        //for (var i = 0; i < dt_declarations_tables.length; i++) 
+        for (var i = 0; i < declaration_period_count; i++)
+        {         
+          compare_month_year = moment(declarations['service_start']).add(i, 'month').format('MM-Y');
+
+          if(i === 0)
+          {            
+            //control_class = 'first';
+            declaration_first_datas = [];
+            declaration_datas = declaration_first_datas;            
+          }
+          else if(i === 1)
+          {
+            //control_class = 'second';
+            declaration_second_datas = [];
+            declaration_datas = declaration_second_datas;                        
+          }
+          else if(i === 2)
+          {
+            //control_class = 'third';
+            declaration_third_datas = [];
+            declaration_datas = declaration_third_datas;            
+          }
+
+          var ivf_exist = false;
+          var ivf_index = 0;
+          if(vatregmain['country'] == 'NO')
+          {
+            //Dummy First LINE when no IVF
+            $.each(importvatfiles, function (idx, importvatfile) {
+              if(importvatfile['file_type'] == 'xml')
+              {
+                if(importvatfile['month_year'] == compare_month_year)  
+                {          
+                  ivf_exist = true;
+                  ivf_index = idx;
+                }
+              } //XML
+            });//loop IVF
+
+            if(!ivf_exist)
+            {
+              var net_amount_commercial_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_com_invoice_net_amount[compare_month_year]));
+                var net_amount_sales_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_net_amount[compare_month_year]));
+                var vat_amount_sales_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_vat_amount[compare_month_year]));
+                var sales_vat_vs_import_vat = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((parseFloat(total_vat_amount[compare_month_year]) - (parseFloat(0) * vat_percent)));
+
+                var control_li_html = '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Net Amount Commercial Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">' + net_amount_commercial_invoice +'</small><i class="bx '+ ((net_amount_commercial_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Net Amount Sales Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ net_amount_sales_invoice +'</small><i class="bx '+ ((net_amount_sales_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">VAT Amount Sales Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ vat_amount_sales_invoice +'</small><i class="bx '+ ((vat_amount_sales_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Sales VAT vs Import VAT</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ sales_vat_vs_import_vat +'</small><i class="bx '+ ((sales_vat_vs_import_vat >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>';
+
+              let co_invoices = [];
+              if(Object.keys(sub_cominvoices).length > 0)
+              {
+                //if($.inArray(compare_month_year, sub_cominvoices) == -1)
+                if (sub_cominvoices.hasOwnProperty(compare_month_year))
+                  co_invoices = sub_cominvoices[compare_month_year];
+              }
+
+              let modal_co_invoices = [];
+              if(Object.keys(modal_cominvoices).length == 0)              
+                modal_co_invoices.push(...modal_cominvoices_other_periods);              
+              else
+              {          
+                if (modal_cominvoices.hasOwnProperty(compare_month_year))
+                {
+                  modal_co_invoices = modal_cominvoices[compare_month_year];
+                  modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
+
+                  let filter_other_period_com_invoices = modal_cominvoices_other_periods.filter(item => 
+                    !modal_cominvoices[compare_month_year].some(startItem => startItem.id === item.id)
+                  );
+
+                  modal_co_invoices.push(...filter_other_period_com_invoices);
+                }
+              }                                                        
+
+              if(co_invoices)
+                //co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no)); 
+                co_invoices.sort((a, b) => {
+                  if (a.id === '-') return 1;
+                  if (b.id === '-') return -1;
+                  //return a.co_invoice_no.localeCompare(b.co_invoice_no);
+                  return (a.co_invoice_no ?? '').localeCompare(b.co_invoice_no ?? '');
+                });
+             
+              declaration_datas.push({                 
+                'id' : 0,   
+                'fake_id' : 0, 
+                'country': vatregmain['country'],
+                'month_year': compare_month_year,
+                'pdf' : "PDF", 
+                'declaration_no'  : org_no,                            
+                'o_declaration_date' : '01-' + compare_month_year, 
+                'duties' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),     
+                'net_amount' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+                'adjustment' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+                'statistical_value' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+                'import_vat' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//((duties + statistical_value) * 0.25)
+                'vat_on_duties' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//(duties * 0.25)
+                'vat_on_adjustment' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//(adjustment * 0.25)
+                'net_amount_commercial_invoice' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+                'net_amount_sales_invoice' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+                'vat_amount_sales_invoice' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+                'sales_vat_vs_import_vat' : new Intl.NumberFormat(currency_locale, {
+      style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), //(vat_amount_sales_invoice - (net_amount * 0.25)) 
+                'currency': currency_style,
+                'comment_reason': '',
+                'comment': '',
+                'comment_visiblity': '',
+               
+                'import_vat_xml': [],
+                'co_invoices': co_invoices,
+                'modal_co_invoices': modal_co_invoices
+              });
+
+              var control_class = '';             
+              if(i === 0)          
+                control_class = 'first'; 
+              else if(i === 1)
+                control_class = 'second';
+              else if(i === 2)
+                control_class = 'third';            
+
+              if(control_class != '')
+                control_html += '<ul class="p-0 m-0 '+ control_class +'">' +
+                                    control_li_html +
+                                  '</ul>';   
+            } //No IVF for TAB
+            //Dummy First LINE when no IVF
+
+
+            //var control_html = '';
+            var declaration_start = 1;
+            $.each(importvatfiles, function (idx, importvatfile) {
+              if(importvatfile['file_type'] == 'xml' && (importvatfile['month_year'] == compare_month_year))
+              {               
+                var statistical_value = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(importvatfile['statistical_number']);
+                var net_amount = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(importvatfile['invoice_total']);
+
+                var net_amount_commercial_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_com_invoice_net_amount[importvatfile['month_year']]));
+                var net_amount_sales_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_net_amount[importvatfile['month_year']]));
+                var vat_amount_sales_invoice = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(parseFloat(total_vat_amount[importvatfile['month_year']]));
+                var sales_vat_vs_import_vat = new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((parseFloat(total_vat_amount[importvatfile['month_year']]) - (parseFloat(importvatfile['invoice_total']) * vat_percent)));
+
+                var control_li_html = '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Net Amount Commercial Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">' + net_amount_commercial_invoice +'</small><i class="bx '+ ((net_amount_commercial_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Net Amount Sales Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ net_amount_sales_invoice +'</small><i class="bx '+ ((net_amount_sales_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">VAT Amount Sales Invoice</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ vat_amount_sales_invoice +'</small><i class="bx '+ ((vat_amount_sales_invoice >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>' +
+
+                                        '<li class="d-flex mb-4 pb-1">' +
+                                          '<div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">' +
+                                            '<div class="me-2">' +
+                                              '<h6 class="mb-0">Sales VAT vs Import VAT</h6>' +
+                                            '</div>' +
+                                            '<div class="user-progress">' +
+                                              '<small class="fw-medium">'+ sales_vat_vs_import_vat +'</small><i class="bx '+ ((sales_vat_vs_import_vat >= 0) ? 'bx-chevron-up text-success' : 'bx-chevron-down text-danger') +' ms-1"></i>' +
+                                            '</div>' +
+                                          '</div>' +
+                                        '</li>';
+
+                var control_class = '';
+                if(ivf_exist && (importvatfile['month_year'] == compare_month_year))                       
+                {   
+                  let co_invoices = [];
+                  if(Object.keys(sub_cominvoices).length > 0)
+                  {
+                    //if($.inArray(importvatfile['month_year'], sub_cominvoices) == -1)
+                    if (sub_cominvoices.hasOwnProperty(importvatfile['month_year']))
+                      co_invoices = sub_cominvoices[importvatfile['month_year']];
+                  }
+
+                  let modal_co_invoices = [];
+                  if(Object.keys(modal_cominvoices).length == 0)
+                    modal_co_invoices.push(...modal_cominvoices_other_periods);              
+                  else
+                  {               
+                    if (modal_cominvoices.hasOwnProperty(importvatfile['month_year']))
+                    {
+                      modal_co_invoices = modal_cominvoices[importvatfile['month_year']];
+                      modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
+
+                      let filter_other_period_com_invoices_first = modal_cominvoices_other_periods.filter(item => 
+                        !modal_cominvoices[importvatfile['month_year']].some(startItem => startItem.id === item.id)
+                      );
+            
+                      modal_co_invoices.push(...filter_other_period_com_invoices_first);
+                    }
+                  }                          
+     
+                  if(co_invoices)
+                    //co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no)); 
+                    co_invoices.sort((a, b) => {
+                      if (a.id === '-') return 1;
+                      if (b.id === '-') return -1;
+                      //return a.co_invoice_no.localeCompare(b.co_invoice_no);
+                      return (a.co_invoice_no ?? '').localeCompare(b.co_invoice_no ?? '');
+                    });
+
+                  declaration_datas.push({                 
+                    'id' : importvatfile['id'],   
+                    'fake_id' : declaration_start, 
+                    'country': vatregmain['country'],
+                    'month_year': compare_month_year,
+                    'pdf' : "PDF", 
+                    'declaration_no'  : org_no,                            
+                    'o_declaration_date' : '01-' + importvatfile['month_year'], 
+                    'duties' : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(importvatfile['fee_number']),     
+                    'net_amount' : net_amount,
+                    'adjustment' : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(importvatfile['adjustment_no']),
+                    'statistical_value' : statistical_value,
+                    'import_vat' : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(((parseFloat(importvatfile['fee_number']) + parseFloat(importvatfile['statistical_number'])) * vat_percent)),//((duties + statistical_value) * 0.25)
+                    'vat_on_duties' : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((parseFloat(importvatfile['fee_number']) * vat_percent)),//(duties * 0.25)
+                    'vat_on_adjustment' : new Intl.NumberFormat(currency_locale, {
+          style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format((parseFloat(importvatfile['adjustment_no']) * vat_percent)),//(adjustment * 0.25)
+                    'net_amount_commercial_invoice' : net_amount_commercial_invoice,
+                    'net_amount_sales_invoice' : net_amount_sales_invoice,
+                    'vat_amount_sales_invoice' : vat_amount_sales_invoice,
+                    'sales_vat_vs_import_vat' : sales_vat_vs_import_vat,//(vat_amount_sales_invoice - (net_amount * 0.25)) 
+                    'currency': currency_style,
+                    'comment_reason': importvatfile['comment_reason'],
+                    'comment': importvatfile['comment'],
+                    'comment_visiblity': importvatfile['comment_visiblity'],
+                   
+                    'import_vat_xml': importvatfile['xml'],
+                    'co_invoices': co_invoices,
+                    'modal_co_invoices': modal_co_invoices
+                  });               
+
+                  //control_class = 'first';
+                  if(ivf_index === 0)          
+                    control_class = 'first'; 
+                  else if(ivf_index === 1)
+                    control_class = 'second';
+                  else if(ivf_index === 2)
+                    control_class = 'third';
+                 
+                  declaration_start = declaration_start + 1;            
+                } //has IVF for TAB 
+
+                if(control_class != '')
+                  control_html += '<ul class="p-0 m-0 '+ control_class +'">' +
+                                      control_li_html +
+                                    '</ul>';                               
+              } //only XML
+            });  
+
+            $(".form-declaration-control .declaration-control").html(control_html);
+          }//NO
+          else //if(vatregmain['country'] == 'CH')          
+          {
+            let co_invoices = [];
+            if(Object.keys(sub_cominvoices).length > 0)
+            {
+              //if($.inArray(compare_month_year, sub_cominvoices) == -1)
+              if (sub_cominvoices.hasOwnProperty(compare_month_year))
+                co_invoices = sub_cominvoices[compare_month_year];
+            }
+
+            let modal_co_invoices = [];
+            if(Object.keys(modal_cominvoices).length == 0)
+              modal_co_invoices.push(...modal_cominvoices_other_periods);              
+            else
+            {          
+              if (modal_cominvoices.hasOwnProperty(compare_month_year))
+              {
+                modal_co_invoices = modal_cominvoices[compare_month_year];
+                modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
+
+                let filter_other_period_com_invoices = modal_cominvoices_other_periods.filter(item => 
+                  !modal_cominvoices[compare_month_year].some(startItem => startItem.id === item.id)
+                );
+
+                modal_co_invoices.push(...filter_other_period_com_invoices);
+              }
+            }                                                        
+          
+            if(co_invoices)
+              co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no)); 
+
+            declaration_datas.push({                 
+              'id' : 0,   
+              'fake_id' : 0, 
+              'country': vatregmain['country'],
+              'month_year': compare_month_year,
+              'pdf' : "PDF", 
+              'declaration_no'  : org_no,                            
+              'o_declaration_date' : '01-' + compare_month_year, 
+              'duties' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),     
+              'net_amount' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+              'adjustment' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),
+              'statistical_value' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+              'import_vat' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//((duties + statistical_value) * 0.25)
+              'vat_on_duties' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//(duties * 0.25)
+              'vat_on_adjustment' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0),//(adjustment * 0.25)
+              'net_amount_commercial_invoice' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+              'net_amount_sales_invoice' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+              'vat_amount_sales_invoice' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), 
+              'sales_vat_vs_import_vat' : new Intl.NumberFormat(currency_locale, {
+    style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFractionDigits: 2}).format(0), //(vat_amount_sales_invoice - (net_amount * 0.25)) 
+              'currency': currency_style,
+              'comment_reason': '',
+              'comment': '',
+              'comment_visiblity': '',
+             
+              'import_vat_xml': [],
+              'co_invoices': co_invoices,
+              'modal_co_invoices': modal_co_invoices
+            });
+          }
+
+          if(i === 0)          
+            declaration_first_datas = declaration_datas;            
+          else if(i === 1)
+            declaration_second_datas = declaration_datas;            
+          else if(i === 2)
+            declaration_third_datas = declaration_datas;                
+        } //for loop tabs        
+
+        return {
+          'declaration_first_datas' : declaration_first_datas, 
+          'declaration_second_datas' : declaration_second_datas,
+          'declaration_third_datas' : declaration_third_datas,
+          'declaration_datas' : declaration_first_datas.concat(declaration_second_datas, declaration_third_datas)
+        };
+      } //declaration-new-ocr
       else if(type == 'mailbox')
       {
         var mailboxfiles = result['mailboxfiles'];
@@ -3432,6 +4960,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
           var analyzepdf_sales_invoice_start = analyzepdf_sales_invoice_datas.length + 1;
         }
 
+        /*
         let salesInvoiceMap = {};
         $.each(analyzepdfs, function (idx, item) {
             if (item.invoice_type === 'sales' || item.invoice_type === 'multi-invoices') {
@@ -3466,6 +4995,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 }
             }
         });
+        */
 
         $.each(analyzepdfs, function (idx, analyzepdf) {
           let parsed_extracted_data = analyzepdf.extracted_data
@@ -3510,16 +5040,42 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
             //sync_status = analyzepdf.sync_status_value ?? 0;
             sync_status = analyzepdf.sync_db ?? 0;
 
-            if (analyzepdf.analyzer_id && 
-              (analyzepdf.analyzer_id != 'custom_sales_invoice_v26' && analyzepdf.analyzer_id != 'custom_sales_invoice_v27' 
-                && analyzepdf.analyzer_id != 'custom_sales_invoice_v28' 
-                && analyzepdf.analyzer_id != 'custom_com_invoice_v28')
-            )
-            {
-              if (analyzepdf.analyzer_id.toLowerCase().indexOf('custom_sales_invoice_v') > -1)
-                analyzer_id = analyzepdf.analyzer_id.replace('custom_sales_invoice_v', 'YYY Sales V')
-              else
-                analyzer_id = analyzepdf.analyzer_id.replace('custom_com_invoice_v', 'ZZZ Com V')
+            // if (analyzepdf.analyzer_id && 
+            //   (analyzepdf.analyzer_id != 'custom_sales_invoice_v26' && analyzepdf.analyzer_id != 'custom_sales_invoice_v27' 
+            //     && analyzepdf.analyzer_id != 'custom_sales_invoice_v28' 
+            //     && analyzepdf.analyzer_id != 'custom_com_invoice_v28' && analyzepdf.analyzer_id != 'custom_com_invoice_v29')
+            // )
+            // {
+            //   if (analyzepdf.analyzer_id.toLowerCase().indexOf('custom_sales_invoice_v') > -1)
+            //     analyzer_id = analyzepdf.analyzer_id.replace('custom_sales_invoice_v', 'YYY Sales V')
+            //   else
+            //     analyzer_id = analyzepdf.analyzer_id.replace('custom_com_invoice_v', 'ZZZ Com V')
+            // }
+
+            if (analyzepdf.analyzer_id) {
+                var analyzerSalesModel = 'custom_sales_invoice_v';
+                var analyzerComModel = 'custom_com_invoice_v';
+
+                var analyzerId = analyzepdf.analyzer_id;
+                var analyzerIdLower = analyzerId.toLowerCase();
+
+                var analyzerModel = analyzerIdLower.indexOf(analyzerSalesModel) > -1
+                    ? 'sales'
+                    : 'com';
+
+                var analyzerCompare = analyzerModel === 'sales' ? 25 : 27;
+
+                var analyzerModelNo = analyzerModel === 'sales'
+                    ? analyzerIdLower.replace(analyzerSalesModel, '')
+                    : analyzerIdLower.replace(analyzerComModel, '');
+
+                analyzerModelNo = parseInt(analyzerModelNo, 10);
+
+                if (analyzerModelNo <= analyzerCompare) {
+                    analyzer_id = analyzerModel === 'sales'
+                        ? 'YYY Sales V' + analyzerModelNo
+                        : 'ZZZ Com V' + analyzerModelNo;
+                }
             }
             
             invoice_no = (parsed_extracted_data.invoice_number) ? parsed_extracted_data.invoice_number.replace('#', "") : null;
@@ -3646,13 +5202,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
               if(parse_variance_amount)
               {  
                 let parse_net_variance_amount = Math.abs(parse_net_amount) + Math.abs(parse_variance_amount);  
-                if (client_name && (client_name.toLowerCase().indexOf('sgi wholesale') > -1
-                    || client_name.toLowerCase().indexOf('sand cph') > -1
-                  )
-                )   
-                {                                    
-                  parse_net_variance_amount = Math.abs(parse_net_amount) - Math.abs(parse_variance_amount);                  
-                }
+                // if (client_name && (client_name.toLowerCase().indexOf('sgi wholesale') > -1
+                //     || client_name.toLowerCase().indexOf('sand cph') > -1
+                //   )
+                // )   
+                // {                                    
+                //   parse_net_variance_amount = Math.abs(parse_net_amount) - Math.abs(parse_variance_amount);                  
+                // }
 
                 parse_net_amount = parse_net_variance_amount;
                 
@@ -3668,6 +5224,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   || client_name.toLowerCase().indexOf('rieker') > -1
                   || client_name.toLowerCase().indexOf('woden') > -1
                   || client_name.toLowerCase().indexOf('pier one') > -1
+                  || client_name.toLowerCase().indexOf('committee xxiv') > -1
+                  || client_name.toLowerCase().indexOf('aid studio') > -1
+                  || client_name.toLowerCase().indexOf('lost boys') > -1
+                  || client_name.toLowerCase().indexOf('qnuz') > -1
+                  || client_name.toLowerCase().indexOf('sea ranch') > -1
+                  || client_name.toLowerCase().indexOf('sindico') > -1
+                  || client_name.toLowerCase().indexOf('sports group denmark') > -1
                 )
                 {
                   
@@ -3686,6 +5249,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 if(client_name && client_name.toLowerCase().indexOf('rieker') > -1
                   || client_name.toLowerCase().indexOf('woden') > -1
                   || client_name.toLowerCase().indexOf('pier one') > -1
+                  || client_name.toLowerCase().indexOf('committee xxiv') > -1
+                  || client_name.toLowerCase().indexOf('aid studio') > -1
+                  || client_name.toLowerCase().indexOf('lost boys') > -1
+                  || client_name.toLowerCase().indexOf('qnuz') > -1
+                  || client_name.toLowerCase().indexOf('sea ranch') > -1
+                  || client_name.toLowerCase().indexOf('sindico') > -1
+                  || client_name.toLowerCase().indexOf('sports group denmark') > -1
                 )
                   discount_amount = null;                
               }
@@ -3894,7 +5464,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 exchange_total_amount = '-' + exchange_total_amount.trim();
 
               if(type == 'analyzepdf')
-              {                
+              {       
+                if (completedOnly && analyzepdf.status !== 'completed') {
+                    return;
+                }
+
                 if(!analyzepdf.is_deleted && analyzepdf.status === 'completed' && (sync_status === 0 || sync_status === 3) && parsed_extracted_data)
                 {      
                   if (parsed_extracted_data.length === undefined)
@@ -3998,10 +5572,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     //});
                   }
                 } //completed
-                else if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+                else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
+                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error'))
                 {  
-                  //console.log("SALES - processing");
-                  //console.log(analyzepdf);
+                  console.log("SALES - processing");
+                  console.log(analyzepdf);
                   analyzepdf_processing_datas.push({
                     'id' : analyzepdf.id,
                     'fake_id' : analyzepdf_processing_start,
@@ -4037,7 +5612,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   });
                   analyzepdf_processing_start = analyzepdf_processing_start + 1; 
                 } //processing
-                else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+                else if(!completedOnly && !analyzepdf.is_deleted && analyzepdf.status === 'failed' &&
+                  (analyzepdf.manual_input_status === null || analyzepdf.manual_input_status === 'failed') &&
+                  (analyzepdf.search_save_status === null || analyzepdf.search_save_status === 'failed') &&
+                  analyzepdf.force_submitted === 0
+                )
                 {  
                   //console.log("SALES - failed");                 
                   analyzepdf_error_datas.push({
@@ -4086,7 +5665,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   analyzepdf_error_start = analyzepdf_error_start + 1;
                 } //error  
 
-                if(analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
+                if(!completedOnly && analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
                 {  
                   analyzepdf_deleted_datas.push({
                     'id' : analyzepdf.id,
@@ -4236,7 +5815,28 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   client_name = parsed_extracted_data.recipient.name;
 
                 if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
-                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);                
+                  invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
+
+                if(client_name && client_name.toLowerCase().indexOf('engel') > -1)
+                  //invoice_no = invoice_no.replace('..FF', '');  
+                  invoice_no = invoice_no.replace(/\s*\.\.\s*ff\s*/gi, '');
+
+                if(client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
+                {
+                  var special_invoice_no = null;
+                  if(parsed_extracted_data?.special_capture_invoice_number)
+                    special_invoice_no = parsed_extracted_data.special_capture_invoice_number;
+                  else
+                  {
+                    const filename = analyzepdf.file_name;
+                  
+                    //const match = filename.match(/-\s*([A-Z]+-\d+)_/);
+                    const match = filename.match(/(SF-\d+)/);
+                    special_invoice_no = match ? match[1] : null;                    
+                  }
+
+                  invoice_no = (special_invoice_no) ? special_invoice_no : invoice_no;
+                }              
               }              
 
               //Related Sales Invoices
@@ -4330,6 +5930,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
               }
               */
 
+              /*
               if (client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
               {                         
                 if (related_sales_invoices && related_sales_invoices.length) 
@@ -4355,9 +5956,14 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   }
                 }
               } //rainwear
+              */
 
               if(type == 'analyzepdf')
               {
+                if (completedOnly && analyzepdf.status !== 'completed') {
+                    return;
+                }
+
                 if(!analyzepdf.is_deleted && analyzepdf.status === 'completed' && (sync_status === 0 || sync_status === 3) && parsed_extracted_data)
                 {              
                   if (parsed_extracted_data.length === undefined)
@@ -4443,10 +6049,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     //});
                   }
                 } //completed
-                else if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+                else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
+                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error'))
                 {  
-                  //console.log("COM - processing");
-                  //console.log(analyzepdf);
+                  console.log("COM - processing");
+                  console.log(analyzepdf);
                   analyzepdf_processing_datas.push({
                     'id' : analyzepdf.id,
                     'fake_id' : analyzepdf_processing_start,
@@ -4473,7 +6080,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   });
                   analyzepdf_processing_start = analyzepdf_processing_start + 1; 
                 } //processing
-                else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+                else if(!completedOnly && !analyzepdf.is_deleted && analyzepdf.status === 'failed' &&                  
+                  (analyzepdf.manual_input_status === null || analyzepdf.manual_input_status === 'failed') &&
+                  (analyzepdf.search_save_status === null || analyzepdf.search_save_status === 'failed') &&
+                  analyzepdf.force_submitted === 0
+                )
                 {  
                   //console.log("COM - failed");
                   analyzepdf_error_datas.push({
@@ -4513,7 +6124,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   analyzepdf_error_start = analyzepdf_error_start + 1;   
                 } //error
                 
-                if(analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
+                if(!completedOnly && analyzepdf.is_deleted || analyzepdf.status === 'duplicate')
                 {
                   analyzepdf_deleted_datas.push({
                     'id' : analyzepdf.id,
@@ -4619,7 +6230,11 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 });
                 analyzepdf_processing_start = analyzepdf_processing_start + 1; 
               } //processing
-              else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed')
+              else if(!analyzepdf.is_deleted && analyzepdf.status === 'failed' &&
+                  (analyzepdf.manual_input_status === null || analyzepdf.manual_input_status === 'failed') &&
+                  (analyzepdf.search_save_status === null || analyzepdf.search_save_status === 'failed') &&
+                  analyzepdf.force_submitted === 0
+              )
               {  
                 //console.log("COM - failed");
                 analyzepdf_error_datas.push({

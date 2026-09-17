@@ -17,7 +17,7 @@ use App\Services\MicrosoftMailService;
 
 class OcrAnalyzeService
 {
-    public function analyze(array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
+    public function analyze(string $ocrProgressKey, array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
     {        
         $invoiceType = $folder; // 'sales' or 'com'
         $whichStudio = 'model';
@@ -30,7 +30,7 @@ class OcrAnalyzeService
 
         $modelId = match ($invoiceType) {
             'sales', 'multi-invoices' => 'custom_sales_invoice_v28',
-            'com'   => 'custom_com_invoice_v28',
+            'com'   => 'custom_com_invoice_v30',
             default => 'custom_sales_invoice_v28',
         };
 
@@ -39,18 +39,70 @@ class OcrAnalyzeService
 
             if($bulk)
             {
-                $originalName = pathinfo(
-                    $fullPath->getClientOriginalName(),
-                    PATHINFO_FILENAME
-                );
+                if (str_starts_with($ocrProgressKey, 'ocr_progress:sftp:')) 
+                {
+                    $originalName = pathinfo($fullPath, PATHINFO_FILENAME);
 
-                // Store in storage/app/ocr/{invoice_type}
-                $storedPath = $fullPath->storeAs(
-                    'ocr/' . $invoiceType,
-                    $originalName.'.pdf',
-                    'local'
-                );                
-                $fullPath = storage_path('app/' . $storedPath);
+                    $extension = pathinfo($fullPath, PATHINFO_EXTENSION);
+
+                    $timestamp = date('Ymd_His') . '_' . substr(uniqid(), -4);
+
+                    $fileName = $originalName . '_' . $timestamp . '.' . $extension;
+
+                    // New location
+                    $storedPath = 'ocr/' . $invoiceType . '/' . $fileName;
+
+                    // Move the already-saved SFTP file
+                    $moved = Storage::disk('local')->move(
+                        $fullPath,
+                        $storedPath
+                    );
+
+                    if (!$moved) {
+                        Log::error(
+                            "Failed to move SFTP file: {$fullPath} -> {$storedPath}"
+                        );
+
+                        continue;
+                    }
+
+                    // Convert to absolute filesystem path
+                    $fullPath = Storage::disk('local')->path($storedPath);
+
+                    // Use renamed filename for further processing
+                    $originalName = pathinfo(
+                        $fileName,
+                        PATHINFO_FILENAME
+                    );                 
+                }
+                else
+                {
+                    $originalName = pathinfo(
+                        $fullPath->getClientOriginalName(),
+                        PATHINFO_FILENAME
+                    );
+
+                    $extension = $fullPath->getClientOriginalExtension();                
+
+                    $timestamp = date('Ymd_His') . '_' . substr(uniqid(), -4);
+                    $fileName = $originalName . '_' . $timestamp . '.' . $extension;
+
+                    // Store in storage/app/ocr/{invoice_type}
+                    // $storedPath = $fullPath->storeAs(
+                    //     'ocr/' . $invoiceType,
+                    //     $originalName.'.pdf',
+                    //     'local'
+                    // );
+                    $storedPath = $fullPath->storeAs(
+                        'ocr/' . $invoiceType,
+                        $fileName,
+                        'local'
+                    );                   
+                    $fullPath = storage_path('app/' . $storedPath);
+
+                    // Use the renamed filename for further processing
+                    $originalName = pathinfo($fileName, PATHINFO_FILENAME);
+                }
             }
 
             $prevCapture = ($prevCaptures) ? $prevCaptures[$key] : [];
@@ -89,9 +141,20 @@ class OcrAnalyzeService
             {
                 // Increment total count for progress bar
                 if(!$bulk)
-                    Cache::increment('inbox_total');                
+                {
+                    //Cache::increment('inbox_total'); 
+                    if($invoiceType !== 'multi-invoices')
+                    {
+                        if ($ocrProgressKey) {
+                            Cache::increment(
+                                "{$ocrProgressKey}:completed"
+                            );
+                        }
+                    }
+                }
 
                 SplitPdfJob::dispatch(
+                    $ocrProgressKey,
                     $clients,
                     $fullPath,
                     $originalName,
@@ -104,7 +167,15 @@ class OcrAnalyzeService
                     $prevCapture
                 )->onQueue(config('queue.ocr.split', 'ocrpdfinvoices'));
 
-                Log::info("Queued SplitPdfJob for {$originalName} in " . strtoupper($invoiceType) . " batch {$batchId}");
+                if($bulk)
+                {
+                    if (str_starts_with($ocrProgressKey, 'ocr_progress:sftp:'))
+                        Log::info("SFTP - Queued SplitPdfJob for {$originalName} in " . strtoupper($invoiceType) . " batch {$batchId}");
+                    else
+                        Log::info("BULK UPLOAD - Queued SplitPdfJob for {$originalName} in " . strtoupper($invoiceType) . " batch {$batchId}");
+                }
+                else
+                    Log::info("Queued SplitPdfJob for {$originalName} in " . strtoupper($invoiceType) . " batch {$batchId}");
             } //allow
             else
             {
@@ -115,10 +186,16 @@ class OcrAnalyzeService
                     $mailService->markEmailAsRead($emailMessageId);
                     $mailService->moveEmailToFolder($emailMessageId, "Duplicate");
 
-                    Cache::increment('inbox_completed', 1);
+                    //Cache::increment('inbox_completed', 1);                    
 
                     Log::info("Duplicate file {$originalName} in batch {$batchId}");
                 }
+
+                if ($ocrProgressKey) {
+                    Cache::increment(
+                        "{$ocrProgressKey}:completed"
+                    );
+                }  
             } //not allow
         }
     }

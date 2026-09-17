@@ -1,0 +1,662 @@
+<?php
+<?php
+
+namespace App\Jobs;
+
+use Illuminate\Bus\Batchable;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+
+use App\Models\VATRegistration;
+use App\Models\OcrPdf;
+
+use App\Classes\CommonClass;
+
+class OcrIrSyncJob implements ShouldQueue
+{
+    use Batchable;
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
+
+    protected array $pdfIds;
+
+    protected int $vatRegId;
+
+    protected $authUser;
+
+    protected $commonClass;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        array $pdfIds,
+        int $vatRegId,
+        $authUser
+    ) {
+        $this->pdfIds = $pdfIds;
+        $this->vatRegId = $vatRegId;
+        $this->authUser = $authUser;
+
+        $this->commonClass = new CommonClass();
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        /*
+         * ---------------------------------------------------------
+         * Get the VAT registration.
+         * ---------------------------------------------------------
+         */
+        $vatReg = VATRegistration::query()
+            ->with('vatregmain')
+            ->find($this->vatRegId);
+
+        if (!$vatReg) {
+
+            Log::warning(
+                'IR OCR Sync Job - VAT registration not found',
+                [
+                    'vat_reg_id' => $this->vatRegId,
+                    'pdf_ids' => $this->pdfIds,
+                ]
+            );
+
+            return;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * Get PDFs belonging to this job.
+         * ---------------------------------------------------------
+         */
+        $pdfs = OcrPdf::query()
+            ->with([
+                'syncDb' => function ($query) {
+                    $query->select([
+                        'ocr_pdf_id',
+                        'client_no',
+                        'client_name',
+                        'invoice_date',
+                    ]);
+                },
+            ])
+            ->whereIn('id', $this->pdfIds)
+            ->get();
+
+        if ($pdfs->isEmpty()) {
+            return;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * Calculate VAT registration period.
+         * ---------------------------------------------------------
+         */
+        if (!$vatReg->service_start) {
+
+            Log::warning(
+                'IR OCR Sync Job - Service start missing',
+                [
+                    'vat_reg_id' => $vatReg->id,
+                    'pdf_ids' => $this->pdfIds,
+                ]
+            );
+
+            return;
+        }
+
+        $frequency = $this->commonClass->getFrequency(
+            $vatReg->general_periods
+        );
+
+        $serviceStart = Carbon::parse(
+            $vatReg->service_start
+        )->subMonth();
+
+        $serviceEnd = $serviceStart
+            ->copy()
+            ->addMonths($frequency - 1)
+            ->endOfMonth();
+
+        /*
+         * ---------------------------------------------------------
+         * Process each PDF.
+         * ---------------------------------------------------------
+         */
+        foreach ($pdfs as $pdf) {
+
+            $syncDb = $pdf->syncDb;
+
+            if (!$syncDb) {
+
+                Log::warning(
+                    'IR OCR Sync Job - Sync DB record not found',
+                    [
+                        'ocr_pdf_id' => $pdf->id,
+                        'vat_reg_id' => $vatReg->id,
+                    ]
+                );
+
+                continue;
+            }
+
+            /*
+             * Make sure the invoice belongs to the VAT
+             * registration period.
+             *
+             * This is an additional safety check.
+             */
+            if (!$syncDb->invoice_date) {
+
+                Log::warning(
+                    'IR OCR Sync Job - Invoice date missing',
+                    [
+                        'ocr_pdf_id' => $pdf->id,
+                        'vat_reg_id' => $vatReg->id,
+                    ]
+                );
+
+                continue;
+            }
+
+            $invoiceDate = Carbon::parse(
+                $syncDb->invoice_date
+            );
+
+            if (
+                !$invoiceDate->betweenIncluded(
+                    $serviceStart,
+                    $serviceEnd
+                )
+            ) {
+
+                Log::warning(
+                    'IR OCR Sync Job - Invoice outside VAT registration period',
+                    [
+                        'ocr_pdf_id' => $pdf->id,
+                        'vat_reg_id' => $vatReg->id,
+                        'invoice_date' => $invoiceDate->toDateString(),
+                        'service_start' => $serviceStart->toDateString(),
+                        'service_end' => $serviceEnd->toDateString(),
+                    ]
+                );
+
+                continue;
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * Refresh this specific OCR PDF.
+             * ---------------------------------------------------------
+             *
+             * Passing $pdf->id makes
+             * loadImportReconciliationDatasFromNewOcr()
+             * use its $ocr_pdf_id branch.
+             */
+            $this->commonClass
+                ->loadImportReconciliationDatasFromNewOcr(
+                    $this->authUser,
+                    $vatReg,
+                    'ocr',
+                    null,
+                    false,
+                    null,
+                    null,
+                    $pdf->id
+                );
+        }
+    }
+
+    /**
+     * Handle failed job.
+     */
+    public function failed(\Throwable $exception): void
+    {
+        Log::error(
+            'IR OCR Sync Job failed',
+            [
+                'vat_reg_id' => $this->vatRegId,
+                'pdf_ids' => $this->pdfIds,
+                'message' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]
+        );
+    }
+}
+
+
+// namespace App\Jobs;
+
+// use Illuminate\Bus\Batchable;
+// use Illuminate\Bus\Queueable;
+// use Illuminate\Contracts\Queue\ShouldQueue;
+// use Illuminate\Foundation\Bus\Dispatchable;
+// use Illuminate\Queue\InteractsWithQueue;
+// use Illuminate\Queue\SerializesModels;
+// use Illuminate\Support\Carbon;
+// use Illuminate\Support\Facades\Log;
+
+// use App\Models\VATRegistration;
+// use App\Models\VATRegistrationMain;
+// use App\Models\OcrPdf;
+
+// use App\Classes\CommonClass;
+
+// class OcrIrSyncJob implements ShouldQueue
+// {
+//     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+//     protected $pdfIds;
+//     protected $authUser;
+//     protected $commonClass;
+
+//     /**
+//      * Create a new job instance.
+//      */
+//     public function __construct($pdfIds, $authUser)
+//     {
+//         $this->pdfIds = $pdfIds;
+//         $this->authUser = $authUser;
+
+//         $this->commonClass = new CommonClass();
+//     }
+
+//     /**
+//      * Execute the job.
+//      */
+//     public function handle()
+//     {
+//         /*
+//          * Get PDFs belonging to this chunk.
+//          *
+//          * syncDb contains:
+//          * - client_no
+//          * - invoice_date
+//          */
+//         $pdfs = OcrPdf::query()
+//             ->with([
+//                 'syncDb' => function ($query) {
+//                     $query->select([
+//                         'ocr_pdf_id',
+//                         'client_no',
+//                         'invoice_date',
+//                     ]);
+//                 },
+//             ])
+//             ->whereIn('id', $this->pdfIds)
+//             ->get();
+
+//         if ($pdfs->isEmpty()) {
+//             return;
+//         }
+
+//         /*
+//          * Get distinct normalized client numbers.
+//          */
+//         $clientNos = $pdfs
+//             ->pluck('syncDb.client_no')
+//             ->filter()
+//             ->map(function ($clientNo) {
+//                 return $this->normalizeNumber($clientNo);
+//             })
+//             ->filter()
+//             ->unique()
+//             ->values();
+
+//         if ($clientNos->isEmpty()) {
+//             Log::warning('IR OCR Sync Job - No client numbers found', [
+//                 'pdf_ids' => $this->pdfIds,
+//             ]);
+
+//             return;
+//         }
+
+//         /*
+//          * Load only VAT Registration Main records
+//          * belonging to the clients in this job.
+//          *
+//          * Since org_no / vat_no may contain formatting
+//          * characters, use REGEXP_REPLACE().
+//          */
+//         $vatRegMains = VATRegistrationMain::query()
+//             ->with([
+//                 'vatreg',
+//             ])
+//             ->select([
+//                 'id',
+//                 'org_no',
+//                 'vat_no',
+//             ])
+//             ->where('ocr_sync', 1)
+//             ->where(function ($query) use ($clientNos) {
+
+//                 foreach ($clientNos as $clientNo) {
+
+//                     $query->orWhereRaw(
+//                         "REGEXP_REPLACE(org_no, '[^0-9]', '') = ?",
+//                         [$clientNo]
+//                     );
+
+//                     $query->orWhereRaw(
+//                         "REGEXP_REPLACE(vat_no, '[^0-9]', '') = ?",
+//                         [$clientNo]
+//                     );
+//                 }
+//             })
+//             ->get();
+
+//         if ($vatRegMains->isEmpty()) {
+//             Log::warning('IR OCR Sync Job - No VAT registration mains found', [
+//                 'client_nos' => $clientNos->all(),
+//                 'pdf_ids' => $this->pdfIds,
+//             ]);
+
+//             return;
+//         }
+
+//         /*
+//          * Create a lookup:
+//          *
+//          * normalized client number
+//          *      =>
+//          * VATRegistrationMain
+//          *
+//          * This avoids scanning the complete collection
+//          * for every PDF.
+//          */
+//         $vatRegMainLookup = collect();
+
+//         foreach ($vatRegMains as $vatRegMain) {
+
+//             $orgNo = $this->normalizeNumber(
+//                 $vatRegMain->org_no
+//             );
+
+//             $vatNo = $this->normalizeNumber(
+//                 $vatRegMain->vat_no
+//             );
+
+//             if ($orgNo !== '') {
+//                 $vatRegMainLookup->put(
+//                     $orgNo,
+//                     $vatRegMain
+//                 );
+//             }
+
+//             if ($vatNo !== '') {
+//                 $vatRegMainLookup->put(
+//                     $vatNo,
+//                     $vatRegMain
+//                 );
+//             }
+//         }
+
+//         /*
+//          * Process every PDF individually.
+//          *
+//          * We use the PDF's invoice_date to determine
+//          * which VATRegistration was active for that period.
+//          */
+//         foreach ($pdfs as $pdf) {
+
+//             $syncDb = $pdf->syncDb;
+
+//             if (!$syncDb) {
+//                 continue;
+//             }
+
+//             $normalizedClientNo = $this->normalizeNumber(
+//                 $syncDb->client_no
+//             );
+
+//             if ($normalizedClientNo === '' || !$syncDb->invoice_date) {
+//                 continue;
+//             }
+
+//             $invoiceDate = Carbon::parse($syncDb->invoice_date);
+
+//             $vatRegMain = $vatRegMainLookup->get($normalizedClientNo);
+
+//             if (!$vatRegMain) {
+//                 Log::warning('IR OCR Sync - VAT main not found', [
+//                     'ocr_pdf_id' => $pdf->id,
+//                     'client_no' => $normalizedClientNo,
+//                 ]);
+
+//                 continue;
+//             }
+
+//             $vatReg = $this->getVatRegistrationForInvoiceDate(
+//                 $vatRegMain,
+//                 $invoiceDate
+//             );
+
+//             if (!$vatReg) {
+//                 Log::warning('IR OCR Sync - VAT registration not found', [
+//                     'ocr_pdf_id' => $pdf->id,
+//                     'client_no' => $normalizedClientNo,
+//                     'invoice_date' => $invoiceDate->toDateString(),
+//                     'vat_reg_main_id' => $vatRegMain->id,
+//                 ]);
+
+//                 continue;
+//             }
+
+//             $this->commonClass->loadImportReconciliationDatasFromNewOcr(
+//                 $this->authUser,
+//                 $vatReg,
+//                 'ocr',
+//                 null,
+//                 false,
+//                 null,
+//                 null,
+//                 $pdf->id
+//             );
+//         }
+
+//         // foreach ($pdfs as $pdf) {
+
+//         //     $syncDb = $pdf->syncDb;
+
+//         //     if (!$syncDb) {
+//         //         Log::warning('IR OCR Sync Job - Sync DB record not found', [
+//         //             'ocr_pdf_id' => $pdf->id,
+//         //         ]);
+
+//         //         continue;
+//         //     }
+
+//         //     /*
+//         //      * Normalize client number.
+//         //      */
+//         //     $normalizedClientNo = $this->normalizeNumber(
+//         //         $syncDb->client_no
+//         //     );
+
+//         //     if ($normalizedClientNo === '') {
+//         //         Log::warning('IR OCR Sync Job - Invalid client number', [
+//         //             'ocr_pdf_id' => $pdf->id,
+//         //             'client_no' => $syncDb->client_no,
+//         //         ]);
+
+//         //         continue;
+//         //     }
+
+//         //     /*
+//         //      * Invoice date is required to identify
+//         //      * the correct VAT registration.
+//         //      */
+//         //     if (!$syncDb->invoice_date) {
+//         //         Log::warning('IR OCR Sync Job - Invoice date missing', [
+//         //             'ocr_pdf_id' => $pdf->id,
+//         //             'client_no' => $normalizedClientNo,
+//         //         ]);
+
+//         //         continue;
+//         //     }
+
+//         //     $invoiceDate = Carbon::parse(
+//         //         $syncDb->invoice_date
+//         //     );
+
+//         //     /*
+//         //      * Find VAT Registration Main using client number.
+//         //      */
+//         //     $vatRegMain = $vatRegMainLookup->get(
+//         //         $normalizedClientNo
+//         //     );
+
+//         //     if (!$vatRegMain) {
+//         //         Log::warning(
+//         //             'IR OCR Sync Job - VAT registration main not found',
+//         //             [
+//         //                 'ocr_pdf_id' => $pdf->id,
+//         //                 'client_no' => $normalizedClientNo,
+//         //                 'invoice_date' => $invoiceDate->toDateString(),
+//         //             ]
+//         //         );
+
+//         //         continue;
+//         //     }
+
+//         //     /*
+//         //      * Find the VAT Registration which was active
+//         //      * for this invoice date.
+//         //      *
+//         //      * Period:
+//         //      *
+//         //      * service_start - 1 month
+//         //      * through
+//         //      * service_start + frequency - 1 months - end of month
+//         //      */
+//         //     $vatReg = $vatRegMain->vatreg
+//         //         ->filter(function (VATRegistration $vatReg) use ($invoiceDate) {
+
+//         //             if (!$vatReg->service_start) {
+//         //                 return false;
+//         //             }
+
+//         //             $frequency = $this->commonClass->getFrequency(
+//         //                 $vatReg->general_periods
+//         //             );
+
+//         //             $serviceStart = Carbon::parse(
+//         //                 $vatReg->service_start
+//         //             )->subMonth();
+
+//         //             $serviceEnd = $serviceStart
+//         //                 ->copy()
+//         //                 ->addMonths($frequency - 1)
+//         //                 ->endOfMonth();
+
+//         //             return $invoiceDate->betweenIncluded(
+//         //                 $serviceStart,
+//         //                 $serviceEnd
+//         //             );
+//         //         })
+//         //         ->sortByDesc('service_start')
+//         //         ->first();
+
+//         //     if (!$vatReg) {
+//         //         Log::warning(
+//         //             'IR OCR Sync Job - VAT registration not found for invoice date',
+//         //             [
+//         //                 'ocr_pdf_id' => $pdf->id,
+//         //                 'client_no' => $normalizedClientNo,
+//         //                 'invoice_date' => $invoiceDate->toDateString(),
+//         //                 'vat_reg_main_id' => $vatRegMain->id,
+//         //             ]
+//         //         );
+
+//         //         continue;
+//         //     }
+
+//         //     /*
+//         //      * Refresh this specific OCR PDF.
+//         //      *
+//         //      * Passing $pdf->id causes
+//         //      * loadImportReconciliationDatasFromNewOcr()
+//         //      * to use its $ocr_pdf_id branch.
+//         //      */
+//         //     $this->commonClass->loadImportReconciliationDatasFromNewOcr(
+//         //         $this->authUser,
+//         //         $vatReg,
+//         //         'ocr',
+//         //         null,
+//         //         false,
+//         //         null,
+//         //         null,
+//         //         $pdf->id
+//         //     );
+//         // }
+//     }
+
+//     /**
+//      * Normalize a client/org/VAT number.
+//      */
+//     private function normalizeNumber($value): string
+//     {
+//         return preg_replace(
+//             '/\D+/',
+//             '',
+//             (string) $value
+//         );
+//     }
+
+//     private function getVatRegistrationForInvoiceDate(
+//         VATRegistrationMain $vatRegMain,
+//         Carbon $invoiceDate
+//     ): ?VATRegistration {
+        
+//         return $vatRegMain->vatreg
+//             ->filter(function (VATRegistration $vatReg) use ($invoiceDate) {
+
+//                 if (!$vatReg->service_start) {
+//                     return false;
+//                 }
+
+//                 $frequency = $this->commonClass->getFrequency(
+//                     $vatReg->general_periods
+//                 );
+
+//                 $serviceStart = Carbon::parse(
+//                     $vatReg->service_start
+//                 )->subMonth();
+
+//                 $serviceEnd = $serviceStart
+//                     ->copy()
+//                     ->addMonths($frequency - 1)
+//                     ->endOfMonth();
+
+//                 return $invoiceDate->betweenIncluded(
+//                     $serviceStart,
+//                     $serviceEnd
+//                 );
+//             })
+//             ->sortByDesc('service_start')
+//             ->first();
+//     }
+
+//     /**
+//      * Handle a failed job.
+//      */
+//     public function failed(\Throwable $exception)
+//     {
+//         Log::error('IR OCR Sync Job failed', [
+//             'pdf_ids' => $this->pdfIds,
+//             'message' => $exception->getMessage(),
+//             'trace' => $exception->getTraceAsString(),
+//         ]);
+//     }
+// }

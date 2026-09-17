@@ -137,11 +137,16 @@ $(function () {
 </h4>
 
 @php
+  $ocr_sync = false;
   $vat_reg_mains = $client->vatregmain;
   $overall_team_users = [];
   $overall_team_users_flag = [];
   foreach ($vat_reg_mains as $vat_reg_main) 
   {     
+    if($vat_reg_main?->ocr_sync)
+    {
+      $ocr_sync = true;
+    }
     foreach ($team_users as $team_user)
     {
       if($vat_reg_main->id == $team_user->id)
@@ -303,7 +308,11 @@ $(function () {
             </div>
 
             <div class="d-flex">
-              <span class="p-2 mx-2 bg-label-success ">{{ (($client) ? (($client->status) ? 'Active' : 'Inactive') : '') }}</span>
+              <span class="p-2 mx-2 bg-label-success">{{ (($client) ? (($client->status) ? 'Active' : 'Inactive') : '') }}</span>
+
+              @if($ocr_sync)
+                <span class="p-2 mx-2 bg-label-dark">OCR</span>
+              @endif
 
               @php
                 $has_gateway = false;

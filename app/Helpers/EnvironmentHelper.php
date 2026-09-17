@@ -14,4 +14,16 @@ class EnvironmentHelper
             default => config('app.env'),
         };
     }
+
+    public static function getFtpClients(): array
+    {        
+        return [
+            'aubo production',
+            'beck',
+            'geisler',
+            'noscomed',
+            'rexholm',
+            'villy',
+        ];
+    }
 }

@@ -214,8 +214,11 @@ mix.js('resources/js/dv-analyze-pdf', 'public/js/');
 mix.js('resources/js/dv-analyze-pdf-search', 'public/js/');
 mix.js('resources/js/dv-analyze-pdf-manual-input', 'public/js/');
 mix.js('resources/js/dv-analyze-pdf-synced', 'public/js/');
+mix.js('resources/js/dv-analyze-pdf-sftpoio', 'public/js/');
 
 mix.js('resources/js/dv-crm', 'public/js/');
+
+mix.js('resources/js/dv-declarations-new-ocr.js', 'public/js/');
 
 mix.copy('node_modules/boxicons/fonts/*', 'public/assets/vendor/fonts/boxicons');
 mix.copy('node_modules/@fortawesome/fontawesome-free/webfonts/*', 'public/assets/vendor/fonts/fontawesome');

@@ -39,11 +39,14 @@ class OcrInvoiceCorrectionService
     public function apply(OcrPdf $invoice, array $payload, bool $forceSubmitted = false, ?int $userId = null, bool $searchSave = false): array
     {        
         $data = $invoice->extracted_data ?? [];
-        $invoiceType = Arr::get($payload, 'invoice_type', $invoice->invoice_type);
+        //$invoiceType = Arr::get($payload, 'invoice_type', $invoice->invoice_type);
+        $invoiceType = Arr::get($payload, 'invoice_type_hidden', $invoice->invoice_type);
+        
         $countryCode = $this->countryCode($payload, $data);
 
         $clientName = Arr::get($payload, 'client_name');
 
+        $invoiceNo = Arr::get($payload, 'invoice_no');
         if($clientName && (
                 str_contains(strtolower($clientName), 'rainwear') 
                 || str_contains(strtolower($clientName), 'engel') 
@@ -51,12 +54,51 @@ class OcrInvoiceCorrectionService
                 || str_contains(strtolower($clientName), 'horn bord')
             )
         )
-        {
+        {        
+            if (str_contains(strtolower($clientName), 'rainwear')) 
+            {      
+                if($invoiceType === 'com')
+                {                    
+                    $this->set($data, 'special_capture_invoice_number', $invoiceNo);
+                }
+                else
+                {
+                    $this->set($data, 'no_invoice_number', $invoiceNo);
+                }
+            }
+            else
+            {
+                if($invoiceType === 'com' && (
+                        str_contains(strtolower($clientName), 'engel') 
+                        || str_contains(strtolower($clientName), 'berendsohn')
+                        || str_contains(strtolower($clientName), 'horn bord') 
+                    )              
+                )
+                {                      
+                    $this->set($data, 'invoice_number', $invoiceNo);
+                }
+                else
+                {
+                    if($invoiceType !== 'com')
+                    {   
+                        if(str_contains(strtolower($clientName), 'engel')
+                            || str_contains(strtolower($clientName), 'berendsohn')
+                        )
+                        {                               
+                            $this->set($data, 'no_invoice_number', $invoiceNo);
+                        }
 
+                        if(str_contains(strtolower($clientName), 'horn bord'))
+                        {                               
+                            $this->set($data, 'order_number', $invoiceNo);
+                        }
+                    }
+                }
+            }           
         }
         else
         {
-            $invoiceNo = Arr::get($payload, 'invoice_no');
+            //$invoiceNo = Arr::get($payload, 'invoice_no');
             $this->set($data, 'invoice_number', $invoiceNo);
         }
 
@@ -69,6 +111,7 @@ class OcrInvoiceCorrectionService
 
         if ($invoiceType === 'com') {
             $this->set($data, 'recipient.org_number', Arr::get($payload, 'client_no'));
+            $this->set($data, 'recipient.extracted_org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'recipient.name', $clientName);
 
             $this->set($data, 'exchange_currency', Arr::get($payload, 'exchange_currency'));
@@ -84,6 +127,7 @@ class OcrInvoiceCorrectionService
             data_forget($data, 'exchange_total_amount');
         } else {
             $this->set($data, 'supplier.org_number', Arr::get($payload, 'client_no'));
+            $this->set($data, 'supplier.extracted_org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'supplier.name', $clientName);
 
             $currency = Arr::get($payload, 'currency');
@@ -112,6 +156,61 @@ class OcrInvoiceCorrectionService
 
                 if ($exchangeNet !== null && $exchangeVat !== null) {
                     $exchangeTotalAmount = $this->formatAmount($exchangeNet + $exchangeVat);
+                }
+            }
+
+            if (
+                blank($netAmount) &&
+                blank($vatAmount) &&
+                filled($exchangeNetAmount) &&
+                filled($exchangeVatAmount) &&
+                filled($exchangeRate)
+            ) {
+                $exNet = $this->parseAmount($exchangeNetAmount);
+                $exVat = $this->parseAmount($exchangeVatAmount);
+                $exRate = $this->parseAmount($exchangeRate);
+ 
+                $discountAmount = Arr::get($data, 'discount_amount');
+                $additionalAmount = Arr::get($data, 'additional_charges');
+                $varianceAmount = Arr::get($data, 'variance');
+
+                // if($clientName && (
+                //         str_contains(strtolower($clientName), 'sgi wholesale') 
+                //         || str_contains(strtolower($clientName), 'sand cph')                            
+                //     )
+                // )                    
+                // {
+                //     [$discountAmount, $varianceAmount] = [
+                //         $varianceAmount,
+                //         $discountAmount
+                //     ]; 
+                // }
+
+                $dAmount = $this->parseAmount($discountAmount);
+                $aAmount = $this->parseAmount($additionalAmount);
+                $vAmount = $this->parseAmount($varianceAmount);
+
+                if ($exNet !== null && $exVat !== null && $exRate !== null) {
+                    $net = $exNet / $exRate;
+                    $vat = $exVat / $exRate;
+
+                    $discount = ($dAmount) ? ($dAmount / $exRate) : 0;
+                    $additional = ($aAmount) ? ($aAmount / $exRate) : 0;
+                    $variance = ($vAmount) ? ($vAmount / $exRate) : 0;
+
+                    $calcNetAmount = (abs($net) + abs($additional) + abs($variance)) - abs($discount);                    
+                    // if($clientName && (
+                    //         str_contains(strtolower($clientName), 'sgi wholesale') 
+                    //         || str_contains(strtolower($clientName), 'sand cph')                            
+                    //     )
+                    // )                    
+                    // {
+                    //     $calcNetAmount = (abs($net) + abs($additional)) - (abs($variance) + abs($discount));
+                    // }
+
+                    $netAmount = $this->formatAmount($calcNetAmount);
+                    $vatAmount = $this->formatAmount($vat);
+                    $totalAmount = $this->formatAmount($calcNetAmount + $vat);
                 }
             }
 
@@ -151,6 +250,18 @@ class OcrInvoiceCorrectionService
                 $additionalAmount = Arr::get($payload, 'additional_amount');
                 $varianceAmount = Arr::get($payload, 'variance_amount');
                 
+                // if($clientName && (
+                //         str_contains(strtolower($clientName), 'sgi wholesale') 
+                //         || str_contains(strtolower($clientName), 'sand cph')                        
+                //     )
+                // )
+                // {   
+                //     [$discountAmount, $varianceAmount] = [
+                //         $varianceAmount,
+                //         $discountAmount
+                //     ]; 
+                // }
+                
                 $this->set($data, 'discount_amount', $this->formatEuropeanAmount($discountAmount));
                 $this->set($data, 'additional_charges', $this->formatEuropeanAmount($additionalAmount));
                 $this->set($data, 'variance', $this->formatEuropeanAmount($varianceAmount));                
@@ -163,32 +274,40 @@ class OcrInvoiceCorrectionService
         // $this->set($data, 'manual_input.updated_at', now()->toDateTimeString());
         // $this->set($data, 'manual_input.updated_by', $userId);
 
-        $missing = $this->missingRequiredFields($data, $invoiceType);
-        $completed = empty($missing) || $forceSubmitted;
-        if($completed)
-            data_forget($data, 'error');
-        else
-            $this->set($data, 'error', implode("\n", $missing));
+        
 
         $environment = EnvironmentHelper::getEnvironment();
-        if($searchSave)       
+        if($searchSave)  
+        {   
+            $missing = [];      
+            $completed = true;   
+
+            data_forget($data, 'error');            
+
             $invoice->update([
-                'invoice_type' => ($invoiceType === '') ? 'multi-invoices' : $invoiceType,
+                'invoice_type' => ($invoiceType) ? $invoiceType : 'multi-invoices',
                 'extracted_data' => $data,
-                'status' => $completed ? 'completed' : 'failed',
-                'error' => $completed ? null : implode("\n", $missing),
-                'validation_status' => $completed ? 'validated_with_changes' : 'not_yet_validated',
-                //'sync_status' => 0,
-                //'is_locked' => 0,
+                'status' => 'completed',
+                'error' => null,
+                'validation_status' => 'validated_with_changes',                
                 'search_save_note' => $note,
                 'force_submitted' => $forceSubmitted,
                 'search_save_at' => now(),
                 'search_save_by' => $userId,
                 'search_save_environment' => $environment,
-            ]);        
+            ]);
+        }        
         else
+        {
+            $missing = $this->missingRequiredFields($data, (($invoiceType) ? $invoiceType : 'multi-invoices'));
+            $completed = empty($missing) || $forceSubmitted;
+            if($completed)
+                data_forget($data, 'error');
+            else
+                $this->set($data, 'error', implode("\n", $missing));
+
             $invoice->update([
-                'invoice_type' => ($invoiceType === '') ? 'multi-invoices' : $invoiceType,
+                'invoice_type' => ($invoiceType) ? $invoiceType : 'multi-invoices',
                 'extracted_data' => $data,
                 'status' => $completed ? 'completed' : 'failed',
                 'error' => $completed ? null : implode("\n", $missing),
@@ -201,6 +320,7 @@ class OcrInvoiceCorrectionService
                 'manual_input_by' => $userId,
                 'manual_input_environment' => $environment,
             ]);
+        }
         
         OcrSyncStatus::updateOrCreate(
             [
@@ -364,46 +484,129 @@ class OcrInvoiceCorrectionService
         return number_format($value, 2, ',', '.');
     }
     
+    // private function formatEuropeanAmount($amount, $decimal = 2): ?string
+    // {
+    //     if ($amount === null || $amount === '') {
+    //         return $amount;
+    //     }
+
+    //     if (is_string($amount)) {
+    //         $amount = trim($amount);
+
+    //         // Both separators exist
+    //         if (str_contains($amount, ',') && str_contains($amount, '.')) {
+
+    //             $lastComma = strrpos($amount, ',');
+    //             $lastDot = strrpos($amount, '.');
+
+    //             // US format: 7,573.17
+    //             // Decimal separator is the last dot
+    //             if ($lastDot > $lastComma) {
+    //                 $amount = str_replace(',', '', $amount);
+    //             }
+    //             // European format: 7.573,17
+    //             // Decimal separator is the last comma
+    //             else {
+    //                 $amount = str_replace('.', '', $amount);
+    //                 $amount = str_replace(',', '.', $amount);
+    //             }
+
+    //         }
+    //         // Only comma exists: 7573,17
+    //         elseif (str_contains($amount, ',')) {
+    //             $amount = str_replace(',', '.', $amount);
+    //         }
+
+    //         // Only dot exists: 7573.17
+    //     }
+
+    //     if (is_numeric($amount)) {
+    //         return number_format((float) $amount, $decimal, ',', '.');
+    //     }
+
+    //     return $amount;
+    // }
+
     private function formatEuropeanAmount($amount, $decimal = 2): ?string
     {
         if ($amount === null || $amount === '') {
             return $amount;
         }
 
-        if (is_string($amount)) {
-            $amount = trim($amount);
+        $amount = trim((string) $amount);
 
-            // Both separators exist
-            if (str_contains($amount, ',') && str_contains($amount, '.')) {
+        // Remove spaces
+        $amount = str_replace(' ', '', $amount);
 
-                $lastComma = strrpos($amount, ',');
-                $lastDot = strrpos($amount, '.');
+        /*
+         * Determine the input format
+         */
 
-                // US format: 7,573.17
-                // Decimal separator is the last dot
-                if ($lastDot > $lastComma) {
-                    $amount = str_replace(',', '', $amount);
-                }
-                // European format: 7.573,17
-                // Decimal separator is the last comma
-                else {
-                    $amount = str_replace('.', '', $amount);
-                    $amount = str_replace(',', '.', $amount);
-                }
+        // Both comma and dot exist
+        if (str_contains($amount, ',') && str_contains($amount, '.')) {
 
-            }
-            // Only comma exists: 7573,17
-            elseif (str_contains($amount, ',')) {
+            $lastComma = strrpos($amount, ',');
+            $lastDot   = strrpos($amount, '.');
+
+            if ($lastComma > $lastDot) {
+                // European:
+                // 1.234,56
+                // 123.456.789,12
+                $amount = str_replace('.', '', $amount);
                 $amount = str_replace(',', '.', $amount);
+
+            } else {
+                // US:
+                // 1,234.56
+                // 123,456,789.12
+                $amount = str_replace(',', '', $amount);
             }
-
-            // Only dot exists: 7573.17
         }
 
-        if (is_numeric($amount)) {
-            return number_format((float) $amount, $decimal, ',', '.');
+        // Only comma exists
+        elseif (str_contains($amount, ',')) {
+
+            /*
+             * 123,45   -> decimal
+             * 123,456  -> ambiguous, but treat as decimal
+             */
+            $amount = str_replace(',', '.', $amount);
         }
 
-        return $amount;
+        // Only dot exists
+        elseif (str_contains($amount, '.')) {
+
+            /*
+             * 123.456 -> thousands separator
+             * 123.45  -> decimal
+             * 1234.56 -> decimal
+             */
+
+            $parts = explode('.', $amount);
+
+            $lastPart = end($parts);
+
+            if (count($parts) > 1 && strlen($lastPart) === 3) {
+                // 132.111 -> 132111
+                // 1.234 -> 1234
+                // 1.234.567 -> 1234567
+
+                $amount = str_replace('.', '', $amount);
+            }
+            // Otherwise treat dot as decimal separator
+            // 132.11 -> 132.11
+            // 132111.49 -> 132111.49
+        }
+
+        if (!is_numeric($amount)) {
+            return $amount;
+        }
+
+        return number_format(
+            (float) $amount,
+            $decimal,
+            ',',
+            '.'
+        );
     }
 }

@@ -42,6 +42,7 @@ use App\Http\Controllers\ocr\SplitPdfController;
 use App\Http\Controllers\ocr\MailReaderController;
 use App\Http\Controllers\ocr\ManualInputController;
 use App\Http\Controllers\ocr\SyncDbController;
+use App\Http\Controllers\ocr\SftpOioController;
 
 use \App\Classes\DynamicsApiClass;
 use \App\Classes\EconomicApiClass;
@@ -54,6 +55,8 @@ use App\Http\Controllers\crm\ReminderController as CRMReminderController;
 use App\Http\Controllers\crm\AddonsController;
 
 use App\Helpers\EnvironmentHelper;
+
+use App\Http\Controllers\declaration\DeclarationNewOcrController;
 
 /*
 |--------------------------------------------------------------------------
@@ -71,13 +74,13 @@ use App\Helpers\EnvironmentHelper;
 // });
 use App\Http\Controllers\PDFController;
 Route::get('generate-pdf', [PDFController::class, 'generatePDF']);
-
+$environment = EnvironmentHelper::getEnvironment();
 /* -- WITH AUTH -- */
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified'
-])->group(function () {   
+])->group(function () use ($environment) {   
 
 //    Route::get('/test-parser', function () {
 //     $reflection = new ReflectionClass(\App\Parsers\ClientInvoiceParser::class);
@@ -168,7 +171,7 @@ Route::middleware([
     /* --end DASHBOARD -- */  
    
     /* -- ROLE: SUPER-ADMIN -- */
-    Route::group(['middleware' => ['role:super-admin']], function () {        
+    Route::group(['middleware' => ['role:super-admin']], function () use ($environment) {        
         /* -- COMPANY -- */
             /* -- COMPANY:CREATE -- */
             Route::get('company/create', [CompanyController::class, 'createCompany'])->name('company.create');
@@ -199,57 +202,60 @@ Route::middleware([
             /* --end STATISTICS -- */
         /* --end SETTINGS -- */
 
-        /* -- CRM -- */
-        Route::prefix('crm')->group(function(){
-            Route::resource('leads', LeadController::class);
-            //Route::post('leads/{lead}/create-quote', [LeadController::class,'createQuote']);
-            //Route::post('leads/{lead}/no-quote', [LeadController::class,'noQuote']);
-            Route::get('leads/{cvr_no}/company', [LeadController::class,'getCompany']);
-            Route::get('leads/{user_id}/user', [LeadController::class,'getUser']);
+        if($environment !== 'live')
+        {
+            /* -- CRM -- */
+            Route::prefix('crm')->group(function(){
+                Route::resource('leads', LeadController::class);
+                //Route::post('leads/{lead}/create-quote', [LeadController::class,'createQuote']);
+                //Route::post('leads/{lead}/no-quote', [LeadController::class,'noQuote']);
+                Route::get('leads/{cvr_no}/company', [LeadController::class,'getCompany']);
+                Route::get('leads/{user_id}/user', [LeadController::class,'getUser']);
 
-            //Route::resource('quotes', QuoteController::class);
-            Route::get('quotes/', [QuoteController::class,'index'])->name('quotes.index');
+                //Route::resource('quotes', QuoteController::class);
+                Route::get('quotes/', [QuoteController::class,'index'])->name('quotes.index');
 
-            Route::get('quotes1/', [QuoteController::class,'index1'])->name('quotes.index1');
-            
-            Route::get('quotes/create/{lead}', [QuoteController::class,'create'])->name('quotes.create');
-            Route::post('quotes', [QuoteController::class,'store'])->name('quotes.store');
-            Route::get('quotes/{quote}', [QuoteController::class,'show'])->name('quotes.show');
-            Route::get('quotes/{quote}/edit', [QuoteController::class,'edit'])->name('quotes.edit');
-            Route::put('quotes/{quote}', [QuoteController::class,'update'])->name('quotes.update');
-            Route::delete('quotes/{quote}', [QuoteController::class,'destroy'])->name('quotes.delete');
+                Route::get('quotes1/', [QuoteController::class,'index1'])->name('quotes.index1');
+                
+                Route::get('quotes/create/{lead}', [QuoteController::class,'create'])->name('quotes.create');
+                Route::post('quotes', [QuoteController::class,'store'])->name('quotes.store');
+                Route::get('quotes/{quote}', [QuoteController::class,'show'])->name('quotes.show');
+                Route::get('quotes/{quote}/edit', [QuoteController::class,'edit'])->name('quotes.edit');
+                Route::put('quotes/{quote}', [QuoteController::class,'update'])->name('quotes.update');
+                Route::delete('quotes/{quote}', [QuoteController::class,'destroy'])->name('quotes.delete');
 
-            Route::post('quotes/{quote}/status', [QuoteController::class,'changeStatus'])->name('quotes.change-status');
-            Route::post('quotes/{quote}/duplicate', [QuoteController::class,'duplicate'])->name('quotes.duplicate');
+                Route::post('quotes/{quote}/status', [QuoteController::class,'changeStatus'])->name('quotes.change-status');
+                Route::post('quotes/{quote}/duplicate', [QuoteController::class,'duplicate'])->name('quotes.duplicate');
 
-            Route::get('approved', [QuoteController::class,'approved'])->name('quotes.approved');  
-            Route::get('rejected', [QuoteController::class,'rejected'])->name('quotes.rejected');   
-            
-            Route::resource('reminders', CRMReminderController::class)->names('crm.reminders');
+                Route::get('approved', [QuoteController::class,'approved'])->name('quotes.approved');  
+                Route::get('rejected', [QuoteController::class,'rejected'])->name('quotes.rejected');   
+                
+                Route::resource('reminders', CRMReminderController::class)->names('crm.reminders');
 
-            Route::get('overview', [OverviewController::class,'index'])->name('crm.overview');
-            //Route::get('rejected', [LeadController::class,'rejected'])->name('crm.rejected');           
+                Route::get('overview', [OverviewController::class,'index'])->name('crm.overview');
+                //Route::get('rejected', [LeadController::class,'rejected'])->name('crm.rejected');           
 
-            Route::post('quotes/{quote}/negotiate', [QuoteController::class,'negotiate'])
-                ->name('quotes.negotiate');
+                Route::post('quotes/{quote}/negotiate', [QuoteController::class,'negotiate'])
+                    ->name('quotes.negotiate');
 
-            Route::post('quote-addons/store', [QuoteAddonController::class,'store'])->name('quote-addons.store');
-            Route::put('quote-addons/{id}', [QuoteAddonController::class,'update'])->name('quote-addons.update');
-            Route::delete('quote-addons/{id}', [QuoteAddonController::class,'destroy'])->name('quote-addons.destroy');
-            Route::get('quotes/{id}/calculate', [QuoteAddonController::class,'calculate'])->name('quotes.calculate');
+                Route::post('quote-addons/store', [QuoteAddonController::class,'store'])->name('quote-addons.store');
+                Route::put('quote-addons/{id}', [QuoteAddonController::class,'update'])->name('quote-addons.update');
+                Route::delete('quote-addons/{id}', [QuoteAddonController::class,'destroy'])->name('quote-addons.destroy');
+                Route::get('quotes/{id}/calculate', [QuoteAddonController::class,'calculate'])->name('quotes.calculate');
 
-            Route::resource('addons', AddonsController::class);
+                Route::resource('addons', AddonsController::class);
 
-             Route::get('quotes/{quote}/contract/{format}', [QuoteController::class,'downloadContract'])
-                ->whereIn('format', ['docx', 'pdf'])
-                ->name('quotes.contract.download');
-        });
-        /* --end CRM -- */
+                 Route::get('quotes/{quote}/contract/{format}', [QuoteController::class,'downloadContract'])
+                    ->whereIn('format', ['docx', 'pdf'])
+                    ->name('quotes.contract.download');
+            });
+            /* --end CRM -- */
+        }
     });
     /* -- ROLE: SUPER-ADMIN -- */
 
     /* -- ROLE: SUPER-ADMIN|COMPANY-ADMIN -- */
-    Route::group(['middleware' => ['role:super-admin|company-admin']], function () {
+    Route::group(['middleware' => ['role:super-admin|company-admin']], function () use ($environment) {
         /* -- SETTINGS -- */            
             /* -- PAYMENT INFO -- */
                 /* -- PAYMENT INFO:VIEW -- */
@@ -315,7 +321,7 @@ Route::middleware([
     /* -- ROLE: SUPER-ADMIN|COMPANY-ADMIN -- */
 
     /* -- ROLE: SUPER-ADMIN|TEAM-USER|COMPANY-ADMIN -- */
-    Route::group(['middleware' => ['role:super-admin|team-user|company-admin']], function () {
+    Route::group(['middleware' => ['role:super-admin|team-user|company-admin']], function () use ($environment) {
         /* -- CHAT TALK -- */
         Route::get('chattalk', [ChatTalkController::class, 'index'])->name('chat.talk');       
         Route::get('chattalk/{id}', [ChatTalkController::class, 'chatHistory'])->name('chat.talk.read'); 
@@ -430,15 +436,21 @@ Route::middleware([
                 /* --end GLOBAL SEARCH:REFRESH STATUS -- */  
             /* --end GLOBAL SEARCH -- */
 
-            /* -- MAILBOX -- */
-            Route::get('mail-box-files', [MailboxController::class, 'index'])->name('mail.box.files.index'); 
+            if($environment !== 'live')
+            {
+                /* -- MAILBOX -- */
+                Route::get('mail-box-files', [MailboxController::class, 'index'])->name('mail.box.files.index'); 
 
-            Route::post('mail-box-files/assign', [MailboxController::class, 'assign'])->name('mail.box.files.assign');   
+                Route::post('mail-box-files/assign', [MailboxController::class, 'assign'])->name('mail.box.files.assign');   
 
-            Route::delete('mail-box-files/dismiss', [MailboxController::class, 'dismiss'])->name('mail.box.files.dismiss');  
-            /* --end MAILBOX -- */ 
+                Route::delete('mail-box-files/dismiss', [MailboxController::class, 'dismiss'])->name('mail.box.files.dismiss');  
+                /* --end MAILBOX -- */
+            } 
 
             /* -- OCR PDF -- */
+            Route::get('analyzepdf/updatebackfill', [AnalyzePdfController::class, 'processUnreadEmails'])->name('analyze.pdf.backfill');
+            Route::get('analyzepdf/timeout', [AnalyzePdfController::class, 'findTimeout'])->name('analyze.pdf.timeout');
+
             Route::get('analyzepdf', [AnalyzePdfController::class, 'index'])->name('analyze.pdf.index');
             Route::get('analyzepdf/data', [AnalyzePdfController::class, 'analyzedata'])->name('analyze.pdf.data');
             Route::post('analyzepdf', [AnalyzePdfController::class, 'analyze'])->name('analyze.pdf.post');                
@@ -449,7 +461,10 @@ Route::middleware([
             Route::get('/analyzepdf/progress',[AnalyzePdfController::class, 'inboxProgress'])->name('analyze.pdf.inbox.progress');
 
             Route::get('analyzepdf/search', [AnalyzePdfController::class, 'search'])->name('analyze.pdf.search');
+            Route::get('analyzepdf/search/data', [AnalyzePdfController::class, 'analyzeSearchData'])->name('analyze.pdf.search.data');
             Route::post('analyzepdf/{analyze_id}/delete', [AnalyzePdfController::class, 'deleteAnalyzePdf'])->name('analyze.pdf.delete');
+
+            Route::get('analyzepdf/search/dataall', [AnalyzePdfController::class, 'analyzeSearchDataAll'])->name('analyze.pdf.search.data.all');
 
             Route::get('analyzepdf-sync', [AnalyzePdfController::class, 'syncAnalyzePdf'])->name('analyze.pdf.sync');            
 
@@ -469,6 +484,7 @@ Route::middleware([
             Route::get('analyzepdf/update-failed-syncdb', [SyncDbController::class, 'updateFailedSyncDb'])->name('analyze.pdf.update.failed.sync.db');
 
             /* -- BULK UPLOAD -- */            
+            Route::get('analyzepdf/bulk-upload', [AnalyzePdfController::class, 'ocrBulkUploadIndex'])->name('analyze.pdf.bulk.upload.index');
             Route::post('analyzepdf/bulk-upload', [AnalyzePdfController::class, 'ocrBulkUpload'])->name('analyze.pdf.bulk.upload');           
             /* --end BULK UPLOAD -- */
 
@@ -509,6 +525,13 @@ Route::middleware([
             Route::delete('analyzepdf/manual-input/{id}', [ManualInputController::class, 'destroy'])
                 ->whereNumber('id')
                 ->name('analyze.pdf.manual-input.delete');
+
+            /* -- SFTP/OIO -- */
+            Route::get('analyzepdf/sftp', [SftpOioController::class, 'index'])->name('analyze.pdf.sftp.oio');
+            Route::get('analyzepdf/sftpdata', [SftpOioController::class, 'sftpData'])->name('analyze.pdf.sftp.oio.data');
+            Route::get('analyzepdf/sftpdata/{id}/show', [SftpOioController::class, 'sftpShowData'])->name('analyze.pdf.sftp.oio.data.show');
+            Route::get('analyzepdf/sftpdata/{id}/pdf', [SftpOioController::class, 'sftpPdf'])->name('analyze.pdf.sftp.oio.data.pdf');
+            /* --end SFTP/OIO -- */
             /* --end OCR PDF -- */            
         /* --end SETTINGS -- */ 
 
@@ -560,7 +583,7 @@ Route::middleware([
     /* --end ROLE: SUPER-ADMIN|TEAM-USER|COMPANY-ADMIN -- */
 
     /* -- ROLE: SUPER-ADMIN|CLIENT-USER -- */
-    Route::group(['middleware' => ['role:super-admin|client-user']], function () {        
+    Route::group(['middleware' => ['role:super-admin|client-user']], function () use ($environment) {        
         /* -- COMPANY -- */            
             /* -- COMPANY:UPDATE -- */
             Route::put('company/{client_id}/updatestatus', [CompanyController::class, 'updateCompanyStatus'])->name('company.update.status');
@@ -579,7 +602,7 @@ Route::middleware([
     /* --end ROLE: SUPER-ADMIN|CLIENT-USER -- */
             
     /* -- ROLE: SUPER-ADMIN|TEAM-USER|CLIENT-USER|COMPANY-ADMIN -- */
-    Route::group(['middleware' => ['role:super-admin|team-user|client-user|company-admin']], function () {
+    Route::group(['middleware' => ['role:super-admin|team-user|client-user|company-admin']], function () use ($environment) {
         /* -- COMPANY -- */
             /* -- COMPANY:LIST -- */
             Route::get('companies', [CompanyController::class, 'loadCompanies'])->name('companies');
@@ -883,6 +906,75 @@ Route::middleware([
                     /* --end CARGO DECLARATION FILES -- */                                                                   
                 /* --end DECLARATIONS TAB -- */ 
 
+                /* -- DECLARATIONS NEW (OCR) TAB -- */ 
+                    Route::post(
+                        '/rematch-ocr/{client_id}',
+                        [DeclarationNewOcrController::class, 'startRematchOcrComInvoices']
+                    )->name('rematch-ocr.start');
+
+                    Route::get(
+                        '/rematch-ocr/status/{batch_id}',
+                        [DeclarationNewOcrController::class, 'rematchOcrComInvoicesStatus']
+                    )->name('rematch-ocr.status');               
+                    /* -- DECLARATIONS NEW (OCR):VIEW -- */       
+                        Route::get('declarations-new/{vat_reg_id}', [DeclarationNewOcrController::class, 'index'])->name('declarations.new.ocr');
+
+                        /* -- DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - REFRESH OCR -- */
+                            Route::get('declaration-new-invoice/{vat_reg_id}/ocr-refresh', [DeclarationNewOcrController::class, 'refreshOcr'])->name('declaration.new.ocr.invoice.refresh.ocr');    
+
+                            /* -- DECLARATIONS NEW (OCR):REFRESH OCR STATUS -- */
+                            Route::get('declaration-new-invoice/{vat_reg_id}/ocr-status', [DeclarationNewOcrController::class, 'refreshOcrStatus'])->name('declaration.new.ocr.invoice.ocr.refresh.status');   
+                            /* --end DECLARATIONS NEW (OCR):REFRESH OCR STATUS -- */                    
+                        /* --end DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - REFRESH OCR -- */
+
+                        /* -- DECLARATIONS NEW (OCR): COM/SALES INVOICE - SPECIFIC REFRESH OCR -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/refresh', [DeclarationNewOcrController::class, 'refreshSpecificData'])->name('declaration.new.ocr.invoice.refresh.specific.ocr.search'); 
+                        /* --end DECLARATIONS NEW (OCR): COM/SALES INVOICE - SPECIFIC REFRESH OCR -- */
+
+                        /* -- DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - ADD COMMENT/DISREGARD -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/disregard', [DeclarationNewOcrController::class, 'invoiceDisregard'])->name('declaration.new.ocr.invoice.disregard');
+                        /* --end DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - ADD COMMENT/DISREGARD -- */
+
+                        /* -- DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - DELETE COMMENT -- */
+                        Route::delete('declaration-new-invoice/{invoice_id}/deletecomment', [DeclarationNewOcrController::class, 'invoiceDeleteComment'])->name('declaration.new.ocr.invoice.delete.comment');
+                        /* --end DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - DELETE COMMENT -- */
+
+                        /* -- DECLARATIONS NEW (OCR): COM INVOICE - DELETE -- */
+                        Route::delete('declaration-new-invoice/{invoice_id}', [DeclarationNewOcrController::class, 'invoiceDelete'])->name('declaration.new.ocr.invoice.delete');
+                        /* --end DECLARATIONS NEW (OCR): COM INVOICE - DELETE -- */
+                        
+                        /* -- DECLARATIONS NEW (OCR): COM INVOICE - REMATCH -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/rematch', [DeclarationNewOcrController::class, 'invoiceRematch'])->name('declaration.new.ocr.invoice.rematch');
+                        /* --end DECLARATIONS NEW (OCR): COM INVOICE - REMATCH -- */
+
+                        /* -- DECLARATIONS NEW (OCR): COM INVOICE - REMOVE REMATCH -- */
+                        Route::delete('declaration-new-invoice/{invoice_id}/rematch', [DeclarationNewOcrController::class, 'invoiceRemoveRematch'])->name('declaration.new.ocr.invoice.remove.rematch');
+                        /* --end DECLARATIONS NEW (OCR): COM INVOICE - REMOVE REMATCH -- */
+
+                        /* -- DECLARATIONS NEW (OCR): SALES INVOICE - FTP - EDIT -- */
+                        Route::get('declaration-new-invoice/{invoice_id}/edit', [DeclarationNewOcrController::class, 'invoiceEdit'])->name('declaration.new.ocr.invoice.edit');
+
+                        Route::post('declaration-new-invoice/{invoice_id}/edit', [DeclarationNewOcrController::class, 'invoiceEditSave'])->name('declaration.new.ocr.invoice.edit.save');
+                        /* --end DECLARATIONS NEW (OCR): SALES INVOICE - FTP - EDIT -- */
+
+                        /* -- DECLARATIONS NEW (OCR): SALES INVOICE - MOVE -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/move', [DeclarationNewOcrController::class, 'invoiceMove'])->name('declaration.new.ocr.sales.invoice.move');
+                        /* --end DECLARATIONS NEW (OCR): SALES INVOICE - MOVE -- */
+
+                        /* -- DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - CURRENCY CONVERSION -- */
+                            Route::post('declaration-new-invoice/{vat_reg_id}/convert', [DeclarationNewOcrController::class, 'convertInvoiceCurrency'])->name('declaration.new.ocr.invoice.convert'); 
+                        /* --end DECLARATIONS NEW (OCR): DECLARATION/COM/SALES INVOICE - CURRENCY CONVERSION -- */
+
+                        /* -- DECLARATIONS NEW (OCR): COM INVOICE - UNMATCH -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/unmatch', [DeclarationNewOcrController::class, 'invoiceUnmatch'])->name('declaration.new.ocr.invoice.unmatch');
+                        /* --end DECLARATIONS NEW (OCR): COM INVOICE - UNMATCH -- */
+
+                        /* -- DECLARATIONS NEW (OCR): SALES INVOICE FILE - MOVE -- */
+                        Route::post('declaration-new-invoice/{invoice_id}/move-file', [DeclarationNewOcrController::class, 'invoiceFileMove'])->name('declaration.new.ocr.sales.invoice.file.move');
+                        /* --end DECLARATIONS NEW (OCR): SALES INVOICE FILE - MOVE -- */
+                    /* --end DECLARATIONS NEW (OCR):VIEW -- */ 
+                /* --end DECLARATIONS NEW (OCR) TAB -- */ 
+
                 /* -- HISTORY TAB -- */
                 Route::get('import-reconciliation-history-tab/{vat_reg_id}', [TasksController::class, 'loadImportReconciliationHistoryTab'])->name('import.reconciliation.history.tab');
                 /* --end HISTORY TAB -- */
@@ -1038,7 +1130,7 @@ Route::middleware([
     /* --end ROLE: SUPER-ADMIN|TEAM-USER|CLIENT-USER|COMPANY-ADMIN -- */
 
     /* -- ROLE: CLIENT-USER -- */
-    Route::group(['middleware' => ['role:client-user']], function () {
+    Route::group(['middleware' => ['role:client-user']], function () use ($environment) {
         /* -- CLIENT-USER TASKS -- */
         Route::get('clientuser-tasks', [TasksController::class, 'clientUserTasks'])->name('clientuser.tasks');
         /* --end CLIENT-USER TASKS -- */
@@ -1091,8 +1183,7 @@ Route::middleware([
     Route::get('/select-role', [RoleController::class, 'selectRole'])->name('select.role');
     Route::post('/set-role', [RoleController::class, 'setRole'])->name('set.role');
     /* --end SELECT ROLE -- */
-
-    $environment = EnvironmentHelper::getEnvironment();
+    
     /* -- CLEAR CACHE -- */        
     if($environment !== 'live')
     {

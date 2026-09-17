@@ -1798,6 +1798,16 @@ console.log(modalId);
     window.open(declaration_url, '_blank');//, 'noreferrer'
   });
 
+  //Declaration New (OCR) Click    
+  $(document).on('click', '.btn-declarations-new-ocr', function () {    
+    var data = $(this).data();
+    var vat_reg_id = data['vat_reg_id'];
+    
+    var declaration_new_ocr_url = `${baseUrl}declarations-new/${vat_reg_id}`;
+          
+    window.open(declaration_new_ocr_url, '_blank');//, 'noreferrer'
+  });
+
   //Preview Report Click    
   $(document).on('click', '.btn-preview-report', function () {    
     var data = $(this).data();
@@ -1906,6 +1916,7 @@ console.log(modalId);
           $("#navs-import-reconciliation-overview-" + vat_reg_id).html(result['view']);
 
           $("#btn-declarations-" + vat_reg_id).removeClass('disabled');
+          $("#btn-declarations-new-ocr-" + vat_reg_id).removeClass('disabled');
         //}
        
         //$("#total-tax-top-"+vat_reg_id).html($("#total-tax-"+vat_reg_id).html());

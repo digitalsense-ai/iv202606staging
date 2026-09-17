@@ -24,8 +24,16 @@ $(function () {
   // Variable declaration for table
   var fileUrl = baseUrl + 'file/';
   var userView = baseUrl + 'dv-user/';
-  var declarationUrl = baseUrl + 'declaration/';
-  var declarationInvoiceUrl = baseUrl + 'declaration-invoice/';  
+  // var declarationUrl = baseUrl + 
+  //       (window.declarationpage === 'declaration-new-ocr') ? 'declaration-new/' : 'declaration/';
+  // var declarationInvoiceUrl = baseUrl + 
+  //       (window.declarationpage === 'declaration-new-ocr') ? 'declaration-new-invoice/' : 'declaration-invoice/';  
+
+  var declarationUrl = baseUrl +
+    (window.declarationpage === 'declaration-new-ocr' ? 'declaration-new/' : 'declaration/');
+
+  var declarationInvoiceUrl = baseUrl +
+    (window.declarationpage === 'declaration-new-ocr' ? 'declaration-new-invoice/' : 'declaration-invoice/');
 
   // window.Pusher = Pusher;
   // window.Echo = new Echo({
@@ -59,13 +67,17 @@ $(function () {
     }
   });
 
-  var dt_declarations_tables = $('.datatables-declarations');
-
+  //var dt_declarations_tables = $('.datatables-declarations');
+  // The legacy initializer only owns the legacy declaration card. The OCR
+  // screen reuses the mature action handlers below without creating a second
+  // DataTable over its consolidated table.
+  var dt_declarations_tables = $('.card.declarations .datatables-declarations');
   for (var i = 0; i < dt_declarations_tables.length; i++) {
    
     var dt_declarations_table = $(dt_declarations_tables[i]); // This is a DOM element, not a jQuery object
 
-    if (dt_declarations_table) 
+    //if (dt_declarations_table) 
+    if (dt_declarations_table && !$.fn.dataTable.isDataTable(dt_declarations_table[0]))
     {
       var declaration_filter_class = 'd-none';
       let declaration_name = '';
@@ -1419,11 +1431,56 @@ console.log(declaration_datas);
     }        
   });
 
+  /*NEW (OCR) - EXPORT - TO - EXCEL*/
+  function getDeclarationExportData(which_tab)
+  {
+    if(which_tab == 'consolidated')
+      return Array.isArray(window.declaration_datas) ? window.declaration_datas : [];
+    if(which_tab == 'first')
+      return declaration_first_datas;
+    if(which_tab == 'second')
+      return declaration_second_datas;
+    if(which_tab == 'third')
+      return declaration_third_datas;
+    return [];
+  }
+
+  function getDeclarationExportMonth(which_tab)
+  {
+    var field = (which_tab == 'consolidated') ? '#declaration_first_monthyear' : '#declaration_' + which_tab + '_monthyear';
+    return moment($(field).val(), 'MM-YYYY').format('MMM-YYYY');
+  }
+
+  function getDeclarationExportChildren(declaration_datas, property)
+  {
+    var seen = {};
+    return declaration_datas.reduce(function (children, declaration) {
+      $.each(declaration[property] || [], function (_idx, child) {
+        var key = property + ':' + (child.id || child.co_invoice_no || child.invoice_no || JSON.stringify(child));
+        if(!seen[key]) {
+          seen[key] = true;
+          children.push(child);
+        }
+      });
+      return children;
+    }, []);
+  }
+
+  function getConsolidatedDeclarationChildren(data, property)
+  {
+    var declarations = getDeclarationExportData('consolidated');console.log(declarations);
+    var declaration_index = Number(data['declaration_index']);
+    if(!Number.isInteger(declaration_index) || !declarations[declaration_index])
+      return [];
+    return declarations[declaration_index][property] || [];
+  }
+
   /*NEW - EXPORT - TO - EXCEL*/
   function exportToExcelMissingFilesNew(dt, which_tab) 
   {    
     var clientname = $("#client_name").val();
-    var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    //var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    var monthyear = getDeclarationExportMonth(which_tab);
     
     let workbook = XLSX.utils.book_new();
     let sheetData = [];
@@ -1433,19 +1490,22 @@ console.log(declaration_datas);
     "Sales Invoices QTY", "On No of Comm. Inv."]; // Adjust based on your columns
     sheetData.push(headers); // Add headers to the first row
 
-    var declaration_datas = [];
-    if(which_tab == 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab == 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab == 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab == 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab == 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab == 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var declaration_datas = getDeclarationExportData(which_tab);
 
     if(declaration_datas.length > 0)
     {
       var currency_style = 'NOK';
 
-      var co_invoices = declaration_datas[0]['co_invoices'];
+      //var co_invoices = declaration_datas[0]['co_invoices'];
+      var co_invoices = getDeclarationExportChildren(declaration_datas, 'co_invoices');
                  
       let total_parsed_vat_amount = 0;  
       let total_parsed_net_amount = 0;    
@@ -1588,7 +1648,8 @@ console.log(declaration_datas);
   function exportToExcelOnlyDeclarationsNew(dt, which_tab) 
   {    
     var clientname = $("#client_name").val();
-    var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    //var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    var monthyear = getDeclarationExportMonth(which_tab);
 
     var currency_locale = 'da-DK';
     var currency_style = 'NOK';
@@ -1600,13 +1661,36 @@ console.log(declaration_datas);
     const headers = ["Exp No", "Declaration No", "Duties", "Net Amount", "Adjustment", "Statistical value"]; // Adjust based on your columns
     sheetData.push(headers); // Add headers to the first row
 
-    var declaration_datas = [];
-    if(which_tab == 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab == 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab == 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab == 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab == 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab == 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var declaration_datas = getDeclarationExportData(which_tab);
+
+    // The consolidated workbook contains exactly the period's declaration
+    // rows (two for NO and three for CH), rather than XML child lines.
+    if(which_tab == 'consolidated')
+    {
+      $.each(declaration_datas, function (_idx, declaration) {
+        sheetData.push([
+          declaration['o_declaration_date'] || declaration['fake_id'] || declaration['id'],
+          declaration['declaration_no'],
+          parseAmountValue(declaration['duties'], declaration['currency']),
+          parseAmountValue(declaration['net_amount'], declaration['currency']),
+          parseAmountValue(declaration['adjustment'], declaration['currency']),
+          parseAmountValue(declaration['statistical_value'], declaration['currency'])
+        ]);
+      });
+
+      var consolidatedWorksheet = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet, monthyear);
+      XLSX.writeFile(workbook, clientname + '-Declaration-' + monthyear + '.xlsx');
+      return;
+    }
 
     if(declaration_datas.length > 0)
     {
@@ -1854,7 +1938,8 @@ console.log(declaration_datas);
   function exportToExcelOnlyComInvoicesNew(dt, which_tab) 
   {    
     var clientname = $("#client_name").val();
-    var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    //var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    var monthyear = getDeclarationExportMonth(which_tab);
 
     let workbook = XLSX.utils.book_new();
     let sheetData = [];
@@ -1864,19 +1949,22 @@ console.log(declaration_datas);
     "On No Of Declarations"]; // Adjust based on your columns
     sheetData.push(headers); // Add headers to the first row
 
-    var declaration_datas = [];
-    if(which_tab == 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab == 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab == 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab == 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab == 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab == 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var declaration_datas = getDeclarationExportData(which_tab);
 
     if(declaration_datas.length > 0)
     {
       var currency_style = 'NOK';      
 
-      var co_invoices = declaration_datas[0]['co_invoices'];
+      //var co_invoices = declaration_datas[0]['co_invoices'];
+      var co_invoices = getDeclarationExportChildren(declaration_datas, 'co_invoices');
            
       let total_parsed_net_amount = 0;
       //let total_parsed_vat_amount = 0;      
@@ -1974,7 +2062,8 @@ console.log(declaration_datas);
   function exportToExcelOnlySalesInvoicesNew(dt, which_tab) 
   {    
     var clientname = $("#client_name").val();
-    var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    //var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    var monthyear = getDeclarationExportMonth(which_tab);
 
     let workbook = XLSX.utils.book_new();
     let sheetData = [];
@@ -1984,19 +2073,22 @@ console.log(declaration_datas);
     "Sales Invoices QTY", "On No of Comm. Inv."]; // Adjust based on your columns
     sheetData.push(headers); // Add headers to the first row
 
-    var declaration_datas = [];
-    if(which_tab == 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab == 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab == 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab == 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab == 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab == 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var declaration_datas = getDeclarationExportData(which_tab);
 
     if(declaration_datas.length > 0)
     {
       var currency_style = 'NOK';    
       
-      var co_invoices = declaration_datas[0]['co_invoices'];
+      //var co_invoices = declaration_datas[0]['co_invoices'];
+      var co_invoices = getDeclarationExportChildren(declaration_datas, 'co_invoices');
                  
       let total_parsed_vat_amount = 0;  
       let total_parsed_net_amount = 0;    
@@ -2153,7 +2245,8 @@ console.log(declaration_datas);
   function exportToExcelPeriodOverviewNew(dt, which_tab) 
   {       
     var clientname = $("#client_name").val();
-    var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    //var monthyear = moment($("#declaration_"+ which_tab +"_monthyear").val(), "MM-YYYY").format("MMM-YYYY");
+    var monthyear = getDeclarationExportMonth(which_tab);
 
     // var currency_locale = 'da-DK';
     // var currency_style = 'NOK';
@@ -2169,13 +2262,15 @@ console.log(declaration_datas);
     "Net Amount - Total Net Amount", "VAT Check", "Expo No. (Temp)"]; // Adjust based on your columns
     sheetData.push(headers); // Add headers to the first row
 
-    var declaration_datas = [];
-    if(which_tab == 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab == 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab == 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab == 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab == 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab == 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var declaration_datas = getDeclarationExportData(which_tab);
 
     if(declaration_datas.length > 0)
     {
@@ -2208,7 +2303,9 @@ console.log(declaration_datas);
       let converted_total_parsed_vat_check = 0;
       //Converted Amounts
 
-      var co_invoices = declaration_datas[0]['co_invoices']; 
+      //var co_invoices = declaration_datas[0]['co_invoices']; 
+      var co_invoices = getDeclarationExportChildren(declaration_datas, 'co_invoices');
+
       //co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no)); 
       co_invoices.sort((a, b) => {
         if (a.id === '-') return 1;
@@ -2224,7 +2321,8 @@ console.log(declaration_datas);
 
         let vat_percent = 0.25;
 
-        var import_vat_xml_datas = declaration_datas[0]['import_vat_xml'];
+        //var import_vat_xml_datas = declaration_datas[0]['import_vat_xml'];
+        var import_vat_xml_datas = getDeclarationExportChildren(declaration_datas, 'import_vat_xml');
                       
         if(import_vat_xml_datas.length == 0)
         {
@@ -3695,13 +3793,17 @@ console.log(declaration_datas);
   function addRedRemarks(which_tab)  
   {  
     //var declaration_datas = (which_tab == 'first') ? declaration_first_datas : declaration_second_datas;
-    var declaration_datas = [];
-    if(which_tab === 'first')
-      declaration_datas = declaration_first_datas;
-    else if(which_tab === 'second')
-      declaration_datas = declaration_second_datas;
-    else if(which_tab === 'third')
-      declaration_datas = declaration_third_datas;
+    // var declaration_datas = [];
+    // if(which_tab === 'first')
+    //   declaration_datas = declaration_first_datas;
+    // else if(which_tab === 'second')
+    //   declaration_datas = declaration_second_datas;
+    // else if(which_tab === 'third')
+    //   declaration_datas = declaration_third_datas;
+
+    var is_consolidated = $('.card.declarations-new-ocr').length > 0;
+    var declaration_datas = getDeclarationExportData(is_consolidated ? 'consolidated' : which_tab);
+
     var has_red_mark = 0;
 
     $.each(declaration_datas, function (idx, declaration) {
@@ -3712,13 +3814,17 @@ console.log(declaration_datas);
       }
       else
       {
-        $.each(declaration['co_invoices'], function (idx, com_invoice) {
-          if(com_invoice['currency'] != 'NOK')
+        // $.each(declaration['co_invoices'], function (idx, com_invoice) {
+        //   if(com_invoice['currency'] != 'NOK')
+        $.each(declaration['co_invoices'] || [], function (idx, com_invoice) {
+          var expected_currency = declaration['country'] == 'CH' ? 'CHF' : 'NOK';
+          if(com_invoice['currency'] != expected_currency)
           {
             has_red_mark++;
             return false;
           }
-          else if(com_invoice['doc_status'].toLowerCase() != 'validated')
+          //else if(com_invoice['doc_status'].toLowerCase() != 'validated')
+          else if(String(com_invoice['doc_status'] || '').toLowerCase() != 'validated')
           {
             has_red_mark++;
             return false;
@@ -3730,8 +3836,10 @@ console.log(declaration_datas);
           }
           else
           {
-            $.each(com_invoice['invoices'], function (idx, invoice) {
-              if(invoice['currency'] != 'NOK')
+            // $.each(com_invoice['invoices'], function (idx, invoice) {
+            //   if(invoice['currency'] != 'NOK')
+            $.each(com_invoice['invoices'] || [], function (idx, invoice) {
+              if(invoice['currency'] != expected_currency)
               {
                 has_red_mark++;
                 return false;
@@ -3742,7 +3850,8 @@ console.log(declaration_datas);
       }
     });
 
-    if(has_red_mark > 0)
+    //if(has_red_mark > 0)
+    if(has_red_mark > 0 && !is_consolidated)
     {
       $("#btn-declaration-"+ which_tab +" span").removeClass("alert-primary");
       $("#btn-declaration-"+ which_tab +" span").addClass("alert-danger");
@@ -4131,7 +4240,11 @@ console.log(selected_invoices_id);
                 btn_enable_invoice.removeAttr('disabled');
                 btn_enable_invoice.html('<i class="bx bx-list-check"></i>');
               
-                var declaration_datas = drawDtTable(result, 'declaration');
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
               
                 var swal_text = 'Declaration';          
@@ -4354,8 +4467,11 @@ console.log(selected_invoices_id);
               $('#btn_'+ which_tab +'_disregard_invoice').html(//'<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' + 
               '<span><i class="bx bx-list-minus"></i> Disregard invoice</span>');
             
-                        
-            var declaration_datas = drawDtTable(result, 'declaration');
+            var drawtabletype = 'declaration';
+            if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+              drawtabletype = 'declaration-new-ocr';
+
+            var declaration_datas = drawDtTable(result, drawtabletype);
             reloadDeclarations(declaration_datas);
            
             var swal_title = 'Comments saved';      
@@ -4449,8 +4565,11 @@ console.log(selected_invoices_id);
                 btn_delete_comment.removeAttr('disabled');
                 btn_delete_comment.html('<i class="bx bx-comment-minus"></i>');
                         
-                
-                var declaration_datas = drawDtTable(result, 'declaration');
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
 
                 var swal_text = 'Declaration comment';          
@@ -4529,7 +4648,8 @@ console.log(selected_invoices_id);
           "invoice_date": selected_invoice_date,
           "invoice_name": 'com',
           "tab_name": data['tab_name'],
-          "no_of_split": data['no_of_split']          
+          "no_of_split": data['no_of_split'],
+          "declaration_index": data['declaration_index']
         };
         fillRematchModal(filldata);        
             
@@ -4593,8 +4713,12 @@ console.log(selected_invoices_id);
                   btn_remove_rematch_cominvoice.html('<i class="bx bx-list-minus"></i>');
                 else
                   btn_remove_rematch_cominvoice.html('<i class="bx bx-folder-minus"></i>');
-                               
-                var declaration_datas = drawDtTable(result, 'declaration');
+                            
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);               
                
                 btn_remove_rematch_cominvoice.closest('tr.accordion-button').removeClass('disabled');
@@ -4674,7 +4798,11 @@ console.log(selected_invoices_id);
                 btn_retain_lopeno.removeAttr('disabled');
                 btn_retain_lopeno.html('<i class="bx bx-add-to-queue"></i>');               
                 
-                var declaration_datas = drawDtTable(result, 'declaration');
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
 
                 var swal_text = 'Lope No.';          
@@ -4755,7 +4883,11 @@ console.log(selected_invoices_id);
                 btn_retain_cominvoice.removeAttr('disabled');
                 btn_retain_cominvoice.html('<i class="bx bx-add-to-queue"></i>');               
                 
-                var declaration_datas = drawDtTable(result, 'declaration');
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
 
                 var swal_text = 'Commercial invoice';          
@@ -4817,13 +4949,17 @@ console.log(selected_invoices_id);
     $("#modalDeclarationComInvoiceRematch .onboarding-title").html(prefix + heading + suffix);
 
     var com_invoices = [];
-    if(data['tab_name'] == 'first')
+    //if(data['tab_name'] == 'first')
+    if($('.card.declarations-new-ocr').length)
+      com_invoices = getConsolidatedDeclarationChildren(data, 'modal_co_invoices');
+    else if(data['tab_name'] == 'first')
       com_invoices = declaration_first_datas[0]['modal_co_invoices'];
     else if(data['tab_name'] == 'second')
       com_invoices = declaration_second_datas[0]['modal_co_invoices'];
     else if(data['tab_name'] == 'third')
       com_invoices = declaration_third_datas[0]['modal_co_invoices'];
-
+console.log(data);
+console.log(com_invoices);
     var options = '<option value="" selected="selected">--Select Com. Invoices--</option>'; 
 
     var option_current_period_group = false;
@@ -4975,8 +5111,11 @@ console.log(selected_invoices_id);
             '<span><i class="bx bx-list-plus"></i> Rematch com. invoice</span>'
           );
           
-          
-          var declaration_datas = drawDtTable(result, 'declaration');
+          var drawtabletype = 'declaration';
+          if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+            drawtabletype = 'declaration-new-ocr';
+
+          var declaration_datas = drawDtTable(result, drawtabletype);
           reloadDeclarations(declaration_datas);          
         
           var swal_text = 'Commercial invoice';          
@@ -5245,7 +5384,11 @@ console.log(selected_invoices_id);
             '<span><i class="bx bx-edit-alt"></i> Edit</span>'
           );          
           
-          var declaration_datas = drawDtTable(result, 'declaration');
+          var drawtabletype = 'declaration';
+          if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+            drawtabletype = 'declaration-new-ocr';
+
+          var declaration_datas = drawDtTable(result, drawtabletype);
           reloadDeclarations(declaration_datas);         
           
           $('#modalDeclarationFtpSalesInvoiceEdit').modal('hide');
@@ -5331,8 +5474,11 @@ console.log(selected_invoices_id);
                 btn_delete_invoice.removeAttr('disabled');
                 btn_delete_invoice.html('<i class="bx bx-folder-minus"></i>');
                
-                
-                var declaration_datas = drawDtTable(result, 'declaration');
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
                               
                 var swal_text = 'Invoice';          
@@ -5415,7 +5561,8 @@ console.log(selected_invoices_id);
           "invoice_no": selected_invoice,
           "invoice_date": selected_invoice_date,
           "invoice_name": 'sales',
-          "tab_name": data['tab_name']
+          "tab_name": data['tab_name'],
+          "declaration_index": data['declaration_index']
         };
         fillMoveSalesInvoiceModal(filldata);        
             
@@ -5464,10 +5611,16 @@ console.log(selected_invoices_id);
     $("#modalDeclarationSalesInvoiceMove .onboarding-title").html(prefix + heading + suffix);
 
     var com_invoices = [];
-    if(data['tab_name'] == 'first')
+    //if(data['tab_name'] == 'first')
+    if($('.card.declarations-new-ocr').length)
+      com_invoices = getConsolidatedDeclarationChildren(data, 'modal_co_invoices');
+    else if(data['tab_name'] == 'first')
       com_invoices = declaration_first_datas[0]['modal_co_invoices'];
-    else
+    //else
+    else if(data['tab_name'] == 'second')
       com_invoices = declaration_second_datas[0]['modal_co_invoices'];
+    else if(data['tab_name'] == 'third')
+      com_invoices = declaration_third_datas[0]['modal_co_invoices'];
 
     var options = '<option value="" selected="selected">--Select Com. Invoices--</option>'; 
 
@@ -5551,8 +5704,11 @@ console.log(selected_invoices_id);
             '<span><i class="bx bx-move"></i> Move Sales Invoice</span>'
           );
           
-         
-          var declaration_datas = drawDtTable(result, 'declaration');
+          var drawtabletype = 'declaration';
+          if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+            drawtabletype = 'declaration-new-ocr';
+                      
+          var declaration_datas = drawDtTable(result, drawtabletype);
           reloadDeclarations(declaration_datas);          
         
           var swal_text = 'Sales invoice';          
@@ -5604,6 +5760,13 @@ console.log(selected_invoices_id);
 
   ///function reloadDeclarations(result) {
   function reloadDeclarations(declaration_datas) {  
+    
+      if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+      {
+        window.reloadConsolidatedDeclarations(declaration_datas);
+        return;
+      }
+
      // Delay execution by 3 seconds (3000 milliseconds)
     //setTimeout(function() {        
 
@@ -5846,8 +6009,13 @@ console.log(result);
 
                       finshedRefresh = true;
 
-                      var result = response['result'];                      
-                      var declaration_datas = drawDtTable(result, 'declaration');
+                      var result = response['result']; 
+
+                      var drawtabletype = 'declaration';
+                      if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                        drawtabletype = 'declaration-new-ocr';
+
+                      var declaration_datas = drawDtTable(result, drawtabletype);
                       reloadDeclarations(declaration_datas);
 
                       btn_refresh.removeAttr('disabled');
@@ -5916,8 +6084,12 @@ console.log(result);
           tab_name: which_tab},        
         success: function (result) {        
           if(result)    
-          {                             
-            var declaration_datas = drawDtTable(result, 'declaration');
+          {        
+            var drawtabletype = 'declaration';
+            if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+              drawtabletype = 'declaration-new-ocr';
+
+            var declaration_datas = drawDtTable(result, drawtabletype);
             reloadDeclarations(declaration_datas);
           
             btn_refresh_invoice.removeAttr('disabled');
@@ -6055,7 +6227,11 @@ console.log(result);
       if (data.job_status === 'completed') {
         result = data;
 
-        var declaration_datas = drawDtTable(result, 'declaration');
+        var drawtabletype = 'declaration';
+        if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+          drawtabletype = 'declaration-new-ocr';
+
+        var declaration_datas = drawDtTable(result, drawtabletype);
         reloadDeclarations(declaration_datas);
 
         var vat_reg_id = result.declarations.id;
@@ -6131,8 +6307,12 @@ console.log(result);
               tab_name: which_tab},        
             success: function (result) {        
               if(result)    
-              {                             
-                var declaration_datas = drawDtTable(result, 'declaration');
+              {       
+                var drawtabletype = 'declaration';
+                if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+                  drawtabletype = 'declaration-new-ocr';
+
+                var declaration_datas = drawDtTable(result, drawtabletype);
                 reloadDeclarations(declaration_datas);
               
                 btn_unmatch_invoice.removeAttr('disabled');
@@ -6243,6 +6423,14 @@ console.log(result);
   //         }
   //       });
   // });
+
+  // Expose the mature Excel exporters for the consolidated OCR declaration
+  // screen. Their implementation remains shared with the legacy screen.
+  window.exportToExcelPeriodOverviewNew = exportToExcelPeriodOverviewNew;
+  window.exportToExcelMissingFilesNew = exportToExcelMissingFilesNew;
+  window.exportToExcelOnlyDeclarationsNew = exportToExcelOnlyDeclarationsNew;
+  window.exportToExcelOnlyComInvoicesNew = exportToExcelOnlyComInvoicesNew;
+  window.exportToExcelOnlySalesInvoicesNew = exportToExcelOnlySalesInvoicesNew;
 
   // Move invoice file
   $(document).on('click', '.btn-move-invoice-file', function () {    
@@ -6367,7 +6555,11 @@ console.log(selected_invoices_id);
             '<span><i class="bx bx-move"></i> Move Invoice File</span>'
           );
          
-          var declaration_datas = drawDtTable(result, 'declaration');
+          var drawtabletype = 'declaration';
+          if($('.card.declarations-new-ocr').length && typeof window.reloadConsolidatedDeclarations === 'function')
+            drawtabletype = 'declaration-new-ocr';
+
+          var declaration_datas = drawDtTable(result, drawtabletype);
           reloadDeclarations(declaration_datas);          
         
           var swal_text = 'Sales invoice file';          

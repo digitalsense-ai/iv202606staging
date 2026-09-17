@@ -145,6 +145,11 @@ class CustomSalesInvoiceMapper
             }                
         }  
 
+        if($client_name && stripos($client_name, 'stof') !== false)
+        {            
+            $invoiceNumber = str_replace('-', '', $invoiceNumber);
+        }
+
         [$og_currency, $net_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Net Amount']['valueString'] ?? null,
             $doc['Currency']['valueString'] ?? null
@@ -238,6 +243,17 @@ class CustomSalesInvoiceMapper
             $currency ?? null
         );
 
+        if($client_name && (stripos($client_name, 'sgi wholesale') !== false
+                || stripos($client_name, 'sand cph') !== false
+            )
+        )
+        {            
+            [$discount_amount, $variance] = [
+                $variance,
+                $discount_amount
+            ]; 
+        }
+        
         [$total_currency, $total_amount] = CurrencyHelper::extractCurrencyAndCleanAmount(
             $doc['Total Amount']['valueString'] ?? null,
             $currency ?? null
@@ -283,12 +299,12 @@ class CustomSalesInvoiceMapper
         $parseVatAmount = EuropeanNumberHelper::toFloat($vat_amount);
         $parseTotalAmount = EuropeanNumberHelper::toFloat($total_amount);
 
-        if($client_name && (stripos($client_name, 'sgi wholesale') !== false
-                || stripos($client_name, 'sand cph') !== false
-            )
-        )       
-            $calcParseNetAmount = (abs($parseNetAmount) + abs($parseAdditionalCharges)) - (abs($parseVariance) + abs($parseDiscountAmount));
-        else
+        // if($client_name && (stripos($client_name, 'sgi wholesale') !== false
+        //         || stripos($client_name, 'sand cph') !== false
+        //     )
+        // )       
+        //     $calcParseNetAmount = (abs($parseNetAmount) + abs($parseAdditionalCharges)) - (abs($parseVariance) + abs($parseDiscountAmount));
+        // else
             $calcParseNetAmount = (abs($parseNetAmount) + abs($parseAdditionalCharges) + abs($parseVariance)) - abs($parseDiscountAmount);
 
         /**
@@ -588,6 +604,13 @@ class CustomSalesInvoiceMapper
                 '.'
             );
    
+        if($client_name && stripos($client_name, 'horn bord') !== false)
+        {
+            if (!$credit_note && str_starts_with($invoiceNumber, 'KRE-')) {
+                $credit_note = true;
+            }
+        }
+
         $mapresult = [
             'invoice_type' => $invoice_type,
             'invoice_number' => rtrim((string) $invoiceNumber, '.'), //$invoiceNumber ?? null,

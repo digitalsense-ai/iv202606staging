@@ -74,6 +74,7 @@ $(function () {
     queue: analyzePdfUrl + `manual-input/queue`,
     show: analyzePdfUrl + `manual-input`,
     clientLookup: analyzePdfUrl + `manual-input/client-lookup`,
+    sftpoioShow: analyzePdfUrl + `sftpdata`,
   };
   let queue = [];
   let filteredQueue = [];
@@ -273,6 +274,29 @@ $(function () {
       .always(() => setBusy(false));
   }
 
+  window.loadSFtpOioItem = function loadSFtpOioItem(id) { 
+    setBusy(true);
+
+    $empty.removeClass('d-none');
+    $detail.addClass('d-none');
+    //var syncedPage = ($('#syncedPage').length > 0) ? true :  false;
+
+    return $.getJSON(endpoints.sftpoioShow + '/' + id + '/show')
+      .then(response => { console.log(response);
+        //current = response.item;
+        fillForm(response.item);
+        //renderQueue();
+        //updateCounter(response.position, response.total);
+        //updateNav();
+
+        $empty.addClass('d-none');
+        $detail.removeClass('d-none');
+
+        $('#manualInputForm').scrollTop(0);
+      })
+      .always(() => setBusy(false));
+  }
+
   function fillForm(item) {
     const localCurrencyMap = {
         no: 'NOK',
@@ -285,7 +309,7 @@ $(function () {
     };
     let client_name = item.client_name || '';
 
-    let invoice_no = item.invoice_no || '';
+    let invoice_no = item.invoice_no.replace('#', '').trim() || '';
     if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
     {
       if(!item.credit_note)
@@ -296,7 +320,44 @@ $(function () {
       || client_name.toLowerCase().indexOf('berendsohn') > -1
     )
     {
-      invoice_no = (item.no_invoice_number) ? item.no_invoice_number : invoice_no;
+      if(client_name && client_name.toLowerCase().indexOf('engel') > -1)
+      {
+        if(item.invoice_type === 'com')
+          //invoice_no = invoice_no.replace('..FF', '');
+          invoice_no = invoice_no.replace(/\s*\.\.\s*ff\s*/gi, '');
+        else
+          invoice_no = (item.no_invoice_number) ? item.no_invoice_number : invoice_no;
+      }
+      else if(client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
+      {
+        if(item.invoice_type === 'com')
+        {
+          var special_invoice_no = null;
+          if(item?.special_capture_invoice_number)
+            special_invoice_no = item.special_capture_invoice_number;
+          else
+          {
+            const filename = item.file_name;
+          
+            //const match = filename.match(/-\s*([A-Z]+-\d+)_/);
+            const match = filename.match(/(SF-\d+)/);
+            special_invoice_no = match ? match[1] : null;                    
+          }
+
+          invoice_no = (special_invoice_no) ? special_invoice_no : invoice_no;
+        }
+        else  
+          invoice_no = (item.no_invoice_number) ? item.no_invoice_number : invoice_no;
+      }
+      else  
+        invoice_no = (item.no_invoice_number) ? item.no_invoice_number : invoice_no;
+    }
+
+    if (client_name && client_name.toLowerCase().indexOf('stof') > -1)
+    {
+      if(item.invoice_type !== 'com')
+        //invoice_no = invoice_no.replace('-', '');
+        invoice_no = invoice_no.replace(/-/g, '');
     }
 
     let credit_note = item.credit_note;
@@ -324,6 +385,13 @@ $(function () {
     if (client_name && client_name.toLowerCase().indexOf('rieker') > -1
       || client_name.toLowerCase().indexOf('woden') > -1
       || client_name.toLowerCase().indexOf('pier one') > -1
+      || client_name.toLowerCase().indexOf('committee xxiv') > -1
+      || client_name.toLowerCase().indexOf('aid studio') > -1
+      || client_name.toLowerCase().indexOf('lost boys') > -1
+      || client_name.toLowerCase().indexOf('qnuz') > -1
+      || client_name.toLowerCase().indexOf('sea ranch') > -1
+      || client_name.toLowerCase().indexOf('sindico') > -1
+      || client_name.toLowerCase().indexOf('sports group denmark') > -1
     )
     {
       og_discount_amount = '';
@@ -393,6 +461,13 @@ $(function () {
         || client_name.toLowerCase().indexOf('rieker') > -1
         || client_name.toLowerCase().indexOf('woden') > -1
         || client_name.toLowerCase().indexOf('pier one') > -1
+        || client_name.toLowerCase().indexOf('committee xxiv') > -1
+        || client_name.toLowerCase().indexOf('aid studio') > -1
+        || client_name.toLowerCase().indexOf('lost boys') > -1
+        || client_name.toLowerCase().indexOf('qnuz') > -1
+        || client_name.toLowerCase().indexOf('sea ranch') > -1
+        || client_name.toLowerCase().indexOf('sindico') > -1
+        || client_name.toLowerCase().indexOf('sports group denmark') > -1
       )
       {
 
@@ -407,6 +482,13 @@ $(function () {
         || client_name.toLowerCase().indexOf('rieker') > -1
         || client_name.toLowerCase().indexOf('woden') > -1
         || client_name.toLowerCase().indexOf('pier one') > -1
+        || client_name.toLowerCase().indexOf('committee xxiv') > -1
+        || client_name.toLowerCase().indexOf('aid studio') > -1
+        || client_name.toLowerCase().indexOf('lost boys') > -1
+        || client_name.toLowerCase().indexOf('qnuz') > -1
+        || client_name.toLowerCase().indexOf('sea ranch') > -1
+        || client_name.toLowerCase().indexOf('sindico') > -1
+        || client_name.toLowerCase().indexOf('sports group denmark') > -1
       )
       {
 
@@ -436,13 +518,13 @@ $(function () {
     }
 
     let calNetAmount = (Math.abs(parse_net_amount) + Math.abs(parse_freight_amount) + Math.abs(parse_variance_amount)) - Math.abs(parse_discount_amount);    
-    if (client_name && (client_name.toLowerCase().indexOf('sgi wholesale') > -1
-        || client_name.toLowerCase().indexOf('sand cph') > -1
-      )
-    )
-    {
-      calNetAmount = (Math.abs(parse_net_amount) + Math.abs(parse_freight_amount)) - (Math.abs(parse_variance_amount) + Math.abs(parse_discount_amount));
-    }
+    // if (client_name && (client_name.toLowerCase().indexOf('sgi wholesale') > -1
+    //     || client_name.toLowerCase().indexOf('sand cph') > -1
+    //   )
+    // )
+    // {
+    //   calNetAmount = (Math.abs(parse_net_amount) + Math.abs(parse_freight_amount)) - (Math.abs(parse_variance_amount) + Math.abs(parse_discount_amount));
+    // }
 
     //console.log("calNetAmount: " + calNetAmount);
     let formatted_net_amount = parseDenmarkFormat(calNetAmount);  
@@ -502,22 +584,26 @@ $(function () {
     let formatted_discount_amount = null;
     let formatted_additional_amount = null;
     let formatted_variance_amount = null;
-    if(parse_net_amount > 0)
+    //if(parse_net_amount > 0)
+    if(Math.abs(parse_net_amount) > 0)
     {
       formatted_original_net_amount = parseDenmarkFormat(parse_net_amount);      
     }
 
-    if(parse_discount_amount > 0)
+    //if(parse_discount_amount > 0)
+    if(Math.abs(parse_discount_amount) > 0)
     {   
       formatted_discount_amount = parseDenmarkFormat(parse_discount_amount);
     }
 
-    if(parse_freight_amount > 0) 
+    //if(parse_freight_amount > 0) 
+    if(Math.abs(parse_freight_amount) > 0) 
     {
       formatted_additional_amount = parseDenmarkFormat(parse_freight_amount);
     }
 
-    if(parse_variance_amount > 0)
+    //if(parse_variance_amount > 0)
+    if(Math.abs(parse_variance_amount) > 0)
     {
       formatted_variance_amount = parseDenmarkFormat(parse_variance_amount);
     }
@@ -541,9 +627,12 @@ $(function () {
       exchange_total_amount = '-' + exchange_total_amount.trim();    
 
     $('#manualInputTitle').text(item.file_name || ('OCR item #' + item.id));
-    $('#manualInputSubtitle').text((item.error || item.validation_status || '').toString().replace(/\n/g, ' · '));
+    //$('#manualInputSubtitle').text((item.error || item.validation_status || '').toString().replace(/\n/g, ' · '));
+    $('#manualInputSubtitle').text((item.error || '').toString().replace(/\n/g, ' · '));
     $('#manual_invoice_id').val(item.id);
-    $('#invoice_type').val(item.invoice_type || '');
+    //$('#invoice_type').val(item.invoice_type || '');
+    $('#invoice_type').val(item.invoice_type === 'com' ? 'com' : 'sales');
+    $('#invoice_type_hidden').val(item.invoice_type === 'multi-invoices' ? '' : item.invoice_type);
     $('#client_no').val(item.client_no || '');
     $('#client_name').val(client_name);
     $('#invoice_date').val(item.invoice_date || '');
@@ -568,14 +657,18 @@ $(function () {
     $('#note').val(item.note || '');
     
     //setSalesInvoiceRefs(item.related_sales_invoices || []);
-    const relatedSalesInvoices = expandSalesInvoiceRefs(item.related_sales_invoices || []);    
+    const relatedSalesInvoices = expandSalesInvoiceRefs((item.related_sales_invoices || []), client_name);    
     setSalesInvoiceRefs(relatedSalesInvoices);
 
     //const pdfUrl = item.sas_url ? item.sas_url + '#zoom=page-width' : '';
     //$('#manualPdfViewer').attr('src', pdfUrl);
     
     applyInvoiceTypeVisibility(item.invoice_type);
-    loadPdfViewer(item);
+
+    if($("#datafrom").length > 0)
+      loadSftpOioViewer(item);
+    else
+      loadPdfViewer(item);    
   }
 
   function loadPdfViewer(item) {
@@ -627,6 +720,73 @@ $(function () {
     $('#manualPdfViewer').attr('src', pdfUrl);
   }
 
+  // function loadSftpOioViewer(item) {
+  //   $('#manualPdfViewer').attr('src', '');
+
+  //   if (!item || !item.id) {
+  //       return;
+  //   }
+
+  //   const selectedId = item.id;
+   
+  //   const pdfUrl =
+  //     analyzePdfUrl + 'sftpdata/' + selectedId + '/pdf' +
+  //     '#page=1&zoom=page-width';
+  //     console.log(pdfUrl);
+  //   $('#manualPdfViewer').attr('src', pdfUrl);   
+  // }
+
+  function loadSftpOioViewer(item) {
+      const $viewer = $('#manualPdfViewer');
+      const $xmlLink = $('#originalXmlLink');
+
+      $viewer.hide();
+      $viewer.attr('src', 'about:blank');
+      $xmlLink.hide();
+
+      if (!item || !item.id) {
+          return;
+      }
+
+      const selectedId = item.id;
+
+      const pdfUrl =
+          analyzePdfUrl + 'sftpdata/' + selectedId + '/pdf' +
+          '?t=' + Date.now();
+
+      fetch(pdfUrl)
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error('Failed to load PDF');
+              }
+
+              // Get your custom header
+              const xmlUrl = response.headers.get('X-Original-Xml-Url');
+
+              console.log('XML URL:', xmlUrl);
+
+              if (xmlUrl) {
+                  $xmlLink
+                      .attr('href', xmlUrl)
+                      .show();
+              }
+
+              return response.blob();
+          })
+          .then(blob => {
+              const blobUrl = URL.createObjectURL(blob);
+
+              $viewer.one('load', function () {
+                  $viewer.show();
+              });
+
+              $viewer.attr('src', blobUrl);
+          })
+          .catch(error => {
+              console.error(error);
+          });
+  }
+  
   function applyInvoiceTypeVisibility(invoiceType) {
     const isCommercial = invoiceType === 'com';
 
@@ -800,28 +960,89 @@ $(function () {
         else
           handleNextResponse(response);
       })
-      .fail(xhr => { console.log(xhr);
-        Swal.fire('Save failed', xhr.responseJSON?.message || 'Unable to save manual input.', 'error');
+      // .fail(xhr => { console.log(xhr);
+      //   Swal.fire('Save failed', xhr.responseJSON?.message || 'Unable to save manual input.', 'error');
+      // })
+      .fail(function (xhr) {
+
+          console.log(xhr);
+
+          const message = xhr.responseJSON?.message ||
+              (
+                  $('#searchSave').length > 0
+                      ? 'Unable to save.'
+                      : 'Unable to save manual input.'
+              );
+
+          Swal.fire(
+              'Save failed',
+              message,
+              'error'
+          );
       })
       .always(() => setBusy(false));
   }
 
-  function loadSearchSave(type, id) {    
+  function loadSearchSave(type, id, removeFrom = '') {    
     const formData = Object.fromEntries(
         $("#manualInputForm").serializeArray().map(item => [item.name, item.value])
     );
 
-    const table = $('.datatables-analyzepdfsearch.datatables-'+ type +'-invoice-analyzepdfsearch').DataTable();
+    let table = $('.datatables-analyzepdf'+ removeFrom +'.datatables-'+ type +'-invoice-analyzepdf' + removeFrom).DataTable();   
+    if(!removeFrom)
+      table = $('.datatables-analyzepdfsearch.datatables-'+ type +'-invoice-analyzepdfsearch').DataTable();  
+
     const row = table.row('#invoice_' + id);
+
+    // Row does not exist
+    if (!row.any()) {
+        return;
+    }
+
+    const $row = $(row.node());
+    $row.removeClass('some-background-class');
+    $row.css('background-color', '#f8d7da');
+
+    /*
+     * ---------------------------------------------------------
+     * Remove row after delete
+     * ---------------------------------------------------------
+     */
+    if (removeFrom) {
+        row.remove();
+
+        // Redraw without resetting pagination
+        table.draw(false);
+
+        return;
+    }
 
     // Get existing DataTables row data
     let rowData = row.data();
 
     let euroIndexes = [7, 8, 10, 11, 12, 13, 14];
+    let relatedInvoiceIndex = 7;
     if(type === 'commercial')
-      euroIndexes = [7];
+      euroIndexes = [6];
 
-    $(row.node()).find('td').each(function(index) {
+    //$(row.node()).find('td').each(function(index) {
+    $row.find('td').each(function(index) {
+
+      if (index === 1) {
+        const field = table.column(index).header().dataset.field;
+        let value = formData[field];
+
+        if (value !== undefined) {
+            // IMPORTANT:
+            // Update DataTables data with the RAW value
+            rowData[field] = value;
+
+            // Update displayed value
+            let displayValue = value;
+
+            $(this).text(displayValue);
+        }
+      }
 
       if(type === 'commercial')
       {
@@ -842,15 +1063,60 @@ $(function () {
                 //     minimumFractionDigits: 2,
                 //     maximumFractionDigits: 2
                 // });
-                displayValue = Number(value).toLocaleString('de-DE', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
+                // displayValue = Number(value).toLocaleString('de-DE', {
+                //     minimumFractionDigits: 2,
+                //     maximumFractionDigits: 2
+                // });
+
+              //console.log(value);
+              const numericValue = parseEuropeanNumber(value);
+              //console.log(numericValue);
+              
+              
+              displayValue = numericValue.toLocaleString('de-DE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
+              console.log(displayValue);
+              // Store numeric value in DataTables
+              rowData[field] = displayValue;
+              
+              //console.log(rowData[field]);
             }
 
             //$(this).text(value);
             $(this).text(displayValue);
+          
           }
+        }
+
+        // =========================================
+        // RELATED SALES INVOICES - COLUMN 7
+        // =========================================
+        if (index === relatedInvoiceIndex) {
+            const relatedInvoices = Object.keys(formData)
+                .filter(key => /^sales-invoice\[\d+\]\[number\]$/.test(key))
+                .sort((a, b) => {
+                    const indexA = parseInt(a.match(/\[(\d+)\]/)[1]);
+                    const indexB = parseInt(b.match(/\[(\d+)\]/)[1]);
+                    return indexA - indexB;
+                })
+                .map(key => formData[key])
+                .filter(value => value !== undefined && value !== '');
+
+            // Update DataTables row data
+            rowData.related_sales_invoices = relatedInvoices;
+
+            // Display first invoice + ... if multiple
+            if (relatedInvoices.length === 1) {
+                $(this).text(relatedInvoices[0]);
+            }
+            else if (relatedInvoices.length > 1) {
+                $(this).text(relatedInvoices[0] + ' ...');
+            }
+            else {
+                $(this).text('');
+            }
         }
       }
       else
@@ -865,12 +1131,12 @@ $(function () {
                 const field11 = table.column(11).header().dataset.field;
                 const field12 = table.column(12).header().dataset.field;
                 const field13 = table.column(13).header().dataset.field;
-
+console.log("index777 field8 == " + field8);
                 const col8  = parseEuropeanNumber(formData[field8]);
                 const col11 = parseEuropeanNumber(formData[field11]);
                 const col12 = parseEuropeanNumber(formData[field12]);
                 const col13 = parseEuropeanNumber(formData[field13]);
-
+console.log("index777 col8 == " + col8);
                 value = (col8 + col11 + col12) - col13;
 
                 // Update calculated field in DataTables
@@ -917,6 +1183,7 @@ $(function () {
     table.draw(false); 
   }
 
+  /*
   //function parseEuropeanNumber(value) {
   window.parseEuropeanNumber = function parseEuropeanNumber(value) { 
       if (value === undefined || value === null || value === '') {
@@ -938,6 +1205,41 @@ $(function () {
 
       return Number(value) || 0;
   }
+  */
+
+  window.parseEuropeanNumber = function parseEuropeanNumber(value) {
+
+      if (value === undefined || value === null || value === '') {
+          return 0;
+      }
+
+      value = String(value).trim();
+
+      // European format: 19.372,82
+      if (value.includes(',') && value.includes('.')) {
+          value = value
+              .replace(/\./g, '')
+              .replace(',', '.');
+      }
+
+      // European decimal: 100,50
+      else if (value.includes(',')) {
+          value = value.replace(',', '.');
+      }
+
+      // European thousands without decimal: 132.111
+      else if (value.includes('.')) {
+          const parts = value.split('.');
+
+          // If exactly 3 digits after the dot,
+          // treat dot as thousands separator
+          if (parts[parts.length - 1].length === 3) {
+              value = value.replace(/\./g, '');
+          }
+      }
+
+      return Number(value) || 0;
+  };
 
   function escapeHtml(value) {
     return $('<div>').text(value || '').html();
@@ -967,9 +1269,14 @@ $(function () {
  
   $(document).on('click', '#btnDeleteItem', function () {
     if (!current) return;
+
+    var searchSave = ($('#searchSave').length > 0) ? true :  false;
+    var syncedPage = ($('#syncedPage').length > 0) ? true :  false;
+
     Swal.fire({
       title: 'Delete this item?',
-      text: 'The delete button is separated from navigation to avoid accidental clicks.',
+      //text: 'The delete button is separated from navigation to avoid accidental clicks.',
+      text: 'Are you sure you want to delete this item.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Delete',
@@ -977,9 +1284,57 @@ $(function () {
       buttonsStyling: false
     }).then(result => {
       if (!result.isConfirmed) return;
-      setBusy(true);
-      $.ajax({ url: endpoints.show + '/' + current.id, type: 'DELETE' })
-        .then(response => handleNextResponse(response))
+      setBusy(true);      
+      $.ajax({ url: endpoints.show + '/' + current.id, type: 'DELETE', 
+        data: { searchSave: searchSave, syncedPage: syncedPage } })
+        //.then(response => handleNextResponse(response))
+        .then(function (response) { 
+
+          if(searchSave || syncedPage)
+          {
+            var invoice = response;
+            var id = invoice.invoice_id;
+            var invoice_type = invoice.invoice_type;
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: 'Data deleted successfully.'
+            }).then(function (result) { 
+              if (result.isConfirmed)
+              {
+                $("#offcanvasAnalyzePdfData").offcanvas('hide');
+
+                //reload specific row
+                let table_invoice_type = 'sales';
+                if(invoice_type == 'com')
+                  table_invoice_type = 'commercial';
+
+                let removefrom = (syncedPage) ? 'synced' : 'search';
+                loadSearchSave(table_invoice_type, id, removefrom);
+              }
+            });
+          }
+          else
+            handleNextResponse(response);
+        })       
+        .fail(function (xhr) {
+
+            console.log(xhr);
+
+            const message = xhr.responseJSON?.message ||
+                (
+                    (searchSave || syncedPage)
+                        ? 'Unable to delete.'
+                        : 'Unable to delete manual input.'
+                );
+
+            Swal.fire(
+                'Delete failed',
+                message,
+                'error'
+            );
+        })
         .always(() => setBusy(false));
     });
   });
@@ -1001,7 +1356,10 @@ $(function () {
   });
 
   $(document).on('input', '.only-amount', function () {
-      this.value = this.value.replace(/[^0-9.,]/g, '');
+      //this.value = this.value.replace(/[^0-9.,]/g, '');
+    this.value = this.value
+        .replace(/[^0-9.,-]/g, '')   // Allow numbers, comma, dot, minus
+        .replace(/(?!^)-/g, '');     // Allow '-' only at the beginning
   });
 
   $form.on('submit', function (event) {
@@ -1021,7 +1379,8 @@ $(function () {
 
     Swal.fire({
       title: 'Force input?',
-      text: 'This submits the item even if validation requirements are not fully met.',
+      //text: 'This submits the item even if validation requirements are not fully met.',
+      text: 'The OCR data will be submitted as entered, without validation. Please make sure the data is correct.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Input anyway',
@@ -1036,6 +1395,7 @@ $(function () {
       filterQueue($(this).val());
   });
 
+  /*
   //function exportToExcel(dt, which_tab)
   window.exportToExcel = function exportToExcel(dt, which_tab)
   {  
@@ -1145,6 +1505,286 @@ $(function () {
       // Export the workbook
       XLSX.writeFile(workbook, 'OCR-'+ which_tab +'.xlsx');
   }
+  */
+  
+  window.formatEuropeanNumber = function formatEuropeanNumber(
+      value,
+      decimals = 2
+  ) {
+      if (
+          value === undefined ||
+          value === null ||
+          value === ''
+      ) {
+          return '';
+      }
+
+      const number = parseEuropeanNumber(value);
+
+      return number.toLocaleString('de-DE', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+      });
+  };
+
+  window.exportToExcel = function exportToExcel(dt, which_tab) {
+
+      let workbook = XLSX.utils.book_new();
+
+      let headers = [];
+      let visibleColumnIndexes = [];
+
+      const MAX_CELL_LENGTH = 32767;
+
+      /*
+       * Columns which should be exported
+       * using European number format.
+       */
+      const amountColumns = [
+          'original_net_amount',
+          'net_amount',
+          'vat_amount',
+          'variance_amount',
+          'freight_amount',
+          'discount_amount',
+          'total_amount',
+
+          // Exchange amounts
+          'exchange_net_amount',
+          'exchange_vat_amount',
+          'exchange_total_amount'
+      ];
+
+      const exchangeRateColumns = [
+          'exchange_rate'
+      ];
+
+      /*
+       * ---------------------------------------------------------
+       * Get visible columns
+       * ---------------------------------------------------------
+       */
+      dt.columns().every(function(index) {
+
+          if (this.visible()) {
+
+              let columnData = this.dataSrc();
+
+              if (columnData != 'id') {
+
+                  if (columnData == 'fake_id') {
+                      headers.push('No.');
+                  } else {
+                      headers.push(
+                          this.header().innerText
+                      );
+                  }
+
+                  visibleColumnIndexes.push(columnData);
+              }
+          }
+      });
+
+
+      /*
+       * ---------------------------------------------------------
+       * Build Excel rows
+       * ---------------------------------------------------------
+       */
+      let allData = [];
+
+
+      dt.rows({
+          search: 'applied'
+      }).every(function(rowIdx) {
+
+          let rowData = this.data();
+
+          let rowInfo = [];
+
+
+          visibleColumnIndexes.forEach(function(colName) {
+
+              /*
+               * -------------------------------------------------
+               * PDF column
+               * -------------------------------------------------
+               */
+              if (colName == 'pdf') {
+
+                  rowInfo.push('-');
+
+                  return;
+              }
+
+
+              let value = rowData[colName];
+
+
+              /*
+               * -------------------------------------------------
+               * Amount columns
+               *
+               * Always output:
+               *
+               * 8011431     -> 8.011.431,00
+               * 2685.67     -> 2.685,67
+               * 19.372,82   -> 19.372,82
+               * 100,50      -> 100,50
+               * -------------------------------------------------
+               */
+              /*
+               * Amount columns
+               * 2 decimal places
+               */
+              if (amountColumns.includes(colName)) {
+
+                  if (
+                      value === undefined ||
+                      value === null ||
+                      value === ''
+                  ) {
+                      rowInfo.push('');
+                  } else {
+                      rowInfo.push(
+                          formatEuropeanNumber(value, 2)
+                      );
+                  }
+
+                  return;
+              }
+
+
+              /*
+               * Exchange rate
+               * 4 decimal places
+               */
+              if (exchangeRateColumns.includes(colName)) {
+
+                  if (
+                      value === undefined ||
+                      value === null ||
+                      value === ''
+                  ) {
+                      rowInfo.push('');
+                  } else {
+                      rowInfo.push(
+                          formatEuropeanNumber(value, 4)
+                      );
+                  }
+
+                  return;
+              }
+
+
+
+              /*
+               * -------------------------------------------------
+               * Handle arrays
+               * -------------------------------------------------
+               */
+              if (Array.isArray(value)) {
+
+                  value = value.join(', ');
+              }
+
+
+              /*
+               * -------------------------------------------------
+               * Handle null / undefined
+               * -------------------------------------------------
+               */
+              else if (value == null) {
+
+                  value = '';
+              }
+
+
+              /*
+               * -------------------------------------------------
+               * Handle objects
+               * -------------------------------------------------
+               */
+              else if (typeof value === 'object') {
+
+                  value = JSON.stringify(value);
+              }
+
+
+              /*
+               * -------------------------------------------------
+               * Excel maximum cell length
+               * -------------------------------------------------
+               */
+              if (String(value).length > MAX_CELL_LENGTH) {
+
+                  console.error(
+                      `Row ${rowIdx + 1}, Field "${colName}" exceeds limit: ${String(value).length} characters`
+                  );
+
+                  value = String(value).substring(
+                      0,
+                      MAX_CELL_LENGTH
+                  );
+              }
+
+
+              /*
+               * -------------------------------------------------
+               * Normal value
+               * -------------------------------------------------
+               */
+              rowInfo.push(value);
+          });
+
+
+          /*
+           * Add row
+           */
+          allData.push(rowInfo);
+      });
+
+
+      /*
+       * ---------------------------------------------------------
+       * Add headers as first row
+       * ---------------------------------------------------------
+       */
+      allData.unshift(headers);
+
+
+      /*
+       * ---------------------------------------------------------
+       * Create worksheet
+       * ---------------------------------------------------------
+       */
+      let worksheet = XLSX.utils.aoa_to_sheet(
+          allData
+      );
+
+
+      /*
+       * ---------------------------------------------------------
+       * Add worksheet
+       * ---------------------------------------------------------
+       */
+      XLSX.utils.book_append_sheet(
+          workbook,
+          worksheet,
+          "OCR"
+      );
+
+
+      /*
+       * ---------------------------------------------------------
+       * Export
+       * ---------------------------------------------------------
+       */
+      XLSX.writeFile(
+          workbook,
+          'OCR-' + which_tab + '.xlsx'
+      );
+  };
 
   let lookupTimer = null; 
   $(document).on('input', '#client_no', function () {

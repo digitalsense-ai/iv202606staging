@@ -1,8 +1,10 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Analyze PDF')
+@section('title', 'Document Flow')
 
 @section('vendor-style')
+<link rel="stylesheet" href="{{asset('assets/vendor/libs/select2/select2.css')}}" />
+
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-bs5/datatables.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
@@ -17,6 +19,8 @@
 
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/quill/katex.css')}}" />
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/quill/editor.css')}}" />
+
+
 @endsection
 
 @section('page-style')
@@ -26,6 +30,9 @@
 @endsection
 
 @section('vendor-script')
+<script src="{{asset('assets/vendor/libs/select2/select2.js')}}"></script>
+
+
 <script src="{{asset('assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/sweetalert2/sweetalert2.js')}}"></script>
 <!-- Flat Picker -->
@@ -44,15 +51,22 @@
 @endsection
 
 @section('page-script')
+<script src="{{asset('assets/js/forms-selects.js')}}"></script>
 <script type="text/javascript">
     window.EchoConfig = {
         pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
         pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'
     };
 </script>
+<script type="text/javascript">
+$(function () {
+  window.analyzepdf_type = 'analyzepdf';
+});
+</script>
 
 <script src="{{asset('js/dv-common.js')}}"></script>
 <script>
+    /*
 async function pollProgress(batchId) {
     const bar = document.getElementById('progress-bar');
     const text = document.getElementById('progress-text');
@@ -183,7 +197,7 @@ async function fetchInboxAndTrackProgress() {
         }
     }, 3000);
 }
-
+*/
 // Call this when user clicks "Fetch Email PDFs"
 //fetchInboxAndTrackProgress();
 </script>
@@ -213,13 +227,13 @@ async function fetchInboxAndTrackProgress() {
 
     <div class="row">
         <div class="col-12">
-            @if($environment === "local") 
-                {{--<a class="btn btn-primary" href="{{ route('analyze.pdf.validate', 'all') }}" target="_blank">Validate</a>                --}}
+            {{--@if($environment === "local") 
+                <a class="btn btn-primary" href="{{ route('analyze.pdf.validate', 'all') }}" target="_blank">Validate</a>                
             @else
                 @if($environment === "live") 
                     <a href="javascript:fetchInboxAndTrackProgress()" class="btn btn-dark float-end">Fetch Email PDFs</a>
                 @endif 
-            @endif                    
+            @endif--}}                    
 
 {{--<a class="btn btn-primary" href="{{ route('analyze.pdf.sync.db') }}" target="_blank">Sync Now</a>
             <div class="btn-group float-end mx-2">
@@ -236,6 +250,7 @@ async function fetchInboxAndTrackProgress() {
         </div>
     </div>
 
+    {{--
     @if($environment === "local" || $environment === "live") 
     <div class="card my-4 card-ocr-bulk-upload">              
         <div class="card-body">
@@ -261,6 +276,7 @@ async function fetchInboxAndTrackProgress() {
         </div>
     </div>
     @endif
+    --}}
     
     {{-- Upload Form --}} 
     {{--   
@@ -312,6 +328,10 @@ async function fetchInboxAndTrackProgress() {
     </form>
     --}}
 
+    <h4 class="py-3 breadcrumb-wrapper mb-4 d-flex align-items-center gap-2">
+        <span class="text-muted fw-light"><a href="{{ route('analyze.pdf.index')}}">{{ __('Document Flow') }}</a>/{{ __('Mail Inbox') }}</span>
+    </h4>
+    
     {{-- Batch Progress UI --}}
     <div id="batch-progress" class="card mt-4 d-none">
         <div class="card-body">
@@ -331,20 +351,78 @@ async function fetchInboxAndTrackProgress() {
                 Initializing…
             </p>
         </div>
-    </div>
+    </div>    
 
     {{-- Extracted Data's --}}
     @if($hasanalyzepdfs)
     <!-- Ajax Sourced Server-side -->
-    <div class="card analyzepdfs mt-4">
+    <div class="card analyzepdfs mt-4 position-relative">
+
+      
+      <!-- <h5 class="m-0 p-3">Extracted Data's</h5> -->
+
+      <div class="d-flex align-items-center gap-2 p-3">
+        <h5 class="m-0">Extracted Data's</h5>
+        <span class="text-danger fs-6">
+          <i class="bx bx-filter-alt me-1"></i>
+          Select Client to view data
+        </span>
+        
+        <div class="dropdown ms-auto w-px-300">
+            {{--
+              <button
+                  class="btn btn-outline-primary btn-ocr-capture-client dropdown-toggle"
+                  type="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  data-selected-client="{{ $clientnames->first() ?? '' }}">
+                  {{ $clientnames->first() ?? 'Select Client' }}
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-end client-dropdown-menu">
+                  <li>
+                      <a class="dropdown-item ocr-capture-client-option" href="#" data-client-name="">
+                          Select Client
+                      </a>
+                  </li>
+
+                  @foreach($clientnames as $index => $clientName)
+                      <li>
+                          <a
+                              class="dropdown-item ocr-capture-client-option"
+                              href="#"
+                              data-client-name="{{ $clientName }}">
+                              {{ $clientName }}
+                          </a>
+                      </li>
+                  @endforeach
+              </ul> 
+              --}}
+
+              <select
+                id="select2OcrCaptureClient"
+                class="select2 form-select form-select-lg"
+                data-allow-clear="true"
+                data-placeholder="Select Client">
+
+                <option value="">Select Client</option>
+
+                @foreach($clientnames as $index => $clientName)
+                    <option
+                        value="{{ $clientName }}"
+                        @selected($index === 0)>
+                        {{ $clientName }}
+                    </option>
+                @endforeach
+            </select>
+        </div>        
+      </div>        
 
       <!-- Bounce -->
-      <div class="sk-bounce sk-primary sk-center">
+      <!-- <div class="sk-bounce sk-primary sk-center" style="display: none;">
         <div class="sk-bounce-dot"></div>
         <div class="sk-bounce-dot"></div>
-      </div>
-
-      <h5 class="m-0 p-3">Extracted Data's</h5>
+      </div> -->
 
       <div class="card-header p-0">    
         <div class="d-flex justify-content-between align-items-center row gap-3 gap-md-0 m-0 border-bottom">         
@@ -473,6 +551,13 @@ async function fetchInboxAndTrackProgress() {
         </div>
       </div>
 
+        <!-- Loading overlay -->
+        <div id="ocr-loading-overlay" class="ocr-loading-overlay d-none">
+            <div class="ocr-loading-message">
+                <div class="spinner-border text-primary" role="status"></div>
+                <span class="ms-2">Loading...</span>
+            </div>
+        </div>
     </div>
     @endif
 
@@ -481,7 +566,7 @@ async function fetchInboxAndTrackProgress() {
     $issearch =  false;
 @endphp
 @include('_partials/_offcanvas/offcanvas-analyzepdf-form')
-@include('_partials/_offcanvas/offcanvas-analyzepdf-filter')
+{{--@include('_partials/_offcanvas/offcanvas-analyzepdf-filter')--}}
 
 @include('_partials/_modals/modal-analyzepdf-delete')
 

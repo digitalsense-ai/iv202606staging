@@ -3,6 +3,8 @@
 @section('title', 'Search PDF')
 
 @section('vendor-style')
+<link rel="stylesheet" href="{{asset('assets/vendor/libs/select2/select2.css')}}" />
+
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-bs5/datatables.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
@@ -23,6 +25,8 @@
 @endsection
 
 @section('vendor-script')
+<script src="{{asset('assets/vendor/libs/select2/select2.js')}}"></script>
+
 <script src="{{asset('assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/sweetalert2/sweetalert2.js')}}"></script>
 <!-- Flat Picker -->
@@ -37,6 +41,7 @@
 @endsection
 
 @section('page-script')
+<script src="{{asset('assets/js/forms-selects.js')}}"></script>
 <script type="text/javascript">
     window.EchoConfig = {
         pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
@@ -58,7 +63,14 @@ $(function () {
     var result = { 'analyzepdfs': {!! json_encode($analyzepdfs) !!}, 'vatregmains': {!! json_encode($vatregmains) !!} };    
     var analyzepdf_datas = drawDtTable(result, 'analyzepdf_search');  
 });
-</script>--}}
+</script>
+--}}
+<script type="text/javascript">
+$(function () {
+  window.analyzepdf_type = 'analyzepdf_search';
+});
+</script>
+
 <script src="{{asset('js/dv-analyze-pdf.js')}}"></script>
 <script src="{{asset('js/dv-analyze-pdf-manual-input.js')}}"></script>
 <script src="{{asset('js/dv-analyze-pdf-search.js')}}"></script>
@@ -66,8 +78,38 @@ $(function () {
 
 @section('content')		
 
-<h4 class="py-3 breadcrumb-wrapper mb-4">
-  <span class="text-muted fw-light"><a href="{{ route('analyze.pdf.index')}}">{{ __('OCR Capture') }}</a>/{{ __('Search') }}</span>
+<h4 class="py-3 breadcrumb-wrapper mb-4 d-flex align-items-center gap-2">
+  <span class="text-muted fw-light"><a href="{{ route('analyze.pdf.index')}}">{{ __('Document Flow') }}</a>/{{ __('Search') }}</span>
+
+ {{-- <div class="dropdown ms-auto">
+    
+      <button
+          class="btn btn-outline-primary btn-ocr-search-client dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false">
+          Select Client
+      </button>
+
+      <ul class="dropdown-menu dropdown-menu-end client-dropdown-menu">
+          <li>
+              <a class="dropdown-item ocr-search-client-option" href="#" data-client-name="">
+                  Select Client
+              </a>
+          </li>
+
+          @foreach($clientnames as $clientName)
+              <li>
+                  <a
+                      class="dropdown-item ocr-search-client-option"
+                      href="#"
+                      data-client-name="{{ $clientName }}">
+                      {{ $clientName }}
+                  </a>
+              </li>
+          @endforeach
+      </ul>
+  </div>--}} 
 </h4>
 
 @php
@@ -76,16 +118,42 @@ $(function () {
     {{-- Search Data's --}}
     @if($analyzepdfs)
     <!-- Ajax Sourced Server-side -->
-    <div class="card analyzepdfsearch mt-4">
+    <div class="card analyzepdfsearch mt-4">      
 
-      <!-- Bounce -->
-      <div class="sk-bounce sk-primary sk-center">
-        <div class="sk-bounce-dot"></div>
-        <div class="sk-bounce-dot"></div>
+      <!-- <h5 class="m-0 p-3">Search Data's</h5> -->
+      <div class="d-flex align-items-center gap-2 p-3">
+        <h5 class="m-0">Search Data's</h5>
+        <span class="text-danger fs-6">
+          <i class="bx bx-filter-alt me-1"></i>
+          Select Client to check data
+        </span>
+
+        <div class="dropdown ms-auto w-px-300">
+          <select
+              id="select2OcrSearchClient"
+              class="select2 form-select form-select-lg"
+              data-allow-clear="true"
+              data-placeholder="Select Client">
+
+              <option value="">Select Client</option>
+
+              @foreach($clientnames as $index => $clientName)
+                  <option
+                      value="{{ $clientName }}"
+                      @selected($index === 0)>
+                      {{ $clientName }}
+                  </option>
+              @endforeach
+          </select>
+        </div>
       </div>
 
-      <h5 class="m-0 p-3">Search Data's</h5>
-
+      <!-- Bounce -->
+      <!-- <div class="sk-bounce sk-primary sk-center" style="display: none;">
+        <div class="sk-bounce-dot"></div>
+        <div class="sk-bounce-dot"></div>
+      </div> -->
+      
       <div class="card-header p-0">    
         <div class="d-flex justify-content-between align-items-center row gap-3 gap-md-0 m-0 border-bottom">         
           <div class="col-md-8">
@@ -146,9 +214,9 @@ $(function () {
             
             <div class="card-header border-bottom p-2">        
               <div class="dt-search-filter text-end align-middle">
-                <div class="dt-dropdown-filter w-auto d-inline-block">
+                <!-- <div class="dt-dropdown-filter w-auto d-inline-block">
                     <div class="w-auto d-inline-block me-1 client_name"></div>                    
-                </div>
+                </div> -->
               </div>
             </div>
 
@@ -235,6 +303,14 @@ $(function () {
             </div>
              
           </div>
+        </div>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="ocr-search-loading-overlay" class="ocr-loading-overlay d-none">
+        <div class="ocr-loading-message">
+          <div class="spinner-border text-primary" role="status"></div>
+          <span class="ms-2">Loading...</span>
         </div>
       </div>
 

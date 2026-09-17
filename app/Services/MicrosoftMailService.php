@@ -26,7 +26,7 @@ class MicrosoftMailService
     }
 
     // Get application access token
-    protected function getAccessToken(): string
+    public function getAccessToken(): string
     {
         $response = Http::asForm()->post(
             'https://login.microsoftonline.com/'.config('services.ms.tenant_id').'/oauth2/v2.0/token',
@@ -366,7 +366,7 @@ class MicrosoftMailService
             || stripos($fileName, 'kontoudtog') !== false  
             || stripos($fileName, 'delivery_note') !== false                   
             || Str::startsWith(Str::lower($fileName), ['26dk', 'gls - ', 
-                'salesconditions_', 'millarco_påmindelse', 'merged_reports_report_queue'])
+                'salesconditions_', 'millarco_påmindelse', 'merged_reports_report_queue', 'ordreoversigt'])
         ) return $grouped;
 
         if (stripos($subject, "second female") !== false) 

@@ -173,6 +173,9 @@ class SyncDbFromOcr implements ShouldQueue
             ->select(
                 'id',
                 'invoice_type',
+                'file_name',
+                'manual_note',
+                'search_save_note',
                 'extracted_data'
             )
             ->get()
@@ -181,27 +184,88 @@ class SyncDbFromOcr implements ShouldQueue
         /*
          * Parse OCR data once per invoice.
          */
+        // $parsedCache = [];
+
+        // foreach ($invoices as $invoice) {
+
+        //     $parsedCache[$invoice->id] = [
+        //         'type' => $invoice->invoice_type === 'com'
+        //             ? 'com'
+        //             : 'sales',
+
+        //         'manual_note' => $invoice->manual_note ?? null,
+        //         'search_save_note' => $invoice->search_save_note ?? null,
+
+        //         'extracted_data' => is_array($invoice->extracted_data)
+        //             ? $invoice->extracted_data
+        //             : json_decode(
+        //                 $invoice->extracted_data ?? '[]',
+        //                 true
+        //             ),
+        //     ];
+        // }
+
         $parsedCache = [];
+        $salesInvoiceMap = [];
 
         foreach ($invoices as $invoice) {
+
+            $extractedData = is_array($invoice->extracted_data)
+                ? $invoice->extracted_data
+                : json_decode(
+                    $invoice->extracted_data ?? '[]',
+                    true
+                );
 
             $parsedCache[$invoice->id] = [
                 'type' => $invoice->invoice_type === 'com'
                     ? 'com'
                     : 'sales',
-
+                'file_name' => $invoice->file_name ?? null,
                 'manual_note' => $invoice->manual_note ?? null,
                 'search_save_note' => $invoice->search_save_note ?? null,
 
-                'extracted_data' => is_array($invoice->extracted_data)
-                    ? $invoice->extracted_data
-                    : json_decode(
-                        $invoice->extracted_data ?? '[]',
-                        true
-                    ),
+                'extracted_data' => $extractedData,
             ];
-        }
 
+            /*
+             * Build sales invoice map for special COM invoices.
+             */
+            /*
+            if ($invoice->invoice_type !== 'com') {
+                $invNo = isset($extractedData['invoice_number'])
+                    ? ltrim($extractedData['invoice_number'], '#')
+                    : null;
+
+                $noInvNo = isset($extractedData['no_invoice_number'])
+                    ? ltrim($extractedData['no_invoice_number'], '#')
+                    : null;
+
+                $client = isset($extractedData['supplier']['name'])
+                    ? strtolower(trim($extractedData['supplier']['name']))
+                    : null;
+
+                if (
+                    $invNo &&
+                    $noInvNo &&
+                    $client &&
+                    (
+                        str_contains($client, 'rainwear') ||
+                        str_contains($client, 'engel')
+                    )
+                ) {
+                    $salesInvoiceMap[$noInvNo] = $invNo;
+                }
+            }
+            */
+        }
+// Log::info(
+//     "salesInvoiceMap: ",
+//     [
+//         'salesInvoiceMap' =>
+//             $salesInvoiceMap ?? null
+//     ]
+// );
         /*
          * Process each invoice independently.
          *
@@ -223,7 +287,8 @@ class SyncDbFromOcr implements ShouldQueue
                     $invoiceId,
                     $parsedCache,
                     $vatregs,
-                    $environment
+                    $environment,
+                    $salesInvoiceMap
                 ) {
 
                     /*
@@ -248,9 +313,9 @@ class SyncDbFromOcr implements ShouldQueue
 
                     if (!$parsedCacheData) {
 
-                        Log::error(
-                            "OCR data not found for invoice {$invoiceId}"
-                        );
+                        // Log::error(
+                        //     "OCR data not found for invoice {$invoiceId}"
+                        // );
 
                         /*
                          * Permanent failure.
@@ -271,7 +336,8 @@ class SyncDbFromOcr implements ShouldQueue
                      * Process OCR data.
                      */
                     $processed = $this->processInvoiceData(
-                        $parsedCacheData
+                        $parsedCacheData,
+                        $salesInvoiceMap
                     );
 
                     /*
@@ -393,13 +459,13 @@ class SyncDbFromOcr implements ShouldQueue
                      */
                     if (!$matchedVatReg) {
 
-                        Log::warning(
-                            'No VAT registration matched OCR invoice',
-                            [
-                                'ocr_pdf_id' => $invoiceId,
-                                'client_no' => $orgNo,
-                            ]
-                        );
+                        // Log::warning(
+                        //     'No VAT registration matched OCR invoice',
+                        //     [
+                        //         'ocr_pdf_id' => $invoiceId,
+                        //         'client_no' => $orgNo,
+                        //     ]
+                        // );
 
                         /*
                          * Permanent/business failure.
@@ -456,15 +522,15 @@ class SyncDbFromOcr implements ShouldQueue
                      */
                     if (!$fetchPeriodFrom) {
 
-                        Log::warning(
-                            "No applicable fetch period for OCR invoice {$invoiceId}",
-                            [
-                                'country' =>
-                                    $matchedVatReg->vatregmain->country,
-                                'service_start' =>
-                                    $matchedVatReg->service_start,
-                            ]
-                        );
+                        // Log::warning(
+                        //     "No applicable fetch period for OCR invoice {$invoiceId}",
+                        //     [
+                        //         'country' =>
+                        //             $matchedVatReg->vatregmain->country,
+                        //         'service_start' =>
+                        //             $matchedVatReg->service_start,
+                        //     ]
+                        // );
 
                         $ocrConnection
                             ->table('dv_ocr_pdfs')
@@ -483,16 +549,16 @@ class SyncDbFromOcr implements ShouldQueue
                      */
                     if ($processed['invoice_date'] < $fetchPeriodFrom) {
 
-                        Log::warning(
-                            'Invoice is before applicable fetch period',
-                            [
-                                'ocr_pdf_id' => $invoiceId,
-                                'invoice_date' =>
-                                    $processed['invoice_date'],
-                                'fetch_period_from' =>
-                                    $fetchPeriodFrom,
-                            ]
-                        );
+                        // Log::warning(
+                        //     'Invoice is before applicable fetch period',
+                        //     [
+                        //         'ocr_pdf_id' => $invoiceId,
+                        //         'invoice_date' =>
+                        //             $processed['invoice_date'],
+                        //         'fetch_period_from' =>
+                        //             $fetchPeriodFrom,
+                        //     ]
+                        // );
 
                         $ocrConnection
                             ->table('dv_ocr_pdfs')
@@ -757,7 +823,7 @@ class SyncDbFromOcr implements ShouldQueue
     /**
      * Process parsed extracted data into Laravel-ready invoice array
      */
-    public function processInvoiceData(array $parsed_cache): array
+    public function processInvoiceData(array $parsed_cache, array $salesInvoiceMap = []): array
     {
         $type = $parsed_cache['type'];
         $manual_note = $parsed_cache['manual_note'];
@@ -888,9 +954,30 @@ class SyncDbFromOcr implements ShouldQueue
                     '',
                     Arr::get($parsed_extracted_data, 'discount_amount', '')
             );
+
+            // if (!empty($client_name) &&
+            //     (
+            //         str_contains(strtolower($client_name), 'sgi wholesale')
+            //         || str_contains(strtolower($client_name), 'sand cph')
+            //     )    
+            //   ) 
+            // {
+            //     [$og_discount_amount, $og_variance_amount] = [
+            //         $og_variance_amount,
+            //         $og_discount_amount
+            //     ]; 
+            // }
+
             if(str_contains(strtolower($client_name), 'rieker')
                 || str_contains(strtolower($client_name), 'woden')
                 || str_contains(strtolower($client_name), 'pier one')
+                || str_contains(strtolower($client_name), 'committee xxiv')
+                || str_contains(strtolower($client_name), 'aid studio')
+                || str_contains(strtolower($client_name), 'lost boys')
+                || str_contains(strtolower($client_name), 'qnuz')
+                || str_contains(strtolower($client_name), 'sea ranch')
+                || str_contains(strtolower($client_name), 'sindico')
+                || str_contains(strtolower($client_name), 'sports group denmark')
             )
             {
                 $og_discount_amount = '';
@@ -925,16 +1012,16 @@ class SyncDbFromOcr implements ShouldQueue
             );
             $exchange_total_amount = $this->parseAmountValue((string)$og_exchange_total_amount, $exchange_currency);      
 
-            if (!empty($client_name) &&
-                (
-                    str_contains(strtolower($client_name), 'sgi wholesale')
-                    || str_contains(strtolower($client_name), 'sand cph')
-                )    
-              ) 
-            {
-                $calc_net_amount = (abs($net_amount) + abs($freight_amount)) - (abs($variance_amount) + abs($discount_amount));
-            }
-            else
+            // if (!empty($client_name) &&
+            //     (
+            //         str_contains(strtolower($client_name), 'sgi wholesale')
+            //         || str_contains(strtolower($client_name), 'sand cph')
+            //     )    
+            //   ) 
+            // {
+            //     $calc_net_amount = (abs($net_amount) + abs($freight_amount)) - (abs($variance_amount) + abs($discount_amount));
+            // }
+            // else
                 $calc_net_amount = (abs($net_amount) + abs($freight_amount) + abs($variance_amount)) - abs($discount_amount);
         }        
 
@@ -944,7 +1031,42 @@ class SyncDbFromOcr implements ShouldQueue
         $related_sales_invoices = [];
 
         if($type != 'sales')
-        {            
+        {     
+            if (!empty($client_name) &&
+                (
+                    str_contains(strtolower($client_name), 'engel')
+                )    
+              ) 
+            {
+                //$invoice_no = str_replace('..FF', '', $invoice_no);
+                $invoice_no = preg_replace('/\s*\.\.\s*ff\s*/i', '', $invoice_no);
+            }
+               
+            if (!empty($client_name) &&
+                (
+                    str_contains(strtolower($client_name), 'rainwear')
+                )    
+              ) 
+            {
+                $special_invoice_no = null;                
+                $special_capture_invoice_number = !empty($parsed_extracted_data['special_capture_invoice_number'])
+                    ? ltrim((string) $parsed_extracted_data['special_capture_invoice_number'], '#')
+                    : null;
+                if($special_capture_invoice_number)
+                {
+                    $special_invoice_no = $special_capture_invoice_number;
+                }
+                else
+                {
+                    $filename = $parsed_cache['file_name'];
+                    //preg_match('/-\s*([A-Z]+-\d+)_/', $filename, $matches);
+                    preg_match('/(SF-\d+)/', $filename, $matches);
+                    $special_invoice_no = $matches[1] ?? null;                    
+                }
+
+                $invoice_no = $special_invoice_no ? $special_invoice_no : $invoice_no;                
+            }
+
             $sales_invoices_raw = $parsed_extracted_data['related_sales_invoices'] ?? null;
 
             if (!empty($sales_invoices_raw)) {
@@ -969,7 +1091,8 @@ class SyncDbFromOcr implements ShouldQueue
                     );
                 }
             }
-                    
+               
+          /*
           if (
             !empty($salesInvoiceMap) &&
             !empty($client_name) &&
@@ -999,6 +1122,7 @@ class SyncDbFromOcr implements ShouldQueue
                 }
             }
           }//RAINWEAR
+          */
         }//sales related invoices        
 
         if($type == 'sales')
@@ -1028,7 +1152,8 @@ class SyncDbFromOcr implements ShouldQueue
         else
           $result = [
             'invoice_type' => 'com',
-            'invoice_no' => isset($matched_sales_invoice) ? $matched_sales_invoice : $invoice_no,
+            //'invoice_no' => isset($matched_sales_invoice) ? $matched_sales_invoice : $invoice_no,
+            'invoice_no' => $invoice_no,
             'invoice_date' => $invoice_date,
             'currency' => $currency,
             'net_amount' => $net_amount,

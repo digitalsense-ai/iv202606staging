@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\OcrPdf;
 use App\Models\OcrSyncStatus;
+use App\Models\OcrPdfSyncDb;
 use App\Models\VATRegistrationMain;
 use App\Services\OcrAnalyzeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 use \App\Classes\CommonClass;
 
@@ -17,12 +21,14 @@ use App\Jobs\ManualInputUpdateJob;
 use App\Jobs\SearchSaveUpdateJob;
 
 use App\Helpers\EnvironmentHelper;
+use App\Helpers\OcrProgressKeyHelper;
 
 class ManualInputController extends Controller
 {
     public $authUser;
 
     public $commonClass;
+    public $environment;
 
     protected $vatRegistrations = null;
 
@@ -35,19 +41,32 @@ class ManualInputController extends Controller
         $this->middleware(function ($request, $next) {                    
             $this->commonClass = new CommonClass();
             $this->authUser = $this->commonClass->getAuthUser();   
-            
-            $tempEmailList = config('app.temp_email_list', []);
-            if (
-                !$this->authUser ||
-                !(
-                    $this->authUser->role === 'super-admin' ||
-                    (
-                        $this->authUser->role === 'team-user' &&
-                        in_array($this->authUser->email, $tempEmailList, true)
+            $this->environment = EnvironmentHelper::getEnvironment();
+
+            if($this->environment === 'live')
+            {
+                if (
+                    !$this->authUser ||
+                    !in_array($this->authUser->role, ['super-admin', 'team-user'], true)
+                ) {
+                    abort(403);
+                }
+            }
+            else
+            {
+                $tempEmailList = config('app.temp_email_list', []);
+                if (
+                    !$this->authUser ||
+                    !(
+                        $this->authUser->role === 'super-admin' ||
+                        (
+                            $this->authUser->role === 'team-user' &&
+                            in_array($this->authUser->email, $tempEmailList, true)
+                        )
                     )
-                )
-            ) {
-                abort(403);
+                ) {
+                    abort(403);
+                }
             }
 
             $this->searchSave =  false;
@@ -104,9 +123,16 @@ class ManualInputController extends Controller
    
     public function save(Request $request, int $id): JsonResponse
     {
+        if ($request->datafrom) {
+            return response()->json([
+                'success' => true,
+                'message' => 'FTP data does not require saving.'
+            ]);
+        }
+
         $invoice = OcrPdf::query()->findOrFail($id);
 
-        $environment = EnvironmentHelper::getEnvironment();
+        //$environment = EnvironmentHelper::getEnvironment();
         if($request->searchSave)
         {
             $this->searchSave =  true;
@@ -115,10 +141,24 @@ class ManualInputController extends Controller
                 'search_save_status' => 'queued',
                 'search_save_at' => now(),
                 'search_save_by' => auth()->id(),
-                'search_save_environment' => $environment,
+                'search_save_environment' => $this->environment,
+                'sync_db' => 0,
             ]);
 
+            $ocrProgressOperation = 'save';
+            $ocrProgressId = (string) Str::uuid();
+            $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+                $ocrProgressOperation,
+                $ocrProgressId
+            );
+
+            $total = 1;
+            $ttl = now()->addHour();
+            Cache::put("{$ocrProgressKey}:total", $total, $ttl);
+            Cache::put("{$ocrProgressKey}:completed", 0, $ttl);
+
             SearchSaveUpdateJob::dispatch(
+                $ocrProgressKey,
                 $id,
                 $request->all(),
                 false,
@@ -139,10 +179,24 @@ class ManualInputController extends Controller
                 'manual_input_status' => 'queued',
                 'manual_input_at' => now(),
                 'manual_input_by' => auth()->id(),
-                'manual_input_environment' => $environment,
+                'manual_input_environment' => $this->environment,
+                'sync_db' => 0,
             ]);
 
+            $ocrProgressOperation = 'manualinput';
+            $ocrProgressId = (string) Str::uuid();
+            $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+                $ocrProgressOperation,
+                $ocrProgressId
+            );
+
+            $total = 1;
+            $ttl = now()->addHour();
+            Cache::put("{$ocrProgressKey}:total", $total, $ttl);
+            Cache::put("{$ocrProgressKey}:completed", 0, $ttl);
+
             ManualInputUpdateJob::dispatch(
+                $ocrProgressKey,
                 $id,
                 $request->all(),
                 false,
@@ -171,7 +225,20 @@ class ManualInputController extends Controller
             'force_submitted' => true,
         ]);
 
+        $ocrProgressOperation = 'forcesubmit';
+        $ocrProgressId = (string) Str::uuid();
+        $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+            $ocrProgressOperation,
+            $ocrProgressId
+        );
+
+        $total = 1;
+        $ttl = now()->addHour();
+        Cache::put("{$ocrProgressKey}:total", $total, $ttl);
+        Cache::put("{$ocrProgressKey}:completed", 0, $ttl);
+
         ManualInputUpdateJob::dispatch(
+            $ocrProgressKey,
             $id,
             $request->all(),
             true,
@@ -186,18 +253,117 @@ class ManualInputController extends Controller
         return response()->json($this->queuedResponse($id));
     }
 
-    public function destroy(int $id): JsonResponse
-    {
+    public function destroy(Request $request, int $id): JsonResponse
+    {        
+        // $syncedPage = $request->input('syncedPage');
+
+        // if($syncedPage)
+        // {
+        //     $ocrpdf = OcrPdf::query()->findOrFail($id);
+        //     $ocrpdf->update([
+        //         'sync_db' => 0,
+        //         'sync_db_remarks' => NULL
+        //     ]);
+
+        //     $ocrsyncstatus = OcrSyncStatus::where('ocr_pdf_id', $id)->where('environment', $this->environment)->first();
+        //     $ocrsyncstatus?->update([
+        //         'sync_status' => 0,
+        //         'is_locked' => 0
+        //     ]);
+
+        //     OcrPdfSyncDb::where('ocr_pdf_id', $id)->delete();
+            
+        //     return response()->json($this->queuedResponse($id));
+        // }
+        // else
+        // {
+        //     $searchSave = $request->input('searchSave');
+
+        //     $invoice = OcrPdf::query()->findOrFail($id);
+
+        //     $invoice->update([
+        //         'is_deleted' => 1,
+        //         'deleted_reason' => ($searchSave) ? 'Deleted from search workflow' : 'Deleted from manual input workflow',
+        //         //'is_locked' => 0,
+        //     ]);
+
+        //     return response()->json($this->queuedResponse($id));
+        // }      
+
+        // //return response()->json($this->nextResponse($invoice->id)); 
+
+        $syncedPage = $request->boolean('syncedPage');
+
+        if ($syncedPage) {
+
+            // DB::transaction(function () use ($id) {
+            //     $ocrPdf = OcrPdf::query()->findOrFail($id);
+
+            //     $ocrPdf->update([
+            //         'sync_db' => 0,
+            //         'sync_db_remarks' => null,
+            //     ]);
+
+            //     $ocrSyncStatus = OcrSyncStatus::where('ocr_pdf_id', $id)
+            //         ->where('environment', $this->environment)
+            //         ->first();
+
+            //     $ocrSyncStatus?->update([
+            //         'sync_status' => 0,
+            //         'is_locked' => 0,
+            //     ]);
+
+            //     OcrPdfSyncDb::where('ocr_pdf_id', $id)->delete();
+            // });
+
+            //return response()->json($this->queuedResponse($id));
+
+            $ocrPdf = DB::transaction(function () use ($id) {
+
+                $ocrPdf = OcrPdf::query()->findOrFail($id);
+
+                $ocrPdf->update([
+                    'sync_db' => 0,
+                    'sync_db_remarks' => null,
+                ]);
+
+                $ocrSyncStatus = OcrSyncStatus::where('ocr_pdf_id', $id)
+                    ->where('environment', $this->environment)
+                    ->first();
+
+                $ocrSyncStatus?->update([
+                    'sync_status' => 0,
+                    'is_locked' => 0,
+                ]);
+
+                OcrPdfSyncDb::where('ocr_pdf_id', $id)->delete();
+
+                return $ocrPdf;
+            });
+                
+            return response()->json([
+                'invoice_id' => $ocrPdf->id,
+                'invoice_type' => $ocrPdf->invoice_type
+            ]);
+        }
+
+        $searchSave = $request->boolean('searchSave');
+
         $invoice = OcrPdf::query()->findOrFail($id);
 
         $invoice->update([
             'is_deleted' => 1,
-            'deleted_reason' => 'Deleted from manual input workflow',
-            'is_locked' => 0,
+            'deleted_reason' => $searchSave
+                ? 'Deleted from search workflow'
+                : 'Deleted from manual input workflow',
         ]);
 
-        //return response()->json($this->nextResponse($invoice->id));
-        return response()->json($this->queuedResponse($id));
+        //return response()->json($this->queuedResponse($id));   
+
+        return response()->json([
+            'invoice_id' => $invoice->id,
+            'invoice_type' => $invoice->invoice_type
+        ]);    
     }
 
     public function clientLookup(Request $request): JsonResponse
@@ -290,7 +456,13 @@ class ManualInputController extends Controller
             ])        
             ->where('is_deleted', 0)
             ->where('status', $status)
-            ->where('sync_db', $sync_db)
+            //->where('sync_db', $sync_db)
+            ->when(
+                $this->syncedPage,
+                function ($query) {
+                    $query->where('sync_db', 1);
+                }
+            )
             //->where('extracted_data', 'LIKE', '%123456789%')  
             ->where(function ($query) {
                 $query->whereNull('force_submitted')
@@ -301,28 +473,58 @@ class ManualInputController extends Controller
             //         //->orWhereNotIn('manual_input_status', ['validated']);
             //         ->orWhereNotIn('manual_input_status', ['queued', 'processing', 'validation_queued', 'validating', 'validated']);
             // }); 
-            ->where(function ($query) {
-                $query->where(function ($query) {
-                    $query->whereNull('manual_input_status')
-                        ->orWhereNotIn('manual_input_status', [
-                            'queued',
-                            'processing',
-                            'validation_queued',
-                            'validating',
-                            'validated',
-                        ]);
-                })
-                ->orWhere(function ($query) {
-                    $query->whereNull('search_save_status')
-                        ->orWhereNotIn('search_save_status', [
-                            'queued',
-                            'processing',
-                            'validation_queued',
-                            'validating',
-                            'validated',
-                        ]);
-                });
-            });      
+            // ->where(function ($query) {
+            //     $query->where(function ($query) {
+            //         $query->whereNull('manual_input_status')
+            //             ->orWhereNotIn('manual_input_status', [
+            //                 'queued',
+            //                 'processing',
+            //                 'validation_queued',
+            //                 'validating',
+            //                 'validated',
+            //             ]);
+            //     })
+            //     ->orWhere(function ($query) {
+            //         $query->whereNull('search_save_status')
+            //             ->orWhereNotIn('search_save_status', [
+            //                 'queued',
+            //                 'processing',
+            //                 'validation_queued',
+            //                 'validating',
+            //                 'validated',
+            //             ]);
+            //     });
+            // }); 
+            ->when(
+                !$this->searchSave && !$this->syncedPage,
+                function ($query) {
+                    $query->where(function ($query) {
+                        $query->whereNull('manual_input_status')
+                            ->orWhereNotIn('manual_input_status', [
+                                'queued',
+                                'processing',
+                                'validation_queued',
+                                'validating',
+                                'validated',
+                            ]);
+                    });
+                }
+            )
+            ->when(
+                $this->searchSave,
+                function ($query) {
+                    $query->where(function ($query) {
+                        $query->whereNull('search_save_status')
+                            ->orWhereNotIn('search_save_status', [
+                                'queued',
+                                'processing',
+                                'validation_queued',
+                                'validating',
+                                'validated',
+                            ]);
+                    });
+                }
+            );     
     }
 
     private function summaryPayload(OcrPdf $invoice): array
@@ -406,7 +608,12 @@ class ManualInputController extends Controller
             'exchange_vat_amount' => data_get($data, 'exchange_vat_amount'),
             'total_amount' => data_get($data, 'total_amount'),
             'exchange_total_amount' => data_get($data, 'exchange_total_amount'),
-            'related_sales_invoices' => $this->referencesAsArray(data_get($data, 'related_sales_invoices')),            
+            //'related_sales_invoices' => $this->referencesAsArray(data_get($data, 'related_sales_invoices')),
+            'related_sales_invoices' => $this->referencesAsArray(
+                data_get($data, 'related_sales_invoices')
+                    ?? data_get($data, 'related_sales_orders')
+                    ?? data_get($data, 'related_shipment_nos')
+            ),            
             //'note' => data_get($data, 'manual_note') ?? $invoice->manual_note,
             // 'note' => data_get($data, 'manual_note')
             //     ?? data_get($data, 'search_save_note')
@@ -416,6 +623,8 @@ class ManualInputController extends Controller
                 ?? null,
             'azure_url' => $invoice->azure_url,
             'sas_url' => app(OcrAnalyzeService::class)->getSasUrl($invoice->id),
+
+            'special_capture_invoice_number' => data_get($data, 'special_capture_invoice_number'),
         ]);
     }
 
@@ -460,11 +669,11 @@ class ManualInputController extends Controller
             'sync_db' => ($missing && !$force) ? $invoice->sync_db : 0
         ]);
 
-        $environment = EnvironmentHelper::getEnvironment();
+        //$environment = EnvironmentHelper::getEnvironment();
         OcrSyncStatus::updateOrCreate(
             [
                 'ocr_pdf_id' => $invoice->id,
-                'environment' => $environment,
+                'environment' => $this->environment,
             ],
             [                    
                 'sync_status' => 0,
@@ -551,6 +760,7 @@ class ManualInputController extends Controller
         }
 
         $next = $this->baseQueueQuery()
+            ->where('id', '!=', $currentId)
             ->where(function ($query) use ($current) {
                 $query->where('created_at', '>', $current->created_at)
                       ->orWhere(function ($q) use ($current) {

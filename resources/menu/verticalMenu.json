@@ -83,7 +83,7 @@
     {
       "name": "Settings",
       "icon": "menu-icon tf-icons bx bx-cog",
-      "slug": ["settings", "stats.index", "payment.info.index", "email.templates", "taskdates.list", "mail.box.files.index", "global.search.index", "anyexcel-template.index", "analyze.pdf.index"
+      "slug": ["settings", "stats.index", "payment.info.index", "email.templates", "taskdates.list", "mail.box.files.index", "global.search.index", "anyexcel-template.index", "analyze.pdf.index", "analyze.pdf.bulk.upload.index"
       ],
       "roles": ["super-admin","company-admin"],
       "submenu": [   
@@ -130,15 +130,21 @@
           "url": "mail-box-files"          
         },
         {
-          "name": "Analyze PDF",
-          "slug": ["analyze.pdf.index", "analyze.pdf.search", "analyze.pdf.manual-input"],
+          "name": "Document Flow",
+          "slug": ["analyze.pdf.index", "analyze.pdf.bulk.upload.index", "analyze.pdf.search", "analyze.pdf.manual-input", "analyze.pdf.sftp.oio"],
           "roles": ["super-admin","team-user"],
           "submenu": [   
             {
-              "name": "Capture",
+              "name": "Mail Inbox",
               "slug": "analyze.pdf.index",
               "roles": ["super-admin","team-user"],
               "url": "analyzepdf"          
+            }, 
+            {
+              "name": "Bulk Upload",
+              "slug": "analyze.pdf.bulk.upload.index",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf/bulk-upload"          
             },     
             {
               "name": "Search",
@@ -157,6 +163,12 @@
               "slug": "analyze.pdf.synced",
               "roles": ["super-admin","team-user"],
               "url": "analyzepdf/synceddb"          
+            },
+            {
+              "name": "SFTP/OIO",
+              "slug": "analyze.pdf.sftp.oio",
+              "roles": ["super-admin","team-user"],
+              "url": "analyzepdf/sftp"          
             }
           ]
         }

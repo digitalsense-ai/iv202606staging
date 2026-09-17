@@ -17,6 +17,8 @@ use App\Parsers\BerendsohnInvoiceParser;
 use App\Parsers\StofInvoiceParser;
 use App\Parsers\VillyInvoiceParser;
 use App\Parsers\SportsInvoiceParser;
+use App\Parsers\AuboInvoiceParser;
+use App\Parsers\BiancoInvoiceParser;
 use App\Parsers\DefaultInvoiceParser;
 
 class OcrInvoiceParserServiceProvider extends ServiceProvider
@@ -37,6 +39,8 @@ class OcrInvoiceParserServiceProvider extends ServiceProvider
                 new StofInvoiceParser(),
                 new VillyInvoiceParser(),
                 new SportsInvoiceParser(),
+                new AuboInvoiceParser(),
+                new BiancoInvoiceParser(),
                 new DefaultInvoiceParser(),
             ]);
         });

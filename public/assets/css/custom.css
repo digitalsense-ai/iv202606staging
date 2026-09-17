@@ -1,4 +1,7 @@
-table.dataTable:not(.datatables-declarations) > tbody > tr:hover { color: #677788; background-color: rgba(38, 60, 85, 0.06); cursor: pointer; }    
+table.dataTable:not(.datatables-declarations) > tbody > tr:hover { color: #677788; background-color: rgba(38, 60, 85, 0.06); 
+	cursor: pointer; }  
+table.dataTable:not(.datatables-declarations-new-ocr) > tbody > tr:hover { color: #677788; background-color: rgba(38, 60, 85, 0.06); 
+	cursor: pointer; } 
 
 .dz-complete .dz-success-mark { display: block; }
 
@@ -182,8 +185,10 @@ div.dts tbody td { white-space: unset; }
 /*.alert-primary.important { background-color: #e5edfc !important; border-color: #ceddfa !important; color: #5a8dee !important; }*/
 .dt-search-filter .dataTables_length,
 .dt-search-filter .dataTables_filter,
+.dt-search-filter .dataTables_paginate,
 .dt-synced-filter .dataTables_length,
 .dt-synced-filter .dataTables_filter,
+.dt-synced-filter .dataTables_paginate,
 .dt-invoice-export button,
 .dt-invoice-export .dt-buttons,
 .dt-declaration-export button,
@@ -196,6 +201,8 @@ div.dts tbody td { white-space: unset; }
 .dt-analyzepdfsearch-export .dt-buttons,
 .dt-analyzepdfsynced-export button,
 .dt-analyzepdfsynced-export .dt-buttons,
+.dt-analyzepdfsftpoio-export button,
+.dt-analyzepdfsftpoio-export .dt-buttons,
 .dt-quote-export button,
 .dt-quote-export .dt-buttons { display: inline-block !important; margin-right: 0.5rem !important;
   margin-left: 0.5rem !important; margin-top: 0.25rem !important; margin-bottom: 0.25rem !important; }
@@ -235,6 +242,93 @@ div[id^="navs-vatreturns-archive-"].tab-pane .table-responsive colgroup,
 
 /*Declaration*/
 .declaration-page { height: 100vh; padding-right: 0 !important; }
+
+select option:disabled { color: rgba(103,119,136,0.5); }
+
+.btn-close.bottom { background-image: none !important; width: auto !important; height: auto !important;
+	padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;  }
+.btn-success.btn-close.bottom { background-color: #39da8a !important; }
+.btn-danger.btn-close.bottom { background-color: #ff5b5c !important; }
+
+.accordion-button.disabled,
+.accordion-collapse .tab-pane .table-responsive .table.disabled { opacity: 0.5; }
+.accordion-button.inactive, 
+.accordion-collapse .tab-pane .table-responsive .table.inactive { background-color: rgba(var(--bs-light-rgb), 0.5); }
+
+.table-responsive colgroup { border-right: 20px solid transparent; }
+div[id^="navs-vatreturns-overview-"].tab-pane .table-responsive colgroup,
+div[id^="navs-vatreturns-archive-"].tab-pane .table-responsive colgroup,
+.accept-numbers-card .table-responsive colgroup { border: none; }
+
+.form-control.flatpickr-input:disabled { background-color: #e9ecee; }
+
+.register-buttons { position: absolute; left: 0; bottom: -50px; }
+
+.border-dotted { border-style: dotted !important; color: #000000 !important; }
+.border-dashed { border-style: dashed !important; color: #000000 !important; }
+
+.analyzepdfsearch .dataTables_scrollBody,
+.analyzepdfsynced .dataTables_scrollBody,
+.analyzepdfsftpoio .dataTables_scrollBody { min-height:50vh; }
+/*.ocr-loading-overlay { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.65); z-index: 9999; 
+	display: flex; align-items: center; justify-content: center; cursor: wait; }*/
+
+.ocr-loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+	background: rgba(255, 255, 255, 0.65); z-index: 9999; cursor: wait; }
+
+.ocr-loading-message { position: sticky; top: 10px; margin: 10px auto 0; width: fit-content; display: flex;
+    align-items: center; padding: 8px 16px; background: #fff; border-radius: 6px; /*box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);*/
+ 		color: #566a7f; font-weight: 500; }
+
+
+/*Declaration*/
+.declaration-page { height: 100vh; padding-right: 0 !important; }
+
+/* Consolidated OCR declaration page */
+.declarations-new-ocr,
+.declarations-new-ocr .card-datatable,
+.declarations-new-ocr .dataTables_wrapper,
+.declarations-new-ocr .dataTables_scroll,
+.declarations-new-ocr .dataTables_scrollHead,
+.declarations-new-ocr .dataTables_scrollBody,
+.declarations-new-ocr table.datatables-declarations-new-ocr,
+.declarations-new-ocr table.datatables-declaration-co-invoices,
+.declarations-new-ocr table.datatables-declaration-invoices {
+  width: 100% !important;
+  max-width: none !important;
+}
+.declarations-new-ocr table { min-width: 100% !important; }
+.declarations-new-ocr .datatables-declarations-new-ocr > tbody > tr,
+.declarations-new-ocr .datatables-declaration-co-invoices > tbody > tr { cursor: pointer; }
+.declarations-new-ocr .datatables-declarations-new-ocr > tbody > tr:hover {
+  background-color: #dbe7fa !important;
+}
+.declarations-new-ocr .datatables-declarations-new-ocr > tbody > tr.shown,
+.declarations-new-ocr .datatables-declarations-new-ocr > tbody > tr.shown:hover {
+  background-color: #dbe7fa !important;
+}
+.declarations-new-ocr .datatables-declaration-invoices > tbody > tr { cursor: default; }
+.declarations-new-ocr tr.child > td { padding: 0 !important; width: 100% !important; }
+.declarations-new-ocr tr.js-sales-detail > td { padding: 0 !important; }
+.declarations-new-ocr tr.child .table-responsive,
+.declarations-new-ocr tr.js-sales-detail .table-responsive { overflow: visible !important; }
+.declarations-new-ocr .declaration-action .dropdown-menu { z-index: 1090; }
+.declarations-new-ocr .declaration-toolbar { gap: .5rem; }
+.declarations-new-ocr .declaration-toolbar,
+.declarations-new-ocr .declaration-search,
+.declarations-new-ocr .dataTables_filter { display: flex; align-items: center; }
+.declarations-new-ocr .declaration-search,
+.declarations-new-ocr .dataTables_filter { justify-content: flex-end; }
+.declarations-new-ocr .dataTables_length label { margin: 0; }
+.declarations-new-ocr .dataTables_length label::before,
+.declarations-new-ocr .dataTables_length label::after { content: none !important; }
+.declarations-new-ocr .dropdown-menu li:not(:last-child) { border-bottom: 1px solid #e9ecee; }
+.declarations-new-ocr .dropdown-menu .dropdown-item.text-danger { color: var(--bs-danger) !important; }
+.declarations-new-ocr table.datatables-declaration-co-invoices > thead > tr > th,
+.declarations-new-ocr table.datatables-declaration-co-invoices > tbody > tr > td {
+  border-bottom: 1px solid #e9ecee !important;
+  box-shadow: inset 0 -1px 0 #e9ecee;
+}
 /*table.dataTable.datatables-declarations > tbody > tr:hover { background-color: #e5edfc !important; }*/
 
 /*table.dataTable.datatables-declarations > tbody > tr:hover { background-color: #ffffff; }*/
@@ -243,22 +337,32 @@ div[id^="navs-vatreturns-archive-"].tab-pane .table-responsive colgroup,
 .declaration-th-w300 { width: 300px; padding-right: 4.5rem !important; }
 
 .datatables-declarations.accordion,
-.datatables-declaration-co-invoices.accordion {  
+.datatables-declaration-co-invoices.accordion,
+.datatables-declarations-new-ocr.accordion {  
   --bs-accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23212529'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");  
   --bs-accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%230c63e4'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");  
   --bs-accordion-btn-icon-width: 1.25rem; --bs-accordion-btn-icon-transform: rotate(-180deg); }
 
 .datatables-declarations tr.accordion-button:not(.collapsed),
-.datatables-declarations tr.accordion-button:not(.collapsed).selected { background-color: transparent; }
-.datatables-declarations tr.accordion-button { display: table-row !important; }
+.datatables-declarations tr.accordion-button:not(.collapsed).selected,
+.datatables-declarations-new-ocr tr.accordion-button:not(.collapsed),
+.datatables-declarations-new-ocr tr.accordion-button:not(.collapsed).selected { background-color: transparent; }
+.datatables-declarations tr.accordion-button,
+.datatables-declarations-new-ocr tr.accordion-button { display: table-row !important; }
 .datatables-declarations tr.accordion-button th,
-.datatables-declarations tr.accordion-button td { border-color: #d4d8dd !important; }
+.datatables-declarations tr.accordion-button td,
+.datatables-declarations-new-ocr tr.accordion-button th,
+.datatables-declarations-new-ocr tr.accordion-button td { border-color: #d4d8dd !important; }
 /*.datatables-declarations tr.accordion-button:last-child td { border-color: transparent !important; }*/
 .datatables-declarations tr:not(.accordion-button) th,
-.datatables-declarations tr:not(.accordion-button) td { border: none !important; }
+.datatables-declarations tr:not(.accordion-button) td,
+.datatables-declarations-new-ocr tr:not(.accordion-button) th,
+.datatables-declarations-new-ocr tr:not(.accordion-button) td { border: none !important; }
 
-.datatables-declarations tr td { font-weight: bold; }
-.datatables-declarations tr:not(.accordion-button) th { color: #A8B1BB !important; }
+.datatables-declarations tr td,
+.datatables-declarations-new-ocr tr td { font-weight: bold; }
+.datatables-declarations tr:not(.accordion-button) th,
+.datatables-declarations-new-ocr tr:not(.accordion-button) th { color: #A8B1BB !important; }
 
 .datatables-declaration-co-invoices tr.accordion-button td:first-child:not(.dataTables_empty)::before {	
   -ms-flex-negative: 0; background-image: var(--bs-accordion-btn-icon); background-repeat: no-repeat;
@@ -309,13 +413,15 @@ table.datatables-declaration-co-invoices.accordion tr:last-child td {
 table.datatables-declaration-invoices tr td.cw-1 {
   border-bottom: none !important; }
 
-.datatables-declarations th { text-transform: capitalize !important; }
+.datatables-declarations th,
+.datatables-declarations-new-ocr th { text-transform: capitalize !important; }
 table.dataTable > tbody > tr:hover table.datatables-declaration-co-invoices > thead tr { 
   background-color: #ffffff !important; }
 
 table.dataTable.datatables-declarations, 
 table.dataTable.datatables-declaration-co-invoices, 
-table.dataTable.datatables-declaration-invoices { margin-bottom: 0 !important; }
+table.dataTable.datatables-declaration-invoices,
+table.dataTable.datatables-declarations-new-ocr { margin-bottom: 0 !important; }
 
 .declarations .dataTables_info,
 .declarations .dataTables_paginate { padding-top: 1rem !important; }
@@ -509,7 +615,8 @@ html[data-theme="theme-bordered"] .bg-navbar-theme { background: #f9fafb !import
 .crm-level-5 td:first-child { border-left: 3px solid #6c757d; }
 
 table.dataTable.datatables-analyzepdfsearch,
-table.dataTable.datatables-analyzepdfsynced {
+table.dataTable.datatables-analyzepdfsynced,
+table.dataTable.datatables-analyzepdfsftpoio {
   width: 100% !important;
   table-layout: fixed !important;
 }
@@ -517,7 +624,9 @@ table.dataTable.datatables-analyzepdfsynced {
 table.dataTable.datatables-analyzepdfsearch th,
 table.dataTable.datatables-analyzepdfsearch td,
 table.dataTable.datatables-analyzepdfsynced th,
-table.dataTable.datatables-analyzepdfsynced td {
+table.dataTable.datatables-analyzepdfsynced td,
+table.dataTable.datatables-analyzepdfsftpoio th,
+table.dataTable.datatables-analyzepdfsftpoio td {
   box-sizing: border-box;
 }
 
@@ -528,8 +637,15 @@ table.dataTable.datatables-analyzepdfsynced td {
 #navs-analyzepdfsynced-commercial-invoice .dataTables_scrollHeadInner,
 #navs-analyzepdfsynced-commercial-invoice .dataTables_scrollHeadInner table,
 #navs-analyzepdfsynced-sales-invoice .dataTables_scrollHeadInner,
-#navs-analyzepdfsynced-sales-invoice .dataTables_scrollHeadInner table {
+#navs-analyzepdfsynced-sales-invoice .dataTables_scrollHeadInner table,
+#navs-analyzepdfsftpoio-sales-invoice .dataTables_scrollHeadInner,
+#navs-analyzepdfsftpoio-sales-invoice .dataTables_scrollHeadInner table {
   width: 100% !important;
+}
+
+.client-dropdown-menu {
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 .bg-menu-theme li.menu-item:last-of-type .menu-sub > .menu-item > .menu-link::before { 

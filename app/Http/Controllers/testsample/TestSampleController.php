@@ -26,6 +26,7 @@ use App\Models\VATRegistrationMainCasDdaMonths;
 use App\Models\CashAccountStatement;
 use App\Models\DutyDefermentAccount;
 use App\Models\VATRegistration;
+use App\Models\ImportVatFiles;
 use App\Models\ImportReconciliationComInvoices;
 use App\Models\ImportReconciliationSalesInvoices;
 use App\Models\ImportReconciliationFiles;
@@ -69,6 +70,10 @@ use Mail;
 use App\Mail\NotificationEmail;
 use App\Models\EmailNotification;
 
+use App\Helpers\EnvironmentHelper;
+
+use App\Services\OcrProcessingService;
+
 class TestSampleController extends Controller
 {
 	public $authUser;
@@ -101,6 +106,7 @@ class TestSampleController extends Controller
             $this->eFactoClass = new EFactoClass();
             $this->cargoDeclarationClass = new CargoDeclarationClass();
             $this->swissImportReconciliationClass = new SwissImportReconciliationClass();
+            $this->environment = EnvironmentHelper::getEnvironment();
 
             $this->authUser = $this->commonClass->getAuthUser();          
 
@@ -116,6 +122,10 @@ class TestSampleController extends Controller
 
 	public function index()
 	{	
+        // $result = app(OcrProcessingService::class)->autoRefreshNewDeclaration(
+        //     $this->authUser
+        // );
+        // dd($result);
         // $system = $this->commonClass->getSystemInfoLazy();
         //             $systemapi = $system->systemapi->first();
         //            $systemapi->api_secret_key = "NEW KEY";
@@ -876,9 +886,11 @@ class TestSampleController extends Controller
     public function readCargoEmails()
     {               
         try 
-        {                
-            //$cargomailbox = $this->emailBoxApiClass->readEmailForCargoDeclarationFiles($this->authUser);
-            $cargomailbox = $this->cargoDeclarationClass->readCargoDeclarationFile();
+        {    
+            if($this->environment === "live")
+                $cargomailbox = $this->emailBoxApiClass->readEmailForCargoDeclarationFiles($this->authUser);
+            else
+                $cargomailbox = $this->cargoDeclarationClass->readCargoDeclarationFile();
 /*
             $storage_path = storage_path('app/public/mailbox/cargodeclarationfiles/');            
             //$sub_folder = 'AUBO/';           
@@ -968,15 +980,20 @@ dd($firstFile, $readcargofiles);
             //                         ->get();
             //Cargo Files
 
+            $ivfvatregids = ImportVatFiles::where('file_type', 'xml')
+                                ->where('month_year', '07-2026')
+                                ->orderBy('vat_reg_id', 'ASC')
+                                ->pluck('vat_reg_id')->toArray();
+
             //Reload IVF xml files
             $vatregs = VATRegistration::with(['vatregmain','client', 'importvatfiles'])    
                             ->withCount('importvatfiles')                                
-                            ->whereHas('client', function ($subquery) {                                        
-                                $subquery->whereIn('id', [119]);
-                            })
+                            // ->whereHas('client', function ($subquery) {                                        
+                            //     $subquery->whereIn('id', [82]);
+                            // })
                             ->where('country', 'NO')
-                            ->where('service_start', '2025-11-01')
-                            //->where('id', 596)                                   
+                            //->where('service_start', '2026-05-01')
+                            ->whereIn('id', $ivfvatregids)                                   
                             ->get();
             //Reload IVF xml files
  
@@ -984,7 +1001,7 @@ dd($firstFile, $readcargofiles);
                 //return ($vatreg->importreconciliationcominvoices_count == 0 && $vatreg->importvatfiles_count > 0);
                 return ($vatreg->importvatfiles_count > 0);//Reload IVF xml files
             });
-           
+          dd($noInvoices->first());
             foreach($noInvoices as $key => $noInvoice)
             {               
                 $vat_reg_id = $noInvoice->id;
@@ -1006,161 +1023,162 @@ dd($firstFile, $readcargofiles);
 
                                 $import_vat_id = $importvatfile->id;
 
-                                if($importvatfile->statistical_number == $xmlvalue['statvalue'])
-                                {
-                                    echo $noInvoice->client->client_name . " - SAME IVF datas - " . $importvatfile->statistical_number . ' - ' . $xmlvalue['statvalue'] . '<br>';
-                                }
-                                else
-                                {
-                                    //Reload IVF xml files
-                                    $importvatfile->fee_number = $xmlvalue['fee'];                                
-                                    $importvatfile->e_fee_number = $xmlvalue['fee_ex'];
-                                    $importvatfile->statistical_number = $xmlvalue['statvalue'];
-                                    $importvatfile->e_statistical_number = $xmlvalue['statvalue_ex'];
-                                    $importvatfile->adjustment_no = $xmlvalue['adjustment'];
-                                    $importvatfile->invoice_total = $xmlvalue['invoice_total'];
+                                // if($importvatfile->statistical_number == $xmlvalue['statvalue'])
+                                // {
+                                //     echo $noInvoice->client->client_name . " - SAME IVF datas - " . $importvatfile->statistical_number . ' - ' . $xmlvalue['statvalue'] . '<br>';
+                                // }
+                                // else
+                                // {
+                                //     //Reload IVF xml files
+                                //     $importvatfile->fee_number = $xmlvalue['fee'];                                
+                                //     $importvatfile->e_fee_number = $xmlvalue['fee_ex'];
+                                //     $importvatfile->statistical_number = $xmlvalue['statvalue'];
+                                //     $importvatfile->e_statistical_number = $xmlvalue['statvalue_ex'];
+                                //     $importvatfile->adjustment_no = $xmlvalue['adjustment'];
+                                //     $importvatfile->invoice_total = $xmlvalue['invoice_total'];
 
-                                    $importvatfile->box_85 = $xmlvalue['box_85'];
+                                //     $importvatfile->box_85 = $xmlvalue['box_85'];
 
-                                    //$importvatfile->save();
+                                //     //$importvatfile->save();
 
-                                    echo $noInvoice->client->client_name . " - Reloaded IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
-                                }
-                                //Reload IVF xml files
+                                //     echo $noInvoice->client->client_name . " - Reloaded IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
+                                // }
+                                // //Reload IVF xml files
 
                                 //Cargo Files
                                 //$importvatfile->xml = $xmlvalue;
-                                // $expedition_list = $xmlvalue['expedition_list'];
-                                // foreach($expedition_list as $key => $expedition)
-                                // {
-                                //     $ivf_com_invoice_nos = '';
-                                //     $ivf_com_invoice_dates = '';
-                                //     foreach($expedition['com_invoices'] as $com_invoice)
-                                //     {                                   
-                                //         $commercial_invoice_no = isset($com_invoice['com_invoice_no']) ? $com_invoice['com_invoice_no'] : '';
-                                //         $com_invoice_date = isset($com_invoice['com_invoice_date']) ? $com_invoice['com_invoice_date'] : '';
+                                $expedition_list = $xmlvalue['expedition_list'];
+                                foreach($expedition_list as $key => $expedition)
+                                {
+                                    $ivf_com_invoice_nos = '';
+                                    $ivf_com_invoice_dates = '';
+                                    foreach($expedition['com_invoices'] as $com_invoice)
+                                    {                                   
+                                        $commercial_invoice_no = isset($com_invoice['com_invoice_no']) ? $com_invoice['com_invoice_no'] : '';
+                                        $com_invoice_date = isset($com_invoice['com_invoice_date']) ? $com_invoice['com_invoice_date'] : '';
                                         
-                                //         if($ivf_com_invoice_nos == '')
-                                //         {
-                                //             $ivf_com_invoice_nos = $commercial_invoice_no;
-                                //             $ivf_com_invoice_dates = $com_invoice_date;
-                                //         }
-                                //         else
-                                //         {
-                                //             $ivf_com_invoice_nos .= ',' . $commercial_invoice_no;
-                                //             $ivf_com_invoice_dates .= ',' . $com_invoice_date;
-                                //         }
+                                        if($ivf_com_invoice_nos == '')
+                                        {
+                                            $ivf_com_invoice_nos = $commercial_invoice_no;
+                                            $ivf_com_invoice_dates = $com_invoice_date;
+                                        }
+                                        else
+                                        {
+                                            $ivf_com_invoice_nos .= ',' . $commercial_invoice_no;
+                                            $ivf_com_invoice_dates .= ',' . $com_invoice_date;
+                                        }
                                         
-                                //         $com_invoice_net_amount = isset($expedition['com_invoice_net_amount']) ? $expedition['com_invoice_net_amount'] : null;
-                                //         $com_invoice_omr_kurs = isset($expedition['com_invoice_omr_kurs']) ? $expedition['com_invoice_omr_kurs'] : null;
-                                //         $com_invoice_currency_code = isset($expedition['com_invoice_currency_code']) ? $expedition['com_invoice_currency_code'] : 'NOK';
+                                        $com_invoice_net_amount = isset($expedition['com_invoice_net_amount']) ? $expedition['com_invoice_net_amount'] : null;
+                                        $com_invoice_omr_kurs = isset($expedition['com_invoice_omr_kurs']) ? $expedition['com_invoice_omr_kurs'] : null;
+                                        $com_invoice_currency_code = isset($expedition['com_invoice_currency_code']) ? $expedition['com_invoice_currency_code'] : 'NOK';
 
-                                //         //INSERT INTO COM. INVOICE TABLE
-                                //         $already_exists_cominvoice = ImportReconciliationComInvoices::where('vat_reg_id', $vat_reg_id)
-                                //             ->where('invoice_no', $commercial_invoice_no)
-                                //             ->where('lope_no', $expedition['run_no'])
-                                //             ->first();
+                                        //INSERT INTO COM. INVOICE TABLE
+                                        $already_exists_cominvoice = ImportReconciliationComInvoices::where('vat_reg_id', $vat_reg_id)
+                                            ->where('invoice_no', $commercial_invoice_no)
+                                            ->where('lope_no', $expedition['run_no'])
+                                            ->first();
 
-                                //         if($already_exists_cominvoice)
-                                //         {                                            
-                                //             $already_exists_cominvoice->data_from = 'ivf';
-                                //             $already_exists_cominvoice->month_year = $importvatfile->month_year;
-                                //             $already_exists_cominvoice->invoice_date = Carbon::parse($com_invoice_date)->format('Y-m-d');
-                                //             $already_exists_cominvoice->expo_no = ($already_exists_cominvoice->expo_no == NULL) ? $expedition['expo_no'] : $already_exists_cominvoice->expo_no;
-                                //             $already_exists_cominvoice->lope_no = ($already_exists_cominvoice->lope_no == NULL) ? $expedition['run_no'] : $already_exists_cominvoice->lope_no;
-                                //             $already_exists_cominvoice->duties = $expedition['duties'];
-                                //             $already_exists_cominvoice->adjustment = $expedition['adjustment'];
-                                //             $already_exists_cominvoice->statistical_value = $expedition['statistical_value'];
-                                //             $already_exists_cominvoice->category_type = $expedition['category_type'];
-                                //             $already_exists_cominvoice->category_desc = $expedition['category_desc'];
-                                //             $already_exists_cominvoice->ivf_net_amount = $com_invoice_net_amount;
-                                //             $already_exists_cominvoice->omr_kurs = $com_invoice_omr_kurs;
-                                //             $already_exists_cominvoice->currency_code = $com_invoice_currency_code;
-                                //             $already_exists_cominvoice->updated_by = $this->authUser->id;
+                                        if($already_exists_cominvoice)
+                                        {                  //dd($vat_reg_id, $expedition);
+                                            //$already_exists_cominvoice->data_from = 'ivf';
+                                            // $already_exists_cominvoice->month_year = $importvatfile->month_year;
+                                            //$already_exists_cominvoice->invoice_date = Carbon::parse($com_invoice_date)->format('Y-m-d');
+                                            $already_exists_cominvoice->expo_date = isset($expedition['expo_date']) ? $expedition['expo_date'] : null;
+                                            // $already_exists_cominvoice->expo_no = ($already_exists_cominvoice->expo_no == NULL) ? $expedition['expo_no'] : $already_exists_cominvoice->expo_no;
+                                            // $already_exists_cominvoice->lope_no = ($already_exists_cominvoice->lope_no == NULL) ? $expedition['run_no'] : $already_exists_cominvoice->lope_no;
+                                            // $already_exists_cominvoice->duties = $expedition['duties'];
+                                            // $already_exists_cominvoice->adjustment = $expedition['adjustment'];
+                                            // $already_exists_cominvoice->statistical_value = $expedition['statistical_value'];
+                                            // $already_exists_cominvoice->category_type = $expedition['category_type'];
+                                            // $already_exists_cominvoice->category_desc = $expedition['category_desc'];
+                                            // $already_exists_cominvoice->ivf_net_amount = $com_invoice_net_amount;
+                                            // $already_exists_cominvoice->omr_kurs = $com_invoice_omr_kurs;
+                                            // $already_exists_cominvoice->currency_code = $com_invoice_currency_code;
+                                            // $already_exists_cominvoice->updated_by = $this->authUser->id;
 
-                                //             $already_exists_cominvoice->save();
-                                //         }
-                                //         else
-                                //         {
-                                //             $insert_cominvoice = ImportReconciliationComInvoices::updateOrCreate(
-                                //                 [
-                                //                     'vat_reg_id' => $vat_reg_id,
-                                //                     'invoice_no' => $commercial_invoice_no,
-                                //                     'lope_no' => $expedition['run_no']
-                                //                 ],
-                                //                 [                
-                                //                     'vat_reg_id' => $vat_reg_id,
+                                            $already_exists_cominvoice->save();
+                                        }
+                                        else
+                                        {
+                                            // $insert_cominvoice = ImportReconciliationComInvoices::updateOrCreate(
+                                            //     [
+                                            //         'vat_reg_id' => $vat_reg_id,
+                                            //         'invoice_no' => $commercial_invoice_no,
+                                            //         'lope_no' => $expedition['run_no']
+                                            //     ],
+                                            //     [                
+                                            //         'vat_reg_id' => $vat_reg_id,
 
-                                //                     'data_from' => 'ivf',
-                                //                     'month_year' => $importvatfile->month_year,
+                                            //         'data_from' => 'ivf',
+                                            //         'month_year' => $importvatfile->month_year,
 
-                                //                     'invoice_no' => $commercial_invoice_no,                                             
-                                //                     'invoice_date' => Carbon::parse($com_invoice_date)->format('Y-m-d'),
-                                //                     'expo_no' => $expedition['expo_no'],
-                                //                     'lope_no' => $expedition['run_no'],
-                                //                     'duties' => $expedition['duties'],
-                                //                     'adjustment' => $expedition['adjustment'],
-                                //                     'statistical_value' => $expedition['statistical_value'],
-                                //                     'category_type' => $expedition['category_type'],
-                                //                     'category_desc' => $expedition['category_desc'],
-                                //                     'doc_status' => ($commercial_invoice_no) ? 'Validated' : 'Validation',
-                                //                     'country' => $noInvoice->country,
-                                //                     'currency_code' => $com_invoice_currency_code,
-                                //                     'ivf_net_amount' => $com_invoice_net_amount,
-                                //                     'omr_kurs' => $com_invoice_omr_kurs,
-                                //                     'created_by' => $this->authUser->id
-                                //                 ]
-                                //             );
-                                //         }                                        
-                                //     } //for commercial_invoice_no
+                                            //         'invoice_no' => $commercial_invoice_no,                                             
+                                            //         'invoice_date' => Carbon::parse($com_invoice_date)->format('Y-m-d'),
+                                            //         'expo_no' => $expedition['expo_no'],
+                                            //         'lope_no' => $expedition['run_no'],
+                                            //         'duties' => $expedition['duties'],
+                                            //         'adjustment' => $expedition['adjustment'],
+                                            //         'statistical_value' => $expedition['statistical_value'],
+                                            //         'category_type' => $expedition['category_type'],
+                                            //         'category_desc' => $expedition['category_desc'],
+                                            //         'doc_status' => ($commercial_invoice_no) ? 'Validated' : 'Validation',
+                                            //         'country' => $noInvoice->country,
+                                            //         'currency_code' => $com_invoice_currency_code,
+                                            //         'ivf_net_amount' => $com_invoice_net_amount,
+                                            //         'omr_kurs' => $com_invoice_omr_kurs,
+                                            //         'created_by' => $this->authUser->id
+                                            //     ]
+                                            // );
+                                        }                                        
+                                    } //for commercial_invoice_no
 
-                                //     // $already_exists_cargo_file = CargoDeclarationFiles::where('o_file_name', 'LIKE', '%'. $expedition['expo_no'] . $expedition['run_no'] .'%')
-                                //     //         ->first();
-                                //     $already_exists_cargo_file = CargoDeclarationFiles::where('expo_no', $expedition['expo_no'])
-                                //             ->where('run_no', $expedition['run_no'])
-                                //             ->first();
+                                    // // $already_exists_cargo_file = CargoDeclarationFiles::where('o_file_name', 'LIKE', '%'. $expedition['expo_no'] . $expedition['run_no'] .'%')
+                                    // //         ->first();
+                                    // $already_exists_cargo_file = CargoDeclarationFiles::where('expo_no', $expedition['expo_no'])
+                                    //         ->where('run_no', $expedition['run_no'])
+                                    //         ->first();
                                     
-                                //     if($already_exists_cargo_file)
-                                //     {
-                                //         //$cargo_com_invoice_no = $already_exists_cargo_file->com_invoice_no . ',' . $commercial_invoice_no;
+                                    // if($already_exists_cargo_file)
+                                    // {
+                                    //     //$cargo_com_invoice_no = $already_exists_cargo_file->com_invoice_no . ',' . $commercial_invoice_no;
 
-                                //         $already_exists_cargo_file->import_vat_id = $import_vat_id;
-                                //         $already_exists_cargo_file->ivf_com_invoice_nos = $ivf_com_invoice_nos;//$cargo_com_invoice_no;
-                                //         $already_exists_cargo_file->ivf_com_invoice_dates = $ivf_com_invoice_dates;
-                                //         //$already_exists_cargo_file->expo_no = $expedition['expo_no'];
-                                //         //$already_exists_cargo_file->run_no = $expedition['run_no'];
-                                //         //$already_exists_cargo_file->expo_run_no = $expedition['expo_no'] . $expedition['run_no'];
-                                //         $already_exists_cargo_file->status = 2;
-                                //         $already_exists_cargo_file->updated_by = $this->authUser->user_id;
+                                    //     $already_exists_cargo_file->import_vat_id = $import_vat_id;
+                                    //     $already_exists_cargo_file->ivf_com_invoice_nos = $ivf_com_invoice_nos;//$cargo_com_invoice_no;
+                                    //     $already_exists_cargo_file->ivf_com_invoice_dates = $ivf_com_invoice_dates;
+                                    //     //$already_exists_cargo_file->expo_no = $expedition['expo_no'];
+                                    //     //$already_exists_cargo_file->run_no = $expedition['run_no'];
+                                    //     //$already_exists_cargo_file->expo_run_no = $expedition['expo_no'] . $expedition['run_no'];
+                                    //     $already_exists_cargo_file->status = 2;
+                                    //     $already_exists_cargo_file->updated_by = $this->authUser->user_id;
 
-                                //         $already_exists_cargo_file->save();
-                                //     }
-                                //     else
-                                //     {
-                                //         //$cargo_com_invoice_no = $commercial_invoice_no;
+                                    //     $already_exists_cargo_file->save();
+                                    // }
+                                    // else
+                                    // {
+                                    //     //$cargo_com_invoice_no = $commercial_invoice_no;
 
-                                //         $cargo_file = CargoDeclarationFiles::updateOrCreate(
-                                //             [
-                                //                 //'o_file_name' => $expedition['expo_no'] . $expedition['run_no'] . '.pdf'
-                                //                 'expo_no' => $expedition['expo_no'],
-                                //                 'run_no' => $expedition['run_no']
-                                //             ],
-                                //             [           
-                                //                 'import_vat_id' => $import_vat_id,
-                                //                 'ivf_com_invoice_nos' => $ivf_com_invoice_nos,//$cargo_com_invoice_no,
-                                //                 'ivf_com_invoice_dates' => $ivf_com_invoice_dates,
-                                //                 'expo_no' => $expedition['expo_no'],
-                                //                 'run_no' => $expedition['run_no'],
-                                //                 'expo_run_no' => $expedition['expo_no'] . $expedition['run_no'],
-                                //                 'status' => 2,
-                                //                 'created_by' => $this->authUser->user_id
-                                //             ]
-                                //         );
-                                //     }
+                                    //     $cargo_file = CargoDeclarationFiles::updateOrCreate(
+                                    //         [
+                                    //             //'o_file_name' => $expedition['expo_no'] . $expedition['run_no'] . '.pdf'
+                                    //             'expo_no' => $expedition['expo_no'],
+                                    //             'run_no' => $expedition['run_no']
+                                    //         ],
+                                    //         [           
+                                    //             'import_vat_id' => $import_vat_id,
+                                    //             'ivf_com_invoice_nos' => $ivf_com_invoice_nos,//$cargo_com_invoice_no,
+                                    //             'ivf_com_invoice_dates' => $ivf_com_invoice_dates,
+                                    //             'expo_no' => $expedition['expo_no'],
+                                    //             'run_no' => $expedition['run_no'],
+                                    //             'expo_run_no' => $expedition['expo_no'] . $expedition['run_no'],
+                                    //             'status' => 2,
+                                    //             'created_by' => $this->authUser->user_id
+                                    //         ]
+                                    //     );
+                                    // }
                                     
-                                //     echo $noInvoice->client->client_name . " - IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
+                                    echo $noInvoice->client->client_name . " - IVF datas - " . $vat_reg_id . ' - ' . $import_vat_id . '<br>';
 
-                                // } //for Cargo Files
+                                } //for Cargo Files
                             }
                         } 
                     }                   
@@ -1178,6 +1196,7 @@ dd($firstFile, $readcargofiles);
         {   
             $client_id = 89;            
             $rematch = $this->commonClass->rematchComInvoices($client_id, true);
+            $rematch = $this->commonClass->rematchOcrComInvoices($client_id, true);
         } 
         catch (\Exception $e) {
             dd($e);  

@@ -35,5 +35,14 @@ class ImportReconciliationSalesInvoicesData extends Model
     public function items()
     {
         return $this->hasMany('App\Models\ImportReconciliationSalesInvoicesDataItems', 'ir_sales_invoice_data_id');
-    }    
+    }  
+
+    public function irFile()
+    {
+        return $this->belongsTo(
+            ImportReconciliationFiles::class,
+            'ir_file_id',
+            'id'
+        );
+    }  
 }

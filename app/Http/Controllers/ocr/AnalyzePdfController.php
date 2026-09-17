@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 
 use \App\Classes\CommonClass;
 use \App\Classes\FtpClass;
@@ -21,6 +22,7 @@ use App\Models\VATRegistrationMain;
 use App\Models\VATRegistration;
 use App\Models\OcrPdf;
 use App\Models\OcrSyncStatus;
+use App\Models\ImportReconciliationFiles;
 use App\Jobs\SplitPdfJob;
 use App\Services\AzureStorageService;
 use App\Services\OcrCorrectionFeedbackService;
@@ -36,6 +38,7 @@ use App\Jobs\SyncDbFromOcr;
 use App\Helpers\DateHelper;
 use App\Helpers\EuropeanNumberHelper;
 use App\Helpers\EnvironmentHelper;
+use App\Helpers\OcrProgressKeyHelper;
 
 class AnalyzePdfController extends Controller
 {
@@ -44,6 +47,7 @@ class AnalyzePdfController extends Controller
     public $commonClass;
     public $ftpClass;
     public $environment;
+
     public $selectedFields = [];
 
     public function __construct()
@@ -52,22 +56,35 @@ class AnalyzePdfController extends Controller
         $this->middleware(function ($request, $next) {                    
             $this->commonClass = new CommonClass();
             $this->authUser = $this->commonClass->getAuthUser();   
-            
-            $tempEmailList = config('app.temp_email_list', []);
-            if (
-                !$this->authUser ||
-                !(
-                    $this->authUser->role === 'super-admin' ||
-                    (
-                        $this->authUser->role === 'team-user' &&
-                        in_array($this->authUser->email, $tempEmailList, true)
+            $this->environment = EnvironmentHelper::getEnvironment();
+
+            if($this->environment === 'live')
+            {
+                if (
+                    !$this->authUser ||
+                    !in_array($this->authUser->role, ['super-admin', 'team-user'], true)
+                ) {
+                    abort(403);
+                }
+            }
+            else
+            {
+                $tempEmailList = config('app.temp_email_list', []);
+                if (
+                    !$this->authUser ||
+                    !(
+                        $this->authUser->role === 'super-admin' ||
+                        (
+                            $this->authUser->role === 'team-user' &&
+                            in_array($this->authUser->email, $tempEmailList, true)
+                        )
                     )
-                )
-            ) {
-                abort(403);
+                ) {
+                    abort(403);
+                }
             }
 
-            $this->environment = EnvironmentHelper::getEnvironment();
+            
 
             $this->ftpClass = new FtpClass();
 
@@ -108,154 +125,186 @@ class AnalyzePdfController extends Controller
         });
     }   
 
-    /* -- GET /analyzepdf -- */
-    public function index()
-    {       
-        // $invoiceDate = DateHelper::parseInvoiceDate(
-        //     '02/JUN/2026.'
-        // );
-        // dd($invoiceDate);
+//     /* -- GET /analyzepdf -- */
+//     public function index()
+//     {       
+//         // $invoiceDate = DateHelper::parseInvoiceDate(
+//         //     '02/JUN/2026.'
+//         // );
+//         // dd($invoiceDate);
 
-//         $netAmount = EuropeanNumberHelper::normalize(
-//             '243.378,59
-// 248.178,59'
-//         );
-//         dd($netAmount);
+// //         $netAmount = EuropeanNumberHelper::normalize(
+// //             '243.378,59
+// // 248.178,59'
+// //         );
+// //         dd($netAmount);
 
-        Cache::forget('inbox_completed');
+//         Cache::forget('inbox_completed');
 
-        /* -- PAGE CONFIG -- */
-        $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
-        /* --end PAGE CONFIG -- */
+//         /* -- PAGE CONFIG -- */
+//         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+//         /* --end PAGE CONFIG -- */
 
-        // $analyzepdfs = OcrPdf::query()
-        //                 //->with('syncStatus')
-        //                 ->select($this->selectedFields)
-        //                 //->where('extracted_data', 'LIKE', '%123456789%')
-        //                 ->orderBy('id', 'DESC')            
-        //                 ->get(); 
+//         // $analyzepdfs = OcrPdf::query()
+//         //                 //->with('syncStatus')
+//         //                 ->select($this->selectedFields)
+//         //                 //->where('extracted_data', 'LIKE', '%123456789%')
+//         //                 ->orderBy('id', 'DESC')            
+//         //                 ->get(); 
         
-        $analyzepdfs = OcrPdf::query()                       
-                        ->select($this->selectedFields)  
-                        ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])                        
-                        //->where('extracted_data', 'LIKE', '%123456789%')      
-                        ->orderByRaw("
-                            COALESCE(
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                            ) ASC
-                        ")            
-                        ->orderBy('id', 'DESC')            
-                        //->get(); 
-                        ->count();
+//         // $analyzepdfs = OcrPdf::query()                       
+//         //                 ->select($this->selectedFields)  
+//         //                 ->whereIn('status', ['completed', 'duplicate', 'failed', 'processing', 'queued'])                        
+//         //                 //->where('extracted_data', 'LIKE', '%123456789%')      
+//         //                 ->orderByRaw("
+//         //                     COALESCE(
+//         //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+//         //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+//         //                     ) ASC
+//         //                 ")            
+//         //                 ->orderBy('id', 'DESC')            
+//         //                 //->get(); 
+//         //                 ->count();
 
-      //dd($env, $analyzepdfs->first());
-        $vatregmains = VATRegistrationMain::
-                        select([
-                            'id',
-                            'org_no',
-                            'vat_no',
-                            'country',
-                            'client_id',
-                        ])
-                        ->with([
-                            'client:id,client_name'
-                        ])  
-                        ->where('ocr_sync', 1)  
-                        //with(['client'])
-                        ->orderBy('id', 'ASC')
-                        ->get();
+//         $analyzepdfs = OcrPdf::query()
+//                         ->selectRaw("
+//                             COALESCE(
+//                                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+//                                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+//                             ) AS client_name
+//                         ")
+//                         //->where('extracted_data', 'LIKE', '%123456789%')
+//                         ->whereIn('status', ['completed'])
+//                         ->where('is_deleted', 0)
+//                         ->orderBy('client_name')
+//                         ->orderBy('id', 'DESC')
+//                         ->pluck('client_name')
+//                         ->filter(fn ($name) => trim($name ?? '') !== '')
+//                         ->unique();
 
-        // $only_org_no = $this->commonClass->OrgNoForOcr();        
-        // $syncclients = $vatregmains
-        //                 ->filter(function ($vatregmain) use ($only_org_no) {
-        //                     //return in_array($vatregmain->org_no, $only_org_no);
-        //                     $orgNo = preg_replace('/\D+/', '', $vatregmain->org_no ?? '');
-        //                     $vatNo = preg_replace('/\D+/', '', $vatregmain->vat_no ?? '');
+//       //dd($env, $analyzepdfs->first());
+//         $vatregmains = VATRegistrationMain::
+//                         select([
+//                             'id',
+//                             'org_no',
+//                             'vat_no',
+//                             'country',
+//                             'client_id',
+//                         ])
+//                         ->with([
+//                             'client:id,client_name'
+//                         ])  
+//                         ->where('ocr_sync', 1)  
+//                         //with(['client'])
+//                         ->orderBy('id', 'ASC')
+//                         ->get();
 
-        //                     return in_array($orgNo, $only_org_no) || in_array($vatNo, $only_org_no);
-        //                 })
-        //                 // ->pluck('client')
-        //                 // ->filter()
-        //                 // ->unique('id')
-        //                 // ->sortBy('client_name')
-        //                 // ->values();
-        //                 ->map(function ($vatregmain) {
-        //                     return [
-        //                         'id' => $vatregmain->id,
-        //                         'client'  => $vatregmain->client,
-        //                         'country' => $vatregmain->country,
-        //                     ];
-        //                 })
-        //                 ->filter(function ($item) {
-        //                     return $item['client'];
-        //                 })
-        //                 // ->unique(function ($item) {
-        //                 //     return $item['client']->id;
-        //                 // })
-        //                 ->sortBy(function ($item) {
-        //                     return $item['client']->client_name;
-        //                 })
-        //                 ->values();  
+//         $clientnames = OcrPdf::query()
+//                         ->selectRaw("
+//                             COALESCE(
+//                                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+//                                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+//                             ) AS client_name
+//                         ")
+//                         ->where('status', 'completed')
+//                         ->where('is_deleted', 0)
+//                         ->orderBy('client_name')
+//                         ->orderBy('id', 'DESC')
+//                         ->pluck('client_name')
+//                         ->filter(fn ($name) => trim($name ?? '') !== '')
+//                         ->unique();
 
-        $syncclients = $vatregmains                        
-                        ->map(function ($vatregmain) {
-                            return [
-                                'id' => $vatregmain->id,
-                                'client'  => $vatregmain->client,
-                                'country' => $vatregmain->country,
-                            ];
-                        })
-                        ->filter(function ($item) {
-                            return $item['client'];
-                        })                        
-                        ->sortBy(function ($item) {
-                            return $item['client']->client_name;
-                        })
-                        ->values(); 
+//         // $only_org_no = $this->commonClass->OrgNoForOcr();        
+//         // $syncclients = $vatregmains
+//         //                 ->filter(function ($vatregmain) use ($only_org_no) {
+//         //                     //return in_array($vatregmain->org_no, $only_org_no);
+//         //                     $orgNo = preg_replace('/\D+/', '', $vatregmain->org_no ?? '');
+//         //                     $vatNo = preg_replace('/\D+/', '', $vatregmain->vat_no ?? '');
 
-        // $syncdbclients = VATRegistrationMain::
-        //                 select([
-        //                     'id',
-        //                     'org_no',
-        //                     'vat_no',
-        //                     'country',
-        //                     'client_id',
-        //                 ])
-        //                 ->with([
-        //                     'client:id,client_name'
-        //                 ]) 
-        //                 ->orderBy('id', 'ASC')
-        //                 ->get()
-        //                 ->map(function ($vatregmain) {
-        //                     return [
-        //                         'id' => $vatregmain->id,
-        //                         'client'  => $vatregmain->client,
-        //                         'country' => $vatregmain->country,
-        //                     ];
-        //                 })
-        //                 ->filter(function ($item) {
-        //                     return $item['client'];
-        //                 })                        
-        //                 ->sortBy(function ($item) {
-        //                     return $item['client']->client_name;
-        //                 })
-        //                 ->values();
+//         //                     return in_array($orgNo, $only_org_no) || in_array($vatNo, $only_org_no);
+//         //                 })
+//         //                 // ->pluck('client')
+//         //                 // ->filter()
+//         //                 // ->unique('id')
+//         //                 // ->sortBy('client_name')
+//         //                 // ->values();
+//         //                 ->map(function ($vatregmain) {
+//         //                     return [
+//         //                         'id' => $vatregmain->id,
+//         //                         'client'  => $vatregmain->client,
+//         //                         'country' => $vatregmain->country,
+//         //                     ];
+//         //                 })
+//         //                 ->filter(function ($item) {
+//         //                     return $item['client'];
+//         //                 })
+//         //                 // ->unique(function ($item) {
+//         //                 //     return $item['client']->id;
+//         //                 // })
+//         //                 ->sortBy(function ($item) {
+//         //                     return $item['client']->client_name;
+//         //                 })
+//         //                 ->values();  
 
-        /* -- RETURN VIEW -- */
-        return view('content.ocr.analyze', [
-          'pageConfigs' => $pageConfigs, 
-          'authUser' => $this->authUser,  
-          //'vatregmains' => $vatregmains,          
-          //'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
-          'hasanalyzepdfs' => $analyzepdfs,
-          'syncclients' => $syncclients,
-          //'syncdbclients' => $syncdbclients
-          'environment' => $this->environment
-        ]);
-        /* --end RETURN VIEW -- */
-    }
-    /* --end GET /analyzepdf -- */
+//         $syncclients = $vatregmains                        
+//                         ->map(function ($vatregmain) {
+//                             return [
+//                                 'id' => $vatregmain->id,
+//                                 'client'  => $vatregmain->client,
+//                                 'country' => $vatregmain->country,
+//                             ];
+//                         })
+//                         ->filter(function ($item) {
+//                             return $item['client'];
+//                         })                        
+//                         ->sortBy(function ($item) {
+//                             return $item['client']->client_name;
+//                         })
+//                         ->values(); 
+
+//         // $syncdbclients = VATRegistrationMain::
+//         //                 select([
+//         //                     'id',
+//         //                     'org_no',
+//         //                     'vat_no',
+//         //                     'country',
+//         //                     'client_id',
+//         //                 ])
+//         //                 ->with([
+//         //                     'client:id,client_name'
+//         //                 ]) 
+//         //                 ->orderBy('id', 'ASC')
+//         //                 ->get()
+//         //                 ->map(function ($vatregmain) {
+//         //                     return [
+//         //                         'id' => $vatregmain->id,
+//         //                         'client'  => $vatregmain->client,
+//         //                         'country' => $vatregmain->country,
+//         //                     ];
+//         //                 })
+//         //                 ->filter(function ($item) {
+//         //                     return $item['client'];
+//         //                 })                        
+//         //                 ->sortBy(function ($item) {
+//         //                     return $item['client']->client_name;
+//         //                 })
+//         //                 ->values();
+
+//         /* -- RETURN VIEW -- */
+//         return view('content.ocr.analyze', [
+//           'pageConfigs' => $pageConfigs, 
+//           'authUser' => $this->authUser,  
+//           //'vatregmains' => $vatregmains,          
+//           //'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
+//           'hasanalyzepdfs' => count($analyzepdfs),
+//           'syncclients' => $syncclients,
+//           //'syncdbclients' => $syncdbclients
+//           'environment' => $this->environment,
+//           'clientnames' => $analyzepdfs,
+//         ]);
+//         /* --end RETURN VIEW -- */
+//     }
+//     /* --end GET /analyzepdf -- */
 
     /* -- GET /analyzepdf/data -- */
     // public function analyzeData(Request $request)
@@ -290,6 +339,287 @@ class AnalyzePdfController extends Controller
     //     ]);
     // }
 
+    /* -- GET /analyzepdf -- */
+    public function index()
+    { 
+        //Cache::forget('inbox_completed');
+
+        /* -- PAGE CONFIG -- */
+        $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+        /* --end PAGE CONFIG -- */
+        
+        $clientnames = OcrPdf::query()
+                        ->selectRaw("
+                            COALESCE(
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                            ) AS client_name
+                        ")
+                        ->where('status', 'completed')
+                        ->where('is_deleted', 0)
+                        ->orderBy('client_name')
+                        ->orderBy('id', 'DESC')
+                        ->pluck('client_name')
+                        ->filter(fn ($name) => trim($name ?? '') !== '')
+                        ->unique();
+
+        /* -- RETURN VIEW -- */
+        return view('content.ocr.analyze', [
+          'pageConfigs' => $pageConfigs, 
+          'authUser' => $this->authUser,          
+          'hasanalyzepdfs' => $clientnames->count(),
+          'environment' => $this->environment,
+          'clientnames' => $clientnames,
+        ]);
+        /* --end RETURN VIEW -- */
+    }
+    /* --end GET /analyzepdf -- */
+
+    // public function analyzeData(Request $request)
+    // {
+    //     $clientName = trim($request->client_name ?? '');
+
+    //     $perPage = (int) ($request->per_page ?? 1000);
+
+    //     // -----------------------------------------
+    //     // Completed - PAGINATED
+    //     // -----------------------------------------
+    //     $completedQuery = OcrPdf::query()
+    //         ->select($this->selectedFields)
+    //         ->where('status', 'completed')
+    //         ->where('is_deleted', 0);
+
+    //     if ($clientName !== '') {
+    //         $completedQuery->whereRaw("
+    //             COALESCE(
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+    //             ) = ?
+    //         ", [$clientName]);
+    //     }
+
+    //     $completed = $completedQuery
+    //         ->orderByDesc('id')
+    //         ->paginate(
+    //             $perPage,
+    //             ['*'],
+    //             'page',
+    //             $request->input('page', 1)
+    //         );
+
+
+    //     // -----------------------------------------
+    //     // Other data - NOT PAGINATED
+    //     // -----------------------------------------
+    //     $otherData = OcrPdf::query()
+    //         ->select($this->selectedFields)
+    //         ->where(function ($q) use ($clientName) {
+
+    //             // Failed - always include
+    //             $q->where('status', 'failed');
+
+    //             // Deleted - always include
+    //             $q->orWhere('is_deleted', 1);
+
+    //             // Processing / queued - selected client only
+    //             if ($clientName !== '') {
+    //                 $q->orWhere(function ($q) use ($clientName) {
+    //                     $q->whereIn('status', [
+    //                         'processing',
+    //                         'queued',
+    //                     ])
+    //                     ->where('is_deleted', 0)
+    //                     ->whereRaw("
+    //                         COALESCE(
+    //                             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+    //                             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+    //                         ) = ?
+    //                     ", [$clientName]);
+    //                 });
+    //             }
+    //         })
+    //         ->orderByDesc('id')
+    //         ->get();
+
+    //     $page = (int) $request->input('page', 1);
+    //     if ($page === 1) {
+
+    //         // Merge completed page 1 + other data
+    //         $mergedData = collect($completed->items())
+    //             ->merge($otherData);
+
+    //         $completed->setCollection($mergedData);
+    //     }    
+
+    //     $response = [
+    //         // 'analyzepdfs' => [
+    //         //     'completed' => $completed,
+    //         //     'other' => $otherData,
+    //         // ],
+    //         // 'client_name' => $clientName,
+
+    //         // 'current_page' => $completed->currentPage(),
+    //         // 'last_page' => $completed->lastPage(),
+
+    //         'analyzepdfs' => $completed,
+    //         'client_name' => $clientName,
+    //         'current_page' => $completed->currentPage(),
+    //         'last_page' => $completed->lastPage(),
+    //     ];
+
+
+    //     // -----------------------------------------
+    //     // VAT Registration - only first request
+    //     // -----------------------------------------
+    //     if ($completed->currentPage() == 1) {
+
+    //         $response['vatregmains'] = VATRegistrationMain::select([
+    //             'id',
+    //             'org_no',
+    //             'vat_no',
+    //             'country',
+    //             'client_id',
+    //         ])
+    //         ->with([
+    //             'client:id,client_name',
+    //         ])
+    //         ->orderBy('id', 'ASC')
+    //         ->get();
+    //     }
+
+
+    //     $response['environment'] = $this->environment;
+
+    //     return response()->json($response);
+    // }
+
+    public function analyzeData(Request $request)
+    {
+        $clientName = trim($request->client_name ?? '');
+
+        $page = (int) $request->input('page', 1);
+        $perPage = (int) ($request->input('per_page', 1000));
+
+        // -----------------------------------------
+        // Completed - PAGINATED
+        // -----------------------------------------
+        $completedQuery = OcrPdf::query()
+            ->select($this->selectedFields)
+            ->where('status', 'completed')
+            ->where('is_deleted', 0);
+
+        if ($clientName !== '') {
+            $completedQuery->whereRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) = ?
+            ", [$clientName]);
+        }
+
+        $completed = $completedQuery
+            ->orderByDesc('id')
+            ->paginate(
+                $perPage,
+                ['*'],
+                'page',
+                $page
+            );
+
+
+        // -----------------------------------------
+        // Other data - NOT PAGINATED
+        // Only fetch on page 1
+        // -----------------------------------------
+        if ($page === 1) {
+
+            $otherData = OcrPdf::query()
+                ->select($this->selectedFields)
+                ->where(function ($q) use ($clientName) {
+
+                    // Failed - always include
+                    $q->where('status', 'failed');
+
+                    // Deleted - always include
+                    $q->orWhere('is_deleted', 1);
+
+                    // Processing / queued - selected client only
+                    //if ($clientName !== '') {
+
+                        $q->orWhere(function ($q) use ($clientName) {
+
+                            $q->whereIn('status', [
+                                'processing',
+                                'queued',
+                                'queued error'
+                            ])
+                            ->where('is_deleted', 0)
+                            // ->whereRaw("
+                            //     COALESCE(
+                            //         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                            //         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                            //     ) = ?
+                            // ", [$clientName])
+                            ;
+                        });
+                    //}
+                })
+                ->orderByDesc('id')
+                ->get();
+
+
+            // -----------------------------------------
+            // Merge completed page 1 + other data
+            // -----------------------------------------
+            $mergedData = collect($completed->items())
+                ->merge($otherData);
+
+            $completed->setCollection($mergedData);
+        }
+
+
+        // -----------------------------------------
+        // Response
+        // -----------------------------------------
+        $response = [
+            'analyzepdfs' => $completed,
+            'client_name' => $clientName,
+            'current_page' => $completed->currentPage(),
+            'last_page' => $completed->lastPage(),
+        ];
+
+
+        // -----------------------------------------
+        // VAT Registration - only page 1
+        // -----------------------------------------
+        if ($page === 1) {
+
+            $response['vatregmains'] = VATRegistrationMain::select([
+                'id',
+                'org_no',
+                'vat_no',
+                'country',
+                'client_id',
+            ])
+            ->with([
+                'client:id,client_name',
+            ])
+            ->orderBy('id', 'ASC')
+            ->get();
+        }
+
+
+        // -----------------------------------------
+        // Environment
+        // -----------------------------------------
+        $response['environment'] = $this->environment;
+
+
+        return response()->json($response);
+    }
+
+
+    /*
     public function analyzeData(Request $request)
     {
         $page = (int) ($request->page ?? 1);
@@ -304,6 +634,12 @@ class AnalyzePdfController extends Controller
                     JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
                     JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
                 ) ASC
+            ")
+            ->orderByRaw("
+                CASE
+                    WHEN status = 'completed' THEN 1
+                    ELSE 2
+                END ASC
             ")
             ->orderByDesc('id')
             ->paginate($limit, ['*'], 'page', $page);
@@ -333,6 +669,7 @@ class AnalyzePdfController extends Controller
         $response['environment'] = $this->environment;
         return response()->json($response);
     }
+    */
 
     // public function analyzeData()
     // {
@@ -393,7 +730,7 @@ class AnalyzePdfController extends Controller
         /* --end PAGE CONFIG -- */
 
         $analyzepdfs = OcrPdf::query()
-                        ->with('syncStatus')
+                        //->with('syncStatus')
                         ->select($this->selectedFields)  
                         //->where('extracted_data', 'LIKE', '%292640361%')  
                         ->where('status', 'completed')
@@ -401,7 +738,35 @@ class AnalyzePdfController extends Controller
                         ->orderBy('id', 'ASC')            
                         ->get(); 
       
-        $vatregmains = VATRegistrationMain::with(['client'])
+        $clientnames = OcrPdf::query()
+                        ->selectRaw("
+                            COALESCE(
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                            ) AS client_name
+                        ")
+                        ->where('status', 'completed')
+                        ->where('is_deleted', 0)
+                        ->orderBy('client_name')
+                        ->orderBy('id', 'DESC')
+                        ->pluck('client_name')
+                        ->filter(fn ($name) => trim($name ?? '') !== '')
+                        ->unique();
+
+        // $vatregmains = VATRegistrationMain::with(['client'])
+        //                 ->orderBy('id', 'ASC')
+        //                 ->get();
+
+        $vatregmains = VATRegistrationMain::select([
+                            'id',
+                            'org_no',
+                            'vat_no',
+                            'country',
+                            'client_id',
+                        ])
+                        ->with([
+                            'client:id,client_name',
+                        ])
                         ->orderBy('id', 'ASC')
                         ->get();
 
@@ -410,11 +775,363 @@ class AnalyzePdfController extends Controller
           'pageConfigs' => $pageConfigs, 
           'authUser' => $this->authUser,  
           'vatregmains' => $vatregmains,          
-          'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL
+          'analyzepdfs' => isset($analyzepdfs) ? (($analyzepdfs) ? $analyzepdfs : NULL) : NULL,
+          'clientnames' => $clientnames, 
         ]);
         /* --end RETURN VIEW -- */
     }
     /* --end GET /analyzepdf/search -- */    
+
+    // /* -- GET /analyzepdf/search/data -- */    
+    // public function analyzeSearchData(Request $request)
+    // {
+    //     $page = (int) ($request->page ?? 1);
+    //     $limit = 10000;
+
+    //     $analyzepdfs = OcrPdf::query()
+    //         ->select($this->selectedFields)           
+    //         ->where('status', 'completed')
+    //         ->where('is_deleted', 0)
+    //         ->orderByRaw("
+    //             COALESCE(
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+    //             ) ASC
+    //         ")
+    //         ->orderByRaw("
+    //             CASE
+    //                 WHEN status = 'completed' THEN 1
+    //                 ELSE 2
+    //             END ASC
+    //         ")
+    //         ->orderByDesc('id')
+    //         ->paginate($limit, ['*'], 'page', $page);
+
+    //     $response = [
+    //         'data' => $analyzepdfs->items(),
+    //         'current_page' => $analyzepdfs->currentPage(),
+    //         'last_page' => $analyzepdfs->lastPage(),
+    //     ];
+
+    //     if ($page === 1) {
+
+    //         $response['vatregmains'] = VATRegistrationMain::select([
+    //                 'id',
+    //                 'org_no',
+    //                 'vat_no',
+    //                 'country',
+    //                 'client_id',
+    //             ])
+    //             ->with([
+    //                 'client:id,client_name',
+    //             ])
+    //             ->orderBy('id', 'ASC')
+    //             ->get();
+
+    //     }
+    //     $response['environment'] = $this->environment;
+    //     return response()->json($response);
+    // }
+    // /* --end GET /analyzepdf/search/data -- */    
+
+    public function analyzeSearchData(Request $request)
+    {
+        $clientName = trim($request->client_name ?? '');
+
+        $page = (int) $request->input('page', 1);
+        $perPage = (int) ($request->input('per_page', 1000));
+
+        $query = OcrPdf::query()
+            ->select($this->selectedFields)
+            ->where('status', 'completed')
+            ->where('is_deleted', 0);
+
+        if ($clientName !== '') {
+            $query->whereRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) = ?
+            ", [$clientName]);
+        }
+
+        $analyzepdfs = $query
+            ->orderByRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) ASC
+            ")
+            ->orderByDesc('id')
+            ->get();
+            // ->paginate(
+            //     $perPage,
+            //     ['*'],
+            //     'page',
+            //     $page
+            // );
+
+        $response = [
+            'analyzepdfs' => $analyzepdfs,
+            'client_name' => $clientName,
+        ];
+    
+        // -----------------------------------------
+        // VAT Registration - only page 1
+        // -----------------------------------------
+        //if ($page === 1) {
+
+            $response['vatregmains'] = VATRegistrationMain::select([
+                'id',
+                'org_no',
+                'vat_no',
+                'country',
+                'client_id',
+            ])
+            ->with([
+                'client:id,client_name',
+            ])
+            ->orderBy('id', 'ASC')
+            ->get();
+        //}
+
+        // -----------------------------------------
+        // Environment
+        // -----------------------------------------
+        $response['environment'] = $this->environment;
+
+        return response()->json($response);
+    }
+    
+    public function analyzeSearchDataAll(Request $request)
+    {
+        $clientName = trim($request->input('client_name', ''));
+
+        $page = max((int) $request->input('page', 1), 1);
+        $perPage = (int) $request->input('per_page', 1000);
+
+        /*
+        |--------------------------------------------------------------------------
+        | OCR PDFs
+        |--------------------------------------------------------------------------
+        */
+
+        $ocrQuery = OcrPdf::query()
+            ->select($this->selectedFields)
+            ->where('status', 'completed')
+            ->where('is_deleted', 0);
+
+        if ($clientName !== '') {
+            $ocrQuery->whereRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) = ?
+            ", [$clientName]);
+        }
+
+        $analyzepdfs = $ocrQuery
+            ->orderByRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) ASC
+            ")
+            ->orderByDesc('id')
+            ->paginate(
+                $perPage,
+                ['*'],
+                'page',
+                $page
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | SFTP Sales Invoices
+        |--------------------------------------------------------------------------
+        */
+
+        $sftpQuery = ImportReconciliationFiles::query()
+            ->select([
+                'id',
+                'vat_reg_id',
+                'file_id',
+                'file_name',
+                'o_file_name',
+                'invoice_no',
+                'created_at',
+                'updated_at',
+            ])
+            ->with([
+                'vatreg:id,client_id,vat_reg_main_id',
+                'vatreg.vatregmain:id,org_no,vat_no,country',
+                'vatreg.client:id,client_name',
+                'salesinvoicesdata:id,ir_file_id,invoice_no,invoice_date,currency_code,credit_note,tax_total_amount,tax_total_amount_currency_code,tax_total_net_amount,tax_total_percent',
+            ]);
+
+        /*
+         * SFTP data is only required for selected clients.
+         */
+        if ($clientName !== '') {
+            $sftpQuery->whereHas('vatreg.client', function ($q) use ($clientName) {
+                $q->where('client_name', $clientName);
+            });
+        } else {
+            /*
+             * No client selected:
+             * don't return SFTP invoices.
+             */
+            $sftpdatas = collect();
+        }
+
+        // if ($clientName !== '') {
+        //     $sftpdatas = $sftpQuery
+        //         ->orderByDesc('id')
+        //         ->paginate(
+        //             $perPage,
+        //             ['*'],
+        //             'sftp_page',
+        //             $page
+        //         );
+
+        //     $sftpdatas->getCollection()->transform(function ($item) {
+
+        //         $item->ir_file_id = $item->id;
+
+        //         $vatregmain = $item->vatreg?->vatregmain;
+        //         $invoice = $item->salesinvoicesdata;
+
+        //         $item->client_no = preg_replace(
+        //             '/[^0-9]/',
+        //             '',
+        //             $vatregmain?->country === 'CH'
+        //                 ? $vatregmain?->org_no
+        //                 : $vatregmain?->vat_no
+        //         );
+
+        //         $item->client_name = $item->vatreg?->client?->client_name;
+
+        //         $item->invoice_no = $invoice?->invoice_no;
+        //         $item->invoice_date = $invoice?->invoice_date;
+        //         $item->currency = $invoice?->currency_code;
+        //         $item->credit_note = $invoice?->credit_note;
+
+        //         $item->net_amount = $invoice?->tax_total_net_amount;
+        //         $item->calc_net_amount = $invoice?->tax_total_net_amount;
+        //         $item->vat_amount = $invoice?->tax_total_amount;
+        //         $item->vat_rate = $invoice?->tax_total_percent;
+
+        //         $item->exchange_currency = null;
+
+        //         return $item;
+        //     });
+        // }
+
+        if ($clientName !== '') {
+            $sftpdatas = $sftpQuery
+                ->orderByDesc('id')
+                ->get();
+
+            $sftpdatas->transform(function ($item) {
+
+                $item->ir_file_id = $item->id;
+
+                $vatregmain = $item->vatreg?->vatregmain;
+                $invoice = $item->salesinvoicesdata;
+
+                $item->client_no = preg_replace(
+                    '/[^0-9]/',
+                    '',
+                    $vatregmain?->country === 'CH'
+                        ? $vatregmain?->org_no
+                        : $vatregmain?->vat_no
+                );
+
+                $item->client_name = $item->vatreg?->client?->client_name;
+
+                $item->invoice_no = $invoice?->invoice_no;
+                $item->invoice_date = $invoice?->invoice_date;
+                $item->currency = $invoice?->currency_code;
+                //$item->credit_note = $invoice?->credit_note;
+                $item->credit_note = (bool) ($invoice?->credit_note ?? false);
+
+                $item->net_amount = $invoice?->tax_total_net_amount;
+                $item->calc_net_amount = $invoice?->tax_total_net_amount;
+                $item->vat_amount = $invoice?->tax_total_amount;
+                $item->vat_rate = $invoice?->tax_total_percent;
+
+                $item->exchange_currency = null;
+
+                // Identify the source
+                $item->source = 'sftp';
+
+                return $item;
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | VAT Registration
+        |--------------------------------------------------------------------------
+        */
+
+        $response = [
+            'analyzepdfs' => $analyzepdfs,
+
+            // 'sftpdatas' => $clientName !== ''
+            //     ? [
+            //         'data' => $sftpdatas->items(),
+            //         'current_page' => $sftpdatas->currentPage(),
+            //         'last_page' => $sftpdatas->lastPage(),
+            //         'total' => $sftpdatas->total(),
+            //     ]
+            //     : [
+            //         'data' => [],
+            //         'current_page' => 1,
+            //         'last_page' => 1,
+            //         'total' => 0,
+            //     ],
+
+            'sftpdatas' => $clientName !== ''
+                ? [
+                    'data' => $sftpdatas,
+                    'total' => $sftpdatas->count(),
+                ]
+                : [
+                    'data' => [],
+                    'total' => 0,
+                ],
+
+            'client_name' => $clientName,
+
+            'environment' => $this->environment,
+        ];
+
+        /*
+        |--------------------------------------------------------------------------
+        | VAT Registration - only page 1
+        |--------------------------------------------------------------------------
+        */
+
+        if ($page === 1) {
+            $response['vatregmains'] = VATRegistrationMain::query()
+                ->select([
+                    'id',
+                    'org_no',
+                    'vat_no',
+                    'country',
+                    'client_id',
+                ])
+                ->with([
+                    'client:id,client_name',
+                ])
+                ->orderBy('id', 'ASC')
+                ->get();
+        }
+
+        return response()->json($response);
+    }
+
 
     // /* -- GET /analyzepdf/synceddb -- */
     // public function syncedDb()
@@ -590,6 +1307,59 @@ class AnalyzePdfController extends Controller
     // }
     // /* -- END GET /analyzepdf/syncdb -- */
 
+    // public function fetchInbox()
+    // {
+    //     /* -- PAGE CONFIG -- */
+    //     $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+    //     /* --end PAGE CONFIG -- */
+
+    //     $mailService = new MicrosoftMailService();
+
+    //     // Fetch all unread emails with attachments
+    //     $emails = $mailService->getAllInboxEmails();
+
+    //     Cache::forget('inbox_completed');
+    //     Cache::forget('inbox_total');
+
+    //     $clients = app(ClientRepository::class)->all();
+
+    //     foreach ($emails as &$email) {
+
+    //         if (stripos($email['subject'], "second female") !== false &&               
+    //             in_array($email['sender']['emailAddress']['address'], config('app.omit_email_list'))
+    //         ) 
+    //         { 
+    //             // Mark as remove
+    //             $email['remove'] = true;
+                
+    //             $mailService->markEmailAsRead($email['id']);
+    //             $mailService->moveEmailToFolder($email['id'], "Duplicate");                
+    //         }
+    //         else
+    //         {
+    //             // Queue email processing job
+    //             ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '', $email['replyAttachments'] ?? [])
+    //                 ->onQueue(config('queue.ocr.inbox', 'ocrpdfinvoices'));
+
+    //             // // Increment total count for progress bar
+    //             // Cache::increment('inbox_total');
+
+    //             // Mark as queued in UI
+    //             $email['attachments'] = ['status' => 'queued'];
+    //         }
+    //     }
+        
+    //     // Remove emails marked as 'remove'
+    //     $emails = array_values(array_filter($emails, function ($email) {
+    //         return empty($email['remove']);
+    //     }));
+
+    //     return response()->json([
+    //         'total' => count($emails),
+    //         'queued_emails' => $emails,
+    //     ], 202);
+    // }
+
     public function fetchInbox()
     {
         /* -- PAGE CONFIG -- */
@@ -598,48 +1368,97 @@ class AnalyzePdfController extends Controller
 
         $mailService = new MicrosoftMailService();
 
-        // Fetch all unread emails with attachments
         $emails = $mailService->getAllInboxEmails();
-
-        Cache::forget('inbox_completed');
-        Cache::forget('inbox_total');
 
         $clients = app(ClientRepository::class)->all();
 
+        $ocrProgressOperation = 'inbox';
+        $ocrProgressId = (string) Str::uuid();
+        $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+            $ocrProgressOperation,
+            $ocrProgressId
+        );
+
+        /*
+         * Remove duplicate/ignored emails first.
+         */
         foreach ($emails as &$email) {
 
-            if (stripos($email['subject'], "second female") !== false &&               
-                in_array($email['sender']['emailAddress']['address'], config('app.omit_email_list'))
-            ) 
-            { 
-                // Mark as remove
+            if (
+                stripos($email['subject'], 'second female') !== false &&
+                in_array(
+                    $email['sender']['emailAddress']['address'],
+                    config('app.omit_email_list')
+                )
+            ) {
                 $email['remove'] = true;
-                
+
                 $mailService->markEmailAsRead($email['id']);
-                $mailService->moveEmailToFolder($email['id'], "Duplicate");                
-            }
-            else
-            {
-                // Queue email processing job
-                ProcessEmailJob::dispatch($clients, $email['id'], $email['subject'] ?? '', $email['replyAttachments'] ?? [])
-                    ->onQueue(config('queue.ocr.inbox', 'ocrpdfinvoices'));
 
-                // // Increment total count for progress bar
-                // Cache::increment('inbox_total');
-
-                // Mark as queued in UI
-                $email['attachments'] = ['status' => 'queued'];
+                $mailService->moveEmailToFolder(
+                    $email['id'],
+                    'Duplicate'
+                );
             }
         }
-        
-        // Remove emails marked as 'remove'
-        $emails = array_values(array_filter($emails, function ($email) {
-            return empty($email['remove']);
-        }));
+
+        unset($email);
+
+        /*
+         * Keep only emails that will actually be processed.
+         */
+        $emails = array_values(
+            array_filter($emails, function ($email) {
+                return empty($email['remove']);
+            })
+        );
+
+        $total = count($emails);
+
+        /*
+         * Initialize progress BEFORE dispatching jobs.
+         */
+        $ttl = now()->addHour();
+
+        Cache::put(
+            "{$ocrProgressKey}:total",
+            $total,
+            $ttl
+        );
+
+        Cache::put(
+            "{$ocrProgressKey}:completed",
+            0,
+            $ttl
+        );
+
+        /*
+         * Queue emails.
+         */
+        foreach ($emails as &$email) {
+
+            ProcessEmailJob::dispatch(
+                $ocrProgressKey,
+                $clients,
+                $email['id'],
+                $email['subject'] ?? '',
+                $email['replyAttachments'] ?? []
+            )->onQueue(
+                config('queue.ocr.inbox', 'ocrpdfinvoices')
+            );
+
+            $email['attachments'] = [
+                'status' => 'queued'
+            ];
+        }
+
+        unset($email);
 
         return response()->json([
-            'total' => count($emails),
+            'total' => $total,
             'queued_emails' => $emails,
+            'ocr_progress_operation' => $ocrProgressOperation,
+            'ocr_progress_id' => $ocrProgressId,
         ], 202);
     }
     /* --end GET /fetchinbox -- */
@@ -751,450 +1570,486 @@ class AnalyzePdfController extends Controller
         }
     }
 */
-    public function inboxProgress()
-    {
-        // Count jobs that are completed for this batch
-        $total = Cache::get('inbox_total', 0);
-        $completed = Cache::get('inbox_completed', 0);        
+    // public function inboxProgress()
+    // {
+    //     // Count jobs that are completed for this batch
+    //     $total = Cache::get('inbox_total', 0);
+    //     $completed = Cache::get('inbox_completed', 0);        
 
-        $analyzepdfs = OcrPdf::query()
-                        ->with('syncStatus')
-                        ->select($this->selectedFields)
-                        ->orderBy('id', 'DESC')            
-                        ->get();
+    //     $analyzepdfs = OcrPdf::query()
+    //                     ->with('syncStatus')
+    //                     ->select($this->selectedFields)
+    //                     ->orderBy('id', 'DESC')            
+    //                     ->get();
 
-        $vatregmains = VATRegistrationMain::with(['client'])
-                        ->orderBy('id', 'ASC')
-                        ->get();
+    //     $vatregmains = VATRegistrationMain::with(['client'])
+    //                     ->orderBy('id', 'ASC')
+    //                     ->get();
         
-        return response()->json([
-            'total' => $total,
-            'completed' => $completed,
-            'analyzepdfs' => $analyzepdfs,
-            'vatregmains' => $vatregmains,
-        ]);
-    }
+    //     return response()->json([
+    //         'total' => $total,
+    //         'completed' => $completed,
+    //         'analyzepdfs' => $analyzepdfs,
+    //         'vatregmains' => $vatregmains,
+    //     ]);
+    // }
 
-    /* -- GET /analyzepdf/batch/{batch}/progress -- */
-    public function batchProgress(string $batchId)
+    /* -- GET /analyzepdf/progress -- */
+    public function inboxProgress(Request $request)
     {
-        $allDocs = OcrPdf::query()
-            ->where('batch_id', $batchId)
-            ->get();
+        $ocrProgressOperation = $request->query('ocr_progress_operation');
+        $ocrProgressId = $request->query('ocr_progress_id');
 
-        $total = $allDocs->count();
-        $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
+        if (!$ocrProgressId || !$ocrProgressOperation) {
+            return response()->json([
+                'total' => 0,
+                'completed' => 0,
+            ], 400);
+        }
+        
+        //$ocrProgressKey = $this->progressKey($ocrProgressOperation, $ocrProgressId);
+        $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+            $ocrProgressOperation,
+            $ocrProgressId
+        );
 
-        // Collect error documents
-        $errorDocs = $allDocs
-            ->where('status', 'failed')
-            ->map(fn($doc) => [
-                'document_id' => $doc->id,
-                'file_name'   => $doc->file_name,
-                'error'       => $doc->error,
-            ])
-            ->values();
+        $total = Cache::get(
+            "{$ocrProgressKey}:total",
+            0
+        );
 
-        $analyzepdfs = OcrPdf::query()
-                        ->with('syncStatus')
-                        ->select($this->selectedFields)
-                        ->orderBy('id', 'DESC')            
-                        ->get();
-
-        $vatregmains = VATRegistrationMain::with(['client'])
-                        ->orderBy('id', 'ASC')
-                        ->get();
+        $completed = Cache::get(
+            "{$ocrProgressKey}:completed",
+            0
+        );
 
         return response()->json([
-            'analyzepdfs' => $analyzepdfs,
-            'vatregmains' => $vatregmains,
-            'total'       => $total,
-            'completed'   => $completed,
-            'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
-            'error_docs'  => $errorDocs,
+            'total' => (int) $total,
+            'completed' => (int) $completed,
         ]);
     }
-    /* --end GET /analyzepdf/batch/{batch}/progress -- */
+    /* --end GET /analyzepdf/progress -- */
 
-    /* -- PUT /analyzepdf/{analyze_id} -- */
-    public function analyzeUpdate(Request $request)
-    {     
-        $invoice = OcrPdf::query()->find($request->analyzepdf_id);
+    // /* -- GET /analyzepdf/batch/{batch}/progress -- */
+    // public function batchProgress(string $batchId)
+    // {
+    //     $allDocs = OcrPdf::query()
+    //         ->where('batch_id', $batchId)
+    //         ->get();
 
-        if (!$invoice)
-            return;
+    //     $total = $allDocs->count();
+    //     $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
 
-        $updates = [];
-        // Current JSON data
-        $currentData = $invoice->extracted_data ?? [];
+    //     // Collect error documents
+    //     $errorDocs = $allDocs
+    //         ->where('status', 'failed')
+    //         ->map(fn($doc) => [
+    //             'document_id' => $doc->id,
+    //             'file_name'   => $doc->file_name,
+    //             'error'       => $doc->error,
+    //         ])
+    //         ->values();
 
-        $feedback = app(OcrCorrectionFeedbackService::class);
-        $layoutFingerprint = $currentData['_ocr']['layout_fingerprint'] ?? null;
-        $feedbackItems = [];
+    //     $analyzepdfs = OcrPdf::query()
+    //                     ->with('syncStatus')
+    //                     ->select($this->selectedFields)
+    //                     ->orderBy('id', 'DESC')            
+    //                     ->get();
 
-        // Check invoice_type
-        if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
-            $updates['invoice_type'] = $request->invoice_type;
+    //     $vatregmains = VATRegistrationMain::with(['client'])
+    //                     ->orderBy('id', 'ASC')
+    //                     ->get();
 
-            $feedbackItems[] = [
-                'field' => 'invoice_type',
-                'original' => $currentData['invoice_type'] ?? null,
-                'corrected' => $request->invoice_type,
-            ];
-        }
+    //     return response()->json([
+    //         'analyzepdfs' => $analyzepdfs,
+    //         'vatregmains' => $vatregmains,
+    //         'total'       => $total,
+    //         'completed'   => $completed,
+    //         'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
+    //         'error_docs'  => $errorDocs,
+    //     ]);
+    // }
+    // /* --end GET /analyzepdf/batch/{batch}/progress -- */
 
-        // Check supplier org_number
-        if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
-            $updates['extracted_data->supplier->org_number'] = $request->client_no;
+    // /* -- PUT /analyzepdf/{analyze_id} -- */
+    // public function analyzeUpdate(Request $request)
+    // {     
+    //     $invoice = OcrPdf::query()->find($request->analyzepdf_id);
 
-            $feedbackItems[] = [
-                'field' => 'org_number',
-                'original' => $currentData['supplier']['org_number'] ?? null,
-                'corrected' => $request->client_no,
-            ];
-        }
+    //     if (!$invoice)
+    //         return;
 
-        // Check supplier name
-        if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
-            $updates['extracted_data->supplier->name'] = $request->client_name;
+    //     $updates = [];
+    //     // Current JSON data
+    //     $currentData = $invoice->extracted_data ?? [];
 
-            $feedbackItems[] = [
-                'field' => 'name',
-                'original' => $currentData['supplier']['name'] ?? null,
-                'corrected' => $request->client_name,
-            ];
-        }
+    //     $feedback = app(OcrCorrectionFeedbackService::class);
+    //     $layoutFingerprint = $currentData['_ocr']['layout_fingerprint'] ?? null;
+    //     $feedbackItems = [];
 
-        // Check recipient org_number
-        if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
-            $updates['extracted_data->recipient->org_number'] = $request->client_no;
+    //     // Check invoice_type
+    //     if (($currentData['invoice_type'] ?? null) !== $request->invoice_type) {
+    //         $updates['invoice_type'] = $request->invoice_type;
 
-            $feedbackItems[] = [
-                'field' => 'org_number',
-                'original' => $currentData['recipient']['org_number'] ?? null,
-                'corrected' => $request->client_no,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'invoice_type',
+    //             'original' => $currentData['invoice_type'] ?? null,
+    //             'corrected' => $request->invoice_type,
+    //         ];
+    //     }
 
-        // Check recipient name
-        if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
-            $updates['extracted_data->recipient->name'] = $request->client_name;
+    //     // Check supplier org_number
+    //     if (($currentData['supplier']['org_number'] ?? null) !== $request->client_no) {
+    //         $updates['extracted_data->supplier->org_number'] = $request->client_no;
 
-            $feedbackItems[] = [
-                'field' => 'name',
-                'original' => $currentData['recipient']['name'] ?? null,
-                'corrected' => $request->client_name,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'org_number',
+    //             'original' => $currentData['supplier']['org_number'] ?? null,
+    //             'corrected' => $request->client_no,
+    //         ];
+    //     }
 
-        // Check invoice_date
-        if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
-            $updates['extracted_data->invoice_date'] = $request->invoice_date;
+    //     // Check supplier name
+    //     if (($currentData['supplier']['name'] ?? null) !== $request->client_name) {
+    //         $updates['extracted_data->supplier->name'] = $request->client_name;
 
-            $feedbackItems[] = [
-                'field' => 'invoice_date',
-                'original' => $currentData['invoice_date'] ?? null,
-                'corrected' => $request->invoice_date,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'name',
+    //             'original' => $currentData['supplier']['name'] ?? null,
+    //             'corrected' => $request->client_name,
+    //         ];
+    //     }
 
-        if($request->client_name && (
-                str_contains(strtolower($request->client_name), 'rainwear') 
-                || str_contains(strtolower($request->client_name), 'engel') 
-                || str_contains(strtolower($request->client_name), 'berendsohn')
-                || str_contains(strtolower($request->client_name), 'horn bord')
-            )
-        )
-        {
+    //     // Check recipient org_number
+    //     if (($currentData['recipient']['org_number'] ?? null) !== $request->client_no) {
+    //         $updates['extracted_data->recipient->org_number'] = $request->client_no;
 
-        }
-        else
-        {
-            // Check invoice_number
-            if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
-                $updates['extracted_data->invoice_number'] = $request->invoice_no;
+    //         $feedbackItems[] = [
+    //             'field' => 'org_number',
+    //             'original' => $currentData['recipient']['org_number'] ?? null,
+    //             'corrected' => $request->client_no,
+    //         ];
+    //     }
 
-                $feedbackItems[] = [
-                    'field' => 'invoice_number',
-                    'original' => $currentData['invoice_number'] ?? null,
-                    'corrected' => $request->invoice_no,
-                ];
-            }
-        }
+    //     // Check recipient name
+    //     if (($currentData['recipient']['name'] ?? null) !== $request->client_name) {
+    //         $updates['extracted_data->recipient->name'] = $request->client_name;
 
-        $currency               = $request->currency;
-        $exchangeCurrency       = $request->exchange_currency;
+    //         $feedbackItems[] = [
+    //             'field' => 'name',
+    //             'original' => $currentData['recipient']['name'] ?? null,
+    //             'corrected' => $request->client_name,
+    //         ];
+    //     }
 
-        $netAmount              = $request->net_amount;
-        $exchangeNetAmount      = $request->exchange_net_amount;
+    //     // Check invoice_date
+    //     if (($currentData['invoice_date'] ?? null) !== $request->invoice_date) {
+    //         $updates['extracted_data->invoice_date'] = $request->invoice_date;
 
-        $vatAmount              = $request->vat_amount;
-        $exchangeVatAmount      = $request->exchange_vat_amount;
+    //         $feedbackItems[] = [
+    //             'field' => 'invoice_date',
+    //             'original' => $currentData['invoice_date'] ?? null,
+    //             'corrected' => $request->invoice_date,
+    //         ];
+    //     }
 
-        $totalAmount            = $request->total_amount;
-        $exchangeTotalAmount    = $request->exchange_total_amount;
+    //     if($request->client_name && (
+    //             str_contains(strtolower($request->client_name), 'rainwear') 
+    //             || str_contains(strtolower($request->client_name), 'engel') 
+    //             || str_contains(strtolower($request->client_name), 'berendsohn')
+    //             || str_contains(strtolower($request->client_name), 'horn bord')
+    //         )
+    //     )
+    //     {
 
-        // Apply same swap logic as frontend
-        if ($currency !== 'NOK' && $currency !== 'CHF') {
+    //     }
+    //     else
+    //     {
+    //         // Check invoice_number
+    //         if (($currentData['invoice_number'] ?? null) !== $request->invoice_no) {
+    //             $updates['extracted_data->invoice_number'] = $request->invoice_no;
 
-            [$currency, $exchangeCurrency] = [$exchangeCurrency, $currency];
+    //             $feedbackItems[] = [
+    //                 'field' => 'invoice_number',
+    //                 'original' => $currentData['invoice_number'] ?? null,
+    //                 'corrected' => $request->invoice_no,
+    //             ];
+    //         }
+    //     }
 
-            [$netAmount, $exchangeNetAmount] = [
-                $exchangeNetAmount,
-                $netAmount
-            ];
+    //     $currency               = $request->currency;
+    //     $exchangeCurrency       = $request->exchange_currency;
 
-            [$vatAmount, $exchangeVatAmount] = [
-                $exchangeVatAmount,
-                $vatAmount
-            ];
+    //     $netAmount              = $request->net_amount;
+    //     $exchangeNetAmount      = $request->exchange_net_amount;
 
-            [$totalAmount, $exchangeTotalAmount] = [
-                $exchangeTotalAmount,
-                $totalAmount
-            ];
-        }
+    //     $vatAmount              = $request->vat_amount;
+    //     $exchangeVatAmount      = $request->exchange_vat_amount;
 
-        // Check currency
-        if (($currentData['currency'] ?? null) !== $currency) {
-            $updates['extracted_data->currency'] = $currency;
+    //     $totalAmount            = $request->total_amount;
+    //     $exchangeTotalAmount    = $request->exchange_total_amount;
 
-            $feedbackItems[] = [
-                'field' => 'currency',
-                'original' => $currentData['currency'] ?? null,
-                'corrected' => $currency,
-            ];
-        }
+    //     // Apply same swap logic as frontend
+    //     if ($currency !== 'NOK' && $currency !== 'CHF') {
 
-        // Check net_amount
-        if (($currentData['net_amount'] ?? null) !== $netAmount) {
-            $updates['extracted_data->net_amount'] = $netAmount;
+    //         [$currency, $exchangeCurrency] = [$exchangeCurrency, $currency];
 
-            $feedbackItems[] = [
-                'field' => 'net_amount',
-                'original' => $currentData['net_amount'] ?? null,
-                'corrected' => $netAmount,
-            ];
-        }
+    //         [$netAmount, $exchangeNetAmount] = [
+    //             $exchangeNetAmount,
+    //             $netAmount
+    //         ];
 
-        // Check vat_rate
-        if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
-            $updates['extracted_data->vat_rate'] = $request->vat_rate;
+    //         [$vatAmount, $exchangeVatAmount] = [
+    //             $exchangeVatAmount,
+    //             $vatAmount
+    //         ];
 
-            $feedbackItems[] = [
-                'field' => 'vat_rate',
-                'original' => $currentData['vat_rate'] ?? null,
-                'corrected' => $request->vat_rate,
-            ];
-        }
+    //         [$totalAmount, $exchangeTotalAmount] = [
+    //             $exchangeTotalAmount,
+    //             $totalAmount
+    //         ];
+    //     }
 
-        // Check vat_amount
-        if (($currentData['vat_amount'] ?? null) !== $vatAmount) {
-            $updates['extracted_data->vat_amount'] = $vatAmount;
+    //     // Check currency
+    //     if (($currentData['currency'] ?? null) !== $currency) {
+    //         $updates['extracted_data->currency'] = $currency;
 
-            $feedbackItems[] = [
-                'field' => 'vat_amount',
-                'original' => $currentData['vat_amount'] ?? null,
-                'corrected' => $vatAmount,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'currency',
+    //             'original' => $currentData['currency'] ?? null,
+    //             'corrected' => $currency,
+    //         ];
+    //     }
 
-        // Check total_amount
-        if (($currentData['total_amount'] ?? null) !== $totalAmount) {
-            $updates['extracted_data->total_amount'] = $totalAmount;
+    //     // Check net_amount
+    //     if (($currentData['net_amount'] ?? null) !== $netAmount) {
+    //         $updates['extracted_data->net_amount'] = $netAmount;
 
-            $feedbackItems[] = [
-                'field' => 'total_amount',
-                'original' => $currentData['total_amount'] ?? null,
-                'corrected' => $totalAmount,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'net_amount',
+    //             'original' => $currentData['net_amount'] ?? null,
+    //             'corrected' => $netAmount,
+    //         ];
+    //     }
 
-        // Check exchange_currency
-        if (($currentData['exchange_currency'] ?? null) !== $exchangeCurrency) {
-            $updates['extracted_data->exchange_currency'] = $exchangeCurrency;
+    //     // Check vat_rate
+    //     if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
+    //         $updates['extracted_data->vat_rate'] = $request->vat_rate;
 
-            $feedbackItems[] = [
-                'field' => 'exchange_currency',
-                'original' => $currentData['exchange_currency'] ?? null,
-                'corrected' => $exchangeCurrency,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'vat_rate',
+    //             'original' => $currentData['vat_rate'] ?? null,
+    //             'corrected' => $request->vat_rate,
+    //         ];
+    //     }
 
-        // Check exchange_rate
-        if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
-            $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+    //     // Check vat_amount
+    //     if (($currentData['vat_amount'] ?? null) !== $vatAmount) {
+    //         $updates['extracted_data->vat_amount'] = $vatAmount;
 
-            $feedbackItems[] = [
-                'field' => 'exchange_rate',
-                'original' => $currentData['exchange_rate'] ?? null,
-                'corrected' => $request->exchange_rate,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'vat_amount',
+    //             'original' => $currentData['vat_amount'] ?? null,
+    //             'corrected' => $vatAmount,
+    //         ];
+    //     }
 
-        // Check exchange_net_amount
-        if (($currentData['exchange_net_amount'] ?? null) !== $exchangeNetAmount) {
-            $updates['extracted_data->exchange_net_amount'] = $exchangeNetAmount;
+    //     // Check total_amount
+    //     if (($currentData['total_amount'] ?? null) !== $totalAmount) {
+    //         $updates['extracted_data->total_amount'] = $totalAmount;
 
-            $feedbackItems[] = [
-                'field' => 'exchange_net_amount',
-                'original' => $currentData['exchange_net_amount'] ?? null,
-                'corrected' => $exchangeNetAmount,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'total_amount',
+    //             'original' => $currentData['total_amount'] ?? null,
+    //             'corrected' => $totalAmount,
+    //         ];
+    //     }
 
-        // Check exchange_vat_amount
-        if (($currentData['exchange_vat_amount'] ?? null) !== $exchangeVatAmount) {
-            $updates['extracted_data->exchange_vat_amount'] = $exchangeVatAmount;
+    //     // Check exchange_currency
+    //     if (($currentData['exchange_currency'] ?? null) !== $exchangeCurrency) {
+    //         $updates['extracted_data->exchange_currency'] = $exchangeCurrency;
 
-            $feedbackItems[] = [
-                'field' => 'exchange_vat_amount',
-                'original' => $currentData['exchange_vat_amount'] ?? null,
-                'corrected' => $exchangeVatAmount,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'exchange_currency',
+    //             'original' => $currentData['exchange_currency'] ?? null,
+    //             'corrected' => $exchangeCurrency,
+    //         ];
+    //     }
 
-        // Check exchange_total_amount
-        if (($currentData['exchange_total_amount'] ?? null) !== $exchangeTotalAmount) {
-            $updates['extracted_data->exchange_total_amount'] = $exchangeTotalAmount;
+    //     // Check exchange_rate
+    //     if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
+    //         $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
 
-            $feedbackItems[] = [
-                'field' => 'exchange_total_amount',
-                'original' => $currentData['exchange_total_amount'] ?? null,
-                'corrected' => $exchangeTotalAmount,
-            ];
-        }
+    //         $feedbackItems[] = [
+    //             'field' => 'exchange_rate',
+    //             'original' => $currentData['exchange_rate'] ?? null,
+    //             'corrected' => $request->exchange_rate,
+    //         ];
+    //     }
 
-      // // Check currency
-      // if (($currentData['currency'] ?? null) !== $request->currency) {
-      //     $updates['extracted_data->currency'] = $request->currency;
-      // }
+    //     // Check exchange_net_amount
+    //     if (($currentData['exchange_net_amount'] ?? null) !== $exchangeNetAmount) {
+    //         $updates['extracted_data->exchange_net_amount'] = $exchangeNetAmount;
 
-      // // Check net_amount
-      // if (($currentData['net_amount'] ?? null) !== $request->net_amount) {
-      //     $updates['extracted_data->net_amount'] = $request->net_amount;
-      // }
+    //         $feedbackItems[] = [
+    //             'field' => 'exchange_net_amount',
+    //             'original' => $currentData['exchange_net_amount'] ?? null,
+    //             'corrected' => $exchangeNetAmount,
+    //         ];
+    //     }
 
-      // // Check vat_rate
-      // if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
-      //     $updates['extracted_data->vat_rate'] = $request->vat_rate;
-      // }
+    //     // Check exchange_vat_amount
+    //     if (($currentData['exchange_vat_amount'] ?? null) !== $exchangeVatAmount) {
+    //         $updates['extracted_data->exchange_vat_amount'] = $exchangeVatAmount;
 
-      // // Check vat_amount
-      // if (($currentData['vat_amount'] ?? null) !== $request->vat_amount) {
-      //     $updates['extracted_data->vat_amount'] = $request->vat_amount;
-      // }
+    //         $feedbackItems[] = [
+    //             'field' => 'exchange_vat_amount',
+    //             'original' => $currentData['exchange_vat_amount'] ?? null,
+    //             'corrected' => $exchangeVatAmount,
+    //         ];
+    //     }
 
-      // // Check total_amount
-      // if (($currentData['total_amount'] ?? null) !== $request->total_amount) {
-      //     $updates['extracted_data->total_amount'] = $request->total_amount;
-      // }
+    //     // Check exchange_total_amount
+    //     if (($currentData['exchange_total_amount'] ?? null) !== $exchangeTotalAmount) {
+    //         $updates['extracted_data->exchange_total_amount'] = $exchangeTotalAmount;
+
+    //         $feedbackItems[] = [
+    //             'field' => 'exchange_total_amount',
+    //             'original' => $currentData['exchange_total_amount'] ?? null,
+    //             'corrected' => $exchangeTotalAmount,
+    //         ];
+    //     }
+
+    //   // // Check currency
+    //   // if (($currentData['currency'] ?? null) !== $request->currency) {
+    //   //     $updates['extracted_data->currency'] = $request->currency;
+    //   // }
+
+    //   // // Check net_amount
+    //   // if (($currentData['net_amount'] ?? null) !== $request->net_amount) {
+    //   //     $updates['extracted_data->net_amount'] = $request->net_amount;
+    //   // }
+
+    //   // // Check vat_rate
+    //   // if (($currentData['vat_rate'] ?? null) !== $request->vat_rate) {
+    //   //     $updates['extracted_data->vat_rate'] = $request->vat_rate;
+    //   // }
+
+    //   // // Check vat_amount
+    //   // if (($currentData['vat_amount'] ?? null) !== $request->vat_amount) {
+    //   //     $updates['extracted_data->vat_amount'] = $request->vat_amount;
+    //   // }
+
+    //   // // Check total_amount
+    //   // if (($currentData['total_amount'] ?? null) !== $request->total_amount) {
+    //   //     $updates['extracted_data->total_amount'] = $request->total_amount;
+    //   // }
       
-      // // Check exchange_currency
-      // if (($currentData['exchange_currency'] ?? null) !== $request->exchange_currency) {
-      //     $updates['extracted_data->exchange_currency'] = $request->exchange_currency;
-      // }
+    //   // // Check exchange_currency
+    //   // if (($currentData['exchange_currency'] ?? null) !== $request->exchange_currency) {
+    //   //     $updates['extracted_data->exchange_currency'] = $request->exchange_currency;
+    //   // }
 
-      // // Check exchange_rate
-      // if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
-      //     $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
-      // }
+    //   // // Check exchange_rate
+    //   // if (($currentData['exchange_rate'] ?? null) !== $request->exchange_rate) {
+    //   //     $updates['extracted_data->exchange_rate'] = $request->exchange_rate;
+    //   // }
 
-      // // Check exchange_net_amount
-      // if (($currentData['exchange_net_amount'] ?? null) !== $request->exchange_net_amount) {
-      //     $updates['extracted_data->exchange_net_amount'] = $request->exchange_net_amount;
-      // }     
+    //   // // Check exchange_net_amount
+    //   // if (($currentData['exchange_net_amount'] ?? null) !== $request->exchange_net_amount) {
+    //   //     $updates['extracted_data->exchange_net_amount'] = $request->exchange_net_amount;
+    //   // }     
 
-      // // Check exchange_vat_amount
-      // if (($currentData['exchange_vat_amount'] ?? null) !== $request->exchange_vat_amount) {
-      //     $updates['extracted_data->exchange_vat_amount'] = $request->exchange_vat_amount;
-      // }
+    //   // // Check exchange_vat_amount
+    //   // if (($currentData['exchange_vat_amount'] ?? null) !== $request->exchange_vat_amount) {
+    //   //     $updates['extracted_data->exchange_vat_amount'] = $request->exchange_vat_amount;
+    //   // }
 
-      // Check sales invoices
-      $requestSalesInvoices = collect($request->input('sales-invoice', []))
-                                ->pluck('number')
-                                ->filter()
-                                ->values()
-                                ->toArray();
+    //   // Check sales invoices
+    //   $requestSalesInvoices = collect($request->input('sales-invoice', []))
+    //                             ->pluck('number')
+    //                             ->filter()
+    //                             ->values()
+    //                             ->toArray();
 
-      $currentSalesInvoices = collect($currentData['sales_invoices'] ?? [])
-                                ->values()
-                                ->toArray();
+    //   $currentSalesInvoices = collect($currentData['sales_invoices'] ?? [])
+    //                             ->values()
+    //                             ->toArray();
 
-      if ($currentSalesInvoices !== $requestSalesInvoices) {
-          $updates['extracted_data->related_sales_invoices'] = $requestSalesInvoices;
-      }
+    //   if ($currentSalesInvoices !== $requestSalesInvoices) {
+    //       $updates['extracted_data->related_sales_invoices'] = $requestSalesInvoices;
+    //   }
 
-      // Check status
-      if (($currentData['status'] ?? null) !== $request->analyzepdf_status) {
-          $updates['status'] = 'completed';
-      }
+    //   // Check status
+    //   if (($currentData['status'] ?? null) !== $request->analyzepdf_status) {
+    //       $updates['status'] = 'completed';
+    //   }
 
-      // Only run update if something changed
-      if (!empty($updates)) {
-            // $updates['sync_status'] = 0;
-            // $updates['is_locked'] = 0;
+    //   // Only run update if something changed
+    //   if (!empty($updates)) {
+    //         // $updates['sync_status'] = 0;
+    //         // $updates['is_locked'] = 0;
 
-            foreach ($feedbackItems as $item) {
-                $feedback->capture(
-                    invoiceId: $invoice->id,
-                    field: $item['field'],
-                    originalValue: $item['original'],
-                    correctedValue: $item['corrected'],
-                    clientId: $invoice->client_id,
-                    layoutFingerprint: $layoutFingerprint
-                );
-            }
+    //         foreach ($feedbackItems as $item) {
+    //             $feedback->capture(
+    //                 invoiceId: $invoice->id,
+    //                 field: $item['field'],
+    //                 originalValue: $item['original'],
+    //                 correctedValue: $item['corrected'],
+    //                 clientId: $invoice->client_id,
+    //                 layoutFingerprint: $layoutFingerprint
+    //             );
+    //         }
 
-            $invoice->update($updates);
+    //         $invoice->update($updates);
             
-            OcrSyncStatus::updateOrCreate(
-                [
-                    'ocr_pdf_id' => $invoice->id,
-                    'environment' => $this->environment,
-                ],
-                [                    
-                    'sync_status' => 0,
-                    'is_locked' => 0,
-                ]
-            );
+    //         OcrSyncStatus::updateOrCreate(
+    //             [
+    //                 'ocr_pdf_id' => $invoice->id,
+    //                 'environment' => $this->environment,
+    //             ],
+    //             [                    
+    //                 'sync_status' => 0,
+    //                 'is_locked' => 0,
+    //             ]
+    //         );
 
-            $allDocs = OcrPdf::query()->get();
+    //         $allDocs = OcrPdf::query()->get();
 
-            $total = $allDocs->count();
-            $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
+    //         $total = $allDocs->count();
+    //         $completed = $allDocs->whereIn('status', ['completed', 'failed'])->count();
 
-            // Collect error documents
-            $errorDocs = $allDocs
-                ->where('status', 'failed')
-                ->map(fn($doc) => [
-                    'document_id' => $doc->id,
-                    'file_name'   => $doc->file_name,
-                    'error'       => $doc->error,
-                ])
-            ->values();
+    //         // Collect error documents
+    //         $errorDocs = $allDocs
+    //             ->where('status', 'failed')
+    //             ->map(fn($doc) => [
+    //                 'document_id' => $doc->id,
+    //                 'file_name'   => $doc->file_name,
+    //                 'error'       => $doc->error,
+    //             ])
+    //         ->values();
 
-            $analyzepdfs = OcrPdf::query()
-                            ->with('syncStatus')
-                            ->select($this->selectedFields)
-                          ->orderBy('id', 'DESC')            
-                          ->get();
+    //         $analyzepdfs = OcrPdf::query()
+    //                         ->with('syncStatus')
+    //                         ->select($this->selectedFields)
+    //                       ->orderBy('id', 'DESC')            
+    //                       ->get();
 
-            $vatregmains = VATRegistrationMain::with(['client'])
-                          ->orderBy('id', 'ASC')
-                          ->get();
+    //         $vatregmains = VATRegistrationMain::with(['client'])
+    //                       ->orderBy('id', 'ASC')
+    //                       ->get();
 
-            return response()->json([
-                'analyzepdfs' => $analyzepdfs,
-                'vatregmains' => $vatregmains,
-                'total'       => $total,
-                'completed'   => $completed,
-                'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
-                'error_docs'  => $errorDocs,
-            ]);
-      }
-    }
-    /* --end PUT /analyzepdf/{analyze_id} -- */
+    //         return response()->json([
+    //             'analyzepdfs' => $analyzepdfs,
+    //             'vatregmains' => $vatregmains,
+    //             'total'       => $total,
+    //             'completed'   => $completed,
+    //             'percent'     => $total === 0 ? 0 : round(($completed / $total) * 100),
+    //             'error_docs'  => $errorDocs,
+    //         ]);
+    //   }
+    // }
+    // /* --end PUT /analyzepdf/{analyze_id} -- */
 
     /* -- GET /analyzepdf/{analyze_id}/sas-url -- */
     public function getSasUrl($id, $type = null)
@@ -1272,25 +2127,27 @@ class AnalyzePdfController extends Controller
                 );
             }
 
-            $analyzepdfs = OcrPdf::query()
-                            ->with('syncStatus')
-                            ->select($this->selectedFields)
-                            ->orderBy('id', 'DESC')            
-                            ->get();
+            // $analyzepdfs = OcrPdf::query()
+            //                 ->with('syncStatus')
+            //                 ->select($this->selectedFields)
+            //                 ->orderBy('id', 'DESC')            
+            //                 ->get();
 
-            $vatregmains = VATRegistrationMain::with(['client'])
-                              ->orderBy('id', 'ASC')
-                              ->get();
+            // $vatregmains = VATRegistrationMain::with(['client'])
+            //                   ->orderBy('id', 'ASC')
+            //                   ->get();
           
-            return response()->json(
-                [
-                    'status' => 200,             
-                    'message' => "success",
-                    'analyzepdfs' => $analyzepdfs,
-                    'vatregmains' => $vatregmains,
-                    'tab_name' => $request->tab_name
-                ]
-            );  
+            // return response()->json(
+            //     [
+            //         'status' => 200,             
+            //         'message' => "success",
+            //         'analyzepdfs' => $analyzepdfs,
+            //         'vatregmains' => $vatregmains,
+            //         'tab_name' => $request->tab_name
+            //     ]
+            // );  
+
+            return $this->analyzeData($request);
         }
         catch (\Exception $e) {
             return  $e->getMessage();
@@ -1298,181 +2155,218 @@ class AnalyzePdfController extends Controller
     }  
     /* --end DELETE /analyzepdf/{analyze_id}/delete -- */ 
 
-    /* -- GET /analyzepdf-sync -- */
-    public function syncAnalyzePdf(Request $request)
-    {
-      try
-      {
-        $client_id = $request->client_id;
-        $country = $request->country;
+    // /* -- GET /analyzepdf-sync -- */
+    // public function syncAnalyzePdf(Request $request)
+    // {
+    //   try
+    //   {
+    //     $client_id = $request->client_id;
+    //     $country = $request->country;
  
-        $system = $this->commonClass->getSystemInfoLazy(); 
-        $systemapi = $system->systemapi->first();
+    //     $system = $this->commonClass->getSystemInfoLazy(); 
+    //     $systemapi = $system->systemapi->first();
 
-        /* -- GET ALL VAT REG. FOR PRODUCT TYPE - 2/3 -- */
-        $query = VATRegistration::with(['vatregmain','client',
-                                  'importreconciliationcominvoices' => function($query) {                                   
-                                    $query->where('data_from', '!=', 'ivf')
-                                      ->where('data_from', '!=', 'ftp')
-                                      ->orderBy('last_modified_at', 'desc')                                   
-                                      ->get();
-                                  }
-                                ])
-                                ->withCount('importreconciliationcominvoices')
-                                ->withCount('importreconciliationsalesinvoices')
-                                ->whereHas('vatregmain', function ($subquery) {
-                                    $subquery->where('status', 1)
-                                      ->where('product_type', 2)
-                                      ->orWhere('product_type', 3)
-                                      ->orWhere('product_type', 5); 
-                                });
+    //     /* -- GET ALL VAT REG. FOR PRODUCT TYPE - 2/3 -- */
+    //     $query = VATRegistration::with(['vatregmain','client',
+    //                               'importreconciliationcominvoices' => function($query) {                                   
+    //                                 $query->where('data_from', '!=', 'ivf')
+    //                                   ->where('data_from', '!=', 'ftp')
+    //                                   ->orderBy('last_modified_at', 'desc')                                   
+    //                                   ->get();
+    //                               }
+    //                             ])
+    //                             ->withCount('importreconciliationcominvoices')
+    //                             ->withCount('importreconciliationsalesinvoices')
+    //                             ->whereHas('vatregmain', function ($subquery) {
+    //                                 $subquery->where('status', 1)
+    //                                   ->where('product_type', 2)
+    //                                   ->orWhere('product_type', 3)
+    //                                   ->orWhere('product_type', 5); 
+    //                             });
         
-        if($country)        
-          $vatregs = $query->where('country', $country);
+    //     if($country)        
+    //       $vatregs = $query->where('country', $country);
 
-        if($client_id)        
-          $vatregs = $query->whereHas('client', function ($subquery) use ($client_id) {                                        
-              $subquery->whereIn('id', [$client_id]);
-          });
+    //     if($client_id)        
+    //       $vatregs = $query->whereHas('client', function ($subquery) use ($client_id) {                                        
+    //           $subquery->whereIn('id', [$client_id]);
+    //       });
         
-        $vatregs = $query->get();
-        /* --end GET ALL VAT REG. FOR PRODUCT TYPE - 2/3 -- */  
+    //     $vatregs = $query->get();
+    //     /* --end GET ALL VAT REG. FOR PRODUCT TYPE - 2/3 -- */  
 
-        if ($vatregs->isEmpty())
-        {
-            $client = Client::where('id', $client_id)->first();
+    //     if ($vatregs->isEmpty())
+    //     {
+    //         $client = Client::where('id', $client_id)->first();
 
-            $client_name = ($client_id) ? (($client) ? $client->client_name : 'All') : 'All';
-        }
-        else
-            $client_name = ($client_id) ? $vatregs->first()->client->client_name : 'All';    
+    //         $client_name = ($client_id) ? (($client) ? $client->client_name : 'All') : 'All';
+    //     }
+    //     else
+    //         $client_name = ($client_id) ? $vatregs->first()->client->client_name : 'All';    
        
-        /* -- LOG -- */
-        $this->commonClass->addLog($this->authUser, 'analyzepdf-sync',
-          [
-            'Client Name' => ($client_id) ? $client_name : 'All'
-          ]
-        );
-        /* --end LOG -- */
+    //     /* -- LOG -- */
+    //     $this->commonClass->addLog($this->authUser, 'analyzepdf-sync',
+    //       [
+    //         'Client Name' => ($client_id) ? $client_name : 'All'
+    //       ]
+    //     );
+    //     /* --end LOG -- */
         
-        $batchIds = [];
-        $result = [];
+    //     $batchIds = [];
+    //     $result = [];
 
-        $unique_countries = [];
+    //     $unique_countries = [];
       
-        $from = 'ocr-search-refresh';
-        //$full_refresh = true;
+    //     $from = 'ocr-search-refresh';
+    //     //$full_refresh = true;
 
 
-        if (!$vatregs->isEmpty())
-        {
-            $vatreg = $vatregs->first();
+    //     if (!$vatregs->isEmpty())
+    //     {
+    //         $vatreg = $vatregs->first();
 
-            $vatregmain = $vatreg->vatregmain; 
+    //         $vatregmain = $vatreg->vatregmain; 
            
-            if($vatregmain->country == 'NO')
-              $org_no = $vatregmain->org_no;        
-            else
-              $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
+    //         if($vatregmain->country == 'NO')
+    //           $org_no = $vatregmain->org_no;        
+    //         else
+    //           $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
             
-            $check_org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
+    //         $check_org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
           
-            $fetch_period_from = null;
-            if ($vatregmain->country == 'CH') {
-                $fetch_period_from = ($vatregmain->service_start >= '2026-04-01')
-                    ? '2026-04-01'
-                    : null;
-            } else {
-                $fetch_period_from = ($vatregmain->service_start >= '2026-06-01')
-                    ? '2026-06-01'
-                    : null;
-            }
-            //$omit_org_no = $this->commonClass->OrgNoForOcr();
-            //if ($check_org_no && in_array($check_org_no, $omit_org_no))
-            if ($vatregmain->ocr_sync && $fetch_period_from)
-            {
-                $insert_invoices = 0;
-                // $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from, $fetch_period_from);
+    //         // $fetch_period_from = null;
+    //         // if ($vatregmain->country == 'CH') {
+    //         //     $fetch_period_from = ($vatregmain->service_start >= '2026-04-01')
+    //         //         ? '2026-04-01'
+    //         //         : null;
+    //         // } else {
+    //         //     $fetch_period_from = ($vatregmain->service_start >= '2026-06-01')
+    //         //         ? '2026-06-01'
+    //         //         : null;
+    //         // }
 
-                if(is_array($insert_invoices))
-                {
-                    $data = $insert_invoices['processed'];
-                }
-            }
+    //         $frequency = $this->getFrequency(
+    //             $vatreg->general_periods
+    //         );
 
-            foreach($vatregs as $key => $vatreg)
-            {
-                if(!in_array($vatreg->country, $unique_countries, true))
-                {
-                    if ($client_name && (
-                        stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
-                        stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
-                        stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
-                        )
-                    ) 
-                    {                              
-                        $which_folder = ($this->environment === "live") ? 'main' : 'archive';
+    //         $serviceStart = Carbon::parse(
+    //             $vatreg->service_start
+    //         );
+
+    //         $serviceEnd = $serviceStart
+    //             ->copy()
+    //             ->addMonths($frequency - 1)
+    //             ->endOfMonth();
+
+    //         $fetch_period_from = null;
+    //         if ($vatregmain->country == 'CH') {
+    //             $fetch_period_from = ($serviceEnd >= '2026-04-01')
+    //                 ? '2026-04-01'
+    //                 : null;
+    //         } else {
+    //             $fetch_period_from = ($serviceEnd >= '2026-06-01')
+    //                 ? '2026-06-01'
+    //                 : null;
+    //         }
+
+    //         //$omit_org_no = $this->commonClass->OrgNoForOcr();
+    //         //if ($check_org_no && in_array($check_org_no, $omit_org_no))
+    //         if ($vatregmain->ocr_sync && $fetch_period_from)
+    //         {
+    //             $insert_invoices = 0;
+    //             // $insert_invoices = $this->commonClass->loadImportReconciliationDatasFromOcr($this->authUser, $vatreg, $from, $fetch_period_from);
+
+    //             if(is_array($insert_invoices))
+    //             {
+    //                 $data = $insert_invoices['processed'];
+    //             }
+    //         }
+
+    //         foreach($vatregs as $key => $vatreg)
+    //         {
+    //             if(!in_array($vatreg->country, $unique_countries, true))
+    //             {
+    //                 if ($client_name && (
+    //                     stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+    //                     stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+    //                     stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+    //                     )
+    //                 ) 
+    //                 {                              
+    //                     $which_folder = ($this->environment === "live") ? 'main' : 'archive';
                                            
-                        /* -- READ XML FILE FROM FTP -- */
-                        $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder); 
-                        /* --end READ XML FILE FROM FTP -- */
+    //                     /* -- READ XML FILE FROM FTP -- */
+    //                     $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder); 
+    //                     /* --end READ XML FILE FROM FTP -- */
                         
-                        /* -- READ XML FILE FROM E-FACTO -- */
-                        if (stripos(strtolower($client_name), "noscomed") !== false ||
-                            stripos(strtolower($client_name), "rexholm") !== false)                    
-                          $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder, true);
-                        /* --end READ XML FILE FROM E-FACTO -- */
+    //                     /* -- READ XML FILE FROM E-FACTO -- */
+    //                     if (stripos(strtolower($client_name), "noscomed") !== false ||
+    //                         stripos(strtolower($client_name), "rexholm") !== false)                    
+    //                       $ftpdata = $this->ftpClass->getImportReconciliationFilesFromFtp($vatreg, $this->authUser, $which_folder, true);
+    //                     /* --end READ XML FILE FROM E-FACTO -- */
                       
-                        if(!in_array($vatreg->country, $unique_countries, true))                
-                            array_push($unique_countries, $vatreg->country);                    
-                    }
-                } //read all at a time
-            } //for 
-        }//has vatreg
+    //                     if(!in_array($vatreg->country, $unique_countries, true))                
+    //                         array_push($unique_countries, $vatreg->country);                    
+    //                 }
+    //             } //read all at a time
+    //         } //for 
+    //     }//has vatreg
        
-        /* -- RETURN JSON -- */
-        return response()->json([
-          'status' => 200,
-          'message' => 'Done',
-          //'batchIds' => $batchIds,
-          'data' => isset($data) ? $data : null
-          //'x' => $x
-        ]);
-        /* --end RETURN JSON -- */
-      }      
-      catch (\Exception $e) 
-      {      dd($e);     
-        /* -- LOG -- */
-        $this->commonClass->addLog($this->authUser, 'error-log', 
-          [
-            'status' => 'Error',
-            'controller' => 'Analyze Pdf Controller',
-            'method' => 'syncAnalyzePdf',
-            'message' => $e->getMessage()
-          ]
-        );
-        /* --end LOG -- */
+    //     /* -- RETURN JSON -- */
+    //     return response()->json([
+    //       'status' => 200,
+    //       'message' => 'Done',
+    //       //'batchIds' => $batchIds,
+    //       'data' => isset($data) ? $data : null
+    //       //'x' => $x
+    //     ]);
+    //     /* --end RETURN JSON -- */
+    //   }      
+    //   catch (\Exception $e) 
+    //   {      dd($e);     
+    //     /* -- LOG -- */
+    //     $this->commonClass->addLog($this->authUser, 'error-log', 
+    //       [
+    //         'status' => 'Error',
+    //         'controller' => 'Analyze Pdf Controller',
+    //         'method' => 'syncAnalyzePdf',
+    //         'message' => $e->getMessage()
+    //       ]
+    //     );
+    //     /* --end LOG -- */
 
-        /* -- RETURN JSON -- */
-        return response()->json([   
-          'status' => 'Error',                 
-          'message' => $e->getMessage()
-        ]);
-        /* --end RETURN JSON -- */ 
-      }
-    } 
-    /* --end GET /analyzepdf-sync -- */
+    //     /* -- RETURN JSON -- */
+    //     return response()->json([   
+    //       'status' => 'Error',                 
+    //       'message' => $e->getMessage()
+    //     ]);
+    //     /* --end RETURN JSON -- */ 
+    //   }
+    // } 
+    // /* --end GET /analyzepdf-sync -- */
     
     /* -- GET /analyzepdf/{analyze_id}/recapture -- */
     public function recapture(Request $request, $id)
     {
         $ocrAnalyzeService = new OcrAnalyzeService();
         
-        Cache::forget('inbox_completed');
-        Cache::forget('inbox_total');
+        // Cache::forget('inbox_completed');
+        // Cache::forget('inbox_total');
+
+        $ocrProgressOperation = 'recapture';
+        $ocrProgressId = (string) Str::uuid();
+
+        $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+            $ocrProgressOperation,
+            $ocrProgressId
+        );
+
+        // Unique batch ID for this email
+        $batchId = (string) Str::uuid();
 
         $selected_analyze_ids = ($id == '0') ? $request->selected_analyzepdf_id : $id;
-
+        //$selected_analyze_ids = implode(',', $this->findTimeoutInvoicesWithCompletedVersion());
+        
         // $analyzepdfs = OcrPdf::query()
         //                 ->select([
         //                     'id', 
@@ -1509,7 +2403,12 @@ class AnalyzePdfController extends Controller
                 $invoice->no_of_attempts = 0;
                 $invoice->sync_db = 0;
                 $invoice->manual_input_status = null;
+                $invoice->manual_input_at = null;
+                $invoice->manual_input_by = null;
                 $invoice->search_save_status = null;
+                $invoice->search_save_at = null;
+                $invoice->search_save_by = null;
+                $invoice->is_deleted = 0;
                 //$invoice->sync_status = 0;
                 //$invoice->is_locked = 0;
                 $invoice->save();
@@ -1569,10 +2468,7 @@ class AnalyzePdfController extends Controller
                     fclose($stream);
                 }
                 //$fullPath = storage_path('app/public/ocr/' . $fileName);            
-                $fullPath = storage_path('app/ocr/' . $fileName);            
-
-                // Unique batch ID for this email
-                $batchId = (string) Str::uuid();
+                $fullPath = storage_path('app/ocr/' . $fileName);                            
                 
                 $mailService = new MicrosoftMailService();            
 
@@ -1603,7 +2499,31 @@ class AnalyzePdfController extends Controller
 
         $clients = app(ClientRepository::class)->all();
 
-        $ocrAnalyzeService = new OcrAnalyzeService();
+        $total = 0;
+        if(isset($grouped['sales']))
+            $total += count($grouped['sales']);
+
+        if(isset($grouped['com']))
+            $total += count($grouped['com']);
+
+        if(isset($grouped['multi-invoices']))
+            $total += count($grouped['multi-invoices']);
+
+        //$ocrAnalyzeService = new OcrAnalyzeService();
+
+        $ttl = now()->addHour();
+
+        Cache::put(
+            "{$ocrProgressKey}:total",
+            $total,
+            $ttl
+        );
+
+        Cache::put(
+            "{$ocrProgressKey}:completed",
+            0,
+            $ttl
+        );
 
         foreach ($grouped as $folder => $items) {
             if (!empty($items)) {
@@ -1618,7 +2538,7 @@ class AnalyzePdfController extends Controller
                 }
 
                 //$this->analyzeStoredPdfs($clients, $paths, $folder, $batchId, null, $prevCaptures);
-                $ocrAnalyzeService->analyze($clients, $paths, $folder, $batchId, null, $prevCaptures);
+                $ocrAnalyzeService->analyze($ocrProgressKey, $clients, $paths, $folder, $batchId, null, $prevCaptures);
             }
         }
 
@@ -1627,21 +2547,13 @@ class AnalyzePdfController extends Controller
 
         //Delete it from Azure Blob Storage
         //$azureService = new AzureStorageService();
-        //$azureService->deleteFile($sasUrl);
-
-        $total = 0;
-        if(isset($grouped['sales']))
-            $total += count($grouped['sales']);
-
-        if(isset($grouped['com']))
-            $total += count($grouped['com']);
-
-        if(isset($grouped['multi-invoices']))
-            $total += count($grouped['multi-invoices']);
+        //$azureService->deleteFile($sasUrl);        
 
         return response()->json([
             'total' => $total,
-            'queued_emails' => $grouped
+            'queued_emails' => $grouped,
+            'ocr_progress_operation' => $ocrProgressOperation,
+            'ocr_progress_id' => $ocrProgressId,
         ], 202);
     }   
     /* --end GET /analyzepdf/{analyze_id}/recapture -- */
@@ -1651,8 +2563,19 @@ class AnalyzePdfController extends Controller
     {
         $ocrAnalyzeService = new OcrAnalyzeService();
         
-        Cache::forget('inbox_completed');
-        Cache::forget('inbox_total');
+        // Cache::forget('inbox_completed');
+        // Cache::forget('inbox_total');
+
+        $ocrProgressOperation = 'split';
+        $ocrProgressId = (string) Str::uuid();
+
+        $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+            $ocrProgressOperation,
+            $ocrProgressId
+        );
+
+        // Unique batch ID for this email
+        $batchId = (string) Str::uuid();
 
         $selected_analyze_ids = ($id == '0') ? $request->selected_analyzepdf_id : $id;
                
@@ -1669,7 +2592,12 @@ class AnalyzePdfController extends Controller
             $invoice->no_of_attempts = 0;
             $invoice->sync_db = 0;
             $invoice->manual_input_status = null;
+            $invoice->manual_input_at = null;
+            $invoice->manual_input_by = null;
             $invoice->search_save_status = null;
+            $invoice->search_save_at = null;
+            $invoice->search_save_by = null;           
+            $invoice->is_deleted = 0;
             //$invoice->sync_status = 0;
             //$invoice->is_locked = 0;
             $invoice->save();
@@ -1726,10 +2654,7 @@ class AnalyzePdfController extends Controller
             if (is_resource($stream)) {
                 fclose($stream);
             }               
-            $fullPath = storage_path('app/ocr/' . $fileName);            
-
-            // Unique batch ID for this email
-            $batchId = (string) Str::uuid();
+            $fullPath = storage_path('app/ocr/' . $fileName);                        
             
             $mailService = new MicrosoftMailService();            
 
@@ -1758,7 +2683,30 @@ class AnalyzePdfController extends Controller
 
         $clients = app(ClientRepository::class)->all();
 
-        $ocrAnalyzeService = new OcrAnalyzeService();
+        $total = 0;
+        if(isset($grouped['sales']))
+            $total += count($grouped['sales']);
+
+        if(isset($grouped['com']))
+            $total += count($grouped['com']);
+
+        if(isset($grouped['multi-invoices']))
+            $total += count($grouped['multi-invoices']);
+
+        //$ocrAnalyzeService = new OcrAnalyzeService();
+        $ttl = now()->addHour();
+
+        Cache::put(
+            "{$ocrProgressKey}:total",
+            $total,
+            $ttl
+        );
+
+        Cache::put(
+            "{$ocrProgressKey}:completed",
+            0,
+            $ttl
+        );
 
         foreach ($grouped as $folder => $items) {
             if (!empty($items)) {
@@ -1771,80 +2719,292 @@ class AnalyzePdfController extends Controller
                     $prevCaptures[] = $item['prevCapture'];
                 }
              
-                $ocrAnalyzeService->analyze($clients, $paths, $folder, $batchId, null, $prevCaptures);
+                $ocrAnalyzeService->analyze($ocrProgressKey, $clients, $paths, $folder, $batchId, null, $prevCaptures);
             }
         }
 
         // Mark as queued in UI
-        $grouped['attachments'] = ['status' => 'queued'];
-
-        $total = 0;
-        if(isset($grouped['sales']))
-            $total += count($grouped['sales']);
-
-        if(isset($grouped['com']))
-            $total += count($grouped['com']);
-
-        if(isset($grouped['multi-invoices']))
-            $total += count($grouped['multi-invoices']);
+        $grouped['attachments'] = ['status' => 'queued'];        
 
         return response()->json([
             'total' => $total,
-            'queued_emails' => $grouped
+            'queued_emails' => $grouped,
+            'ocr_progress_operation' => $ocrProgressOperation,
+            'ocr_progress_id' => $ocrProgressId,
         ], 202);
     }   
     /* --end GET /analyzepdf/{analyze_id}/split -- */
 
-    /* -- POST /analyzepdf/bulk-upload -- */
-    public function ocrBulkUpload(Request $request)
-    {    
-      try 
-      { 
-        $files = $request->file('file');
-        $folder = $request->bulk_pdf_invoice_type;
-        $total_uploaded_files = $request->bulk_total_uploads;
-        
-        Cache::put('inbox_total', $total_uploaded_files); 
+    /* -- GET /analyzepdf/bulk-upload -- */
+    public function ocrBulkUploadIndex()
+    { 
+        //Cache::forget('inbox_completed');        
 
-        if($files && $folder)   
-        {   
+        /* -- PAGE CONFIG -- */
+        $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
+        /* --end PAGE CONFIG -- */
+                
+        /* -- RETURN VIEW -- */
+        return view('content.ocr.bulk-upload', [
+        //return view('content.ocr.test', [
+          'pageConfigs' => $pageConfigs, 
+          'authUser' => $this->authUser,                    
+          'environment' => $this->environment
+        ]);
+        /* --end RETURN VIEW -- */
+    }
+    /* --end GET /analyzepdf/bulk-upload -- */
+
+    /* -- POST /analyzepdf/bulk-upload -- */
+    // public function ocrBulkUpload(Request $request)
+    // {    
+    //   try 
+    //   { 
+    //     $files = $request->file('file');
+    //     $folder = $request->bulk_pdf_invoice_type;
+    //     $total_uploaded_files = $request->bulk_total_uploads;
+        
+    //     Cache::put('inbox_total', $total_uploaded_files); 
+
+    //     if($files && $folder)   
+    //     {   
+    //         $clients = app(ClientRepository::class)->all();
+
+    //         // Unique batch ID for this email
+    //         $batchId = (string) Str::uuid();
+
+    //         // if(strtolower(env('APP_URL')) === "http://localhost:8000" || strtolower(config('app.url')) === "http://localhost:8000")
+    //         // {
+                
+    //         // }
+    //         // else
+    //         // {                
+    //         //    $this->analyzeStoredPdfs($clients, $files, $folder, $batchId, null, [], true);   
+    //         //}
+
+    //         $ocrAnalyzeService = new OcrAnalyzeService();
+    //         $ocrAnalyzeService->analyze($clients, $files, $folder, $batchId, null, [], true);   
+           
+    //         return response()->json([
+    //             'total' => $total_uploaded_files,//count($files),
+    //             'queued_emails' => $files
+    //         ], 202); 
+    //     }  
+    //     else
+    //     {
+    //         return response()->json([
+    //           'status'=> 'error', 
+    //           'message'=> 'Please select the invoice type and upload files.'
+    //         ], 400);
+    //     }      
+    //   }//try
+    //   catch (\Exception $e) 
+    //   { 
+    //     return response()->json([
+    //       'status'=> 'error', 
+    //       'message'=> $e->getMessage()
+    //     ], 400); 
+    //   }//catch
+    // }
+    /* -- POST /analyzepdf/bulk-upload -- */
+    // public function ocrBulkUpload(Request $request)
+    // {
+    //     try {
+    //         $files = $request->file('file');
+    //         $folder = $request->bulk_pdf_invoice_type;
+
+    //         if (!$files || !$folder) {
+    //             return response()->json([
+    //                 'status' => 'error',
+    //                 'message' => 'Please select the invoice type and upload files.'
+    //             ], 400);
+    //         }
+
+    //         /*
+    //          * Make sure we have an array.
+    //          */
+    //         $files = is_array($files) ? $files : [$files];
+
+    //         //$total = count($files);
+    //         $total = (int) $request->bulk_total;
+
+    //         /*
+    //          * Create one progress ID for this bulk-upload operation.
+    //          */
+    //         $ocrProgressOperation = $request->ocr_progress_operation ?? 'bulkupload';
+    //         $ocrProgressId = $request->ocr_progress_id;
+
+    //         if (!$ocrProgressId) {
+    //             $ocrProgressId = (string) Str::uuid();
+    //         }
+
+    //         $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+    //             $ocrProgressOperation,
+    //             $ocrProgressId
+    //         );
+
+    //         $clients = app(ClientRepository::class)->all();
+
+    //         // Unique batch ID for this upload
+    //         $batchId = (string) Str::uuid();
+
+    //         /*
+    //          * Initialize progress BEFORE dispatching/starting analysis.
+    //          */
+    //         $ttl = now()->addHour();
+
+    //         if (!Cache::has("{$ocrProgressKey}:total")) {
+
+    //             Cache::put(
+    //                 "{$ocrProgressKey}:total",
+    //                 $total,
+    //                 $ttl
+    //             );
+
+    //             Cache::put(
+    //                 "{$ocrProgressKey}:completed",
+    //                 0,
+    //                 $ttl
+    //             );
+    //         }            
+
+    //         /*
+    //          * Start OCR analysis.
+    //          */
+    //         $ocrAnalyzeService = new OcrAnalyzeService();
+
+    //         $ocrAnalyzeService->analyze(
+    //             $ocrProgressKey,
+    //             $clients,
+    //             $files,
+    //             $folder,
+    //             $batchId,
+    //             null,
+    //             [],
+    //             true
+    //         );
+
+    //         // return response()->json([
+    //         //     'status' => 'success',
+    //         //     'total' => $total,
+    //         //     'queued_emails' => $files,
+    //         //     'ocr_progress_operation' => $ocrProgressOperation,
+    //         //     'ocr_progress_id' => $ocrProgressId,
+    //         // ], 202);
+
+    //         return response()->json([
+    //             'status' => 'success',
+    //             'total' => $total,
+    //             'ocr_progress_operation' => $ocrProgressOperation,
+    //             'ocr_progress_id' => $ocrProgressId,
+    //             'batch_id' => $batchId,
+    //         ], 202);
+
+    //     } catch (\Exception $e) {
+
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => $e->getMessage()
+    //         ], 400);
+    //     }
+    // }
+    public function ocrBulkUpload(Request $request)
+    {
+        try {
+
+            $files = $request->file('file');
+            $folder = $request->bulk_pdf_invoice_type;
+
+            if (!$files || !$folder) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Please select the invoice type and upload files.'
+                ], 400);
+            }
+
+            $files = is_array($files) ? $files : [$files];
+
+            $total = (int) $request->bulk_total;
+
+            /*
+             * One progress operation/id for the entire bulk upload.
+             */
+            $ocrProgressOperation =
+                $request->ocr_progress_operation ?? 'bulkupload';
+
+            $ocrProgressId = $request->ocr_progress_id;
+
+            if (!$ocrProgressId) {
+                $ocrProgressId = (string) Str::uuid();
+            }
+
+            $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+                $ocrProgressOperation,
+                $ocrProgressId
+            );
+
+            /*
+             * Use the batch ID generated by Dropzone.
+             */
+            $batchId = $request->batch_id;
+
+            if (!$batchId) {
+                $batchId = (string) Str::uuid();
+            }
+
             $clients = app(ClientRepository::class)->all();
 
-            // Unique batch ID for this email
-            $batchId = (string) Str::uuid();
+            $ttl = now()->addHour();
 
-            // if(strtolower(env('APP_URL')) === "http://localhost:8000" || strtolower(config('app.url')) === "http://localhost:8000")
-            // {
-                
-            // }
-            // else
-            // {                
-            //    $this->analyzeStoredPdfs($clients, $files, $folder, $batchId, null, [], true);   
-            //}
+            /*
+             * Initialize progress only once.
+             */
+            if (!Cache::has("{$ocrProgressKey}:total")) {
 
+                Cache::put(
+                    "{$ocrProgressKey}:total",
+                    $total,
+                    $ttl
+                );
+
+                Cache::put(
+                    "{$ocrProgressKey}:completed",
+                    0,
+                    $ttl
+                );
+            }
+
+            /*
+             * Start OCR analysis.
+             */
             $ocrAnalyzeService = new OcrAnalyzeService();
-            $ocrAnalyzeService->analyze($clients, $files, $folder, $batchId, null, [], true);   
-           
+
+            $ocrAnalyzeService->analyze(
+                $ocrProgressKey,
+                $clients,
+                $files,
+                $folder,
+                $batchId,
+                null,
+                [],
+                true
+            );
+
             return response()->json([
-                'total' => $total_uploaded_files,//count($files),
-                'queued_emails' => $files
-            ], 202); 
-        }  
-        else
-        {
+                'status' => 'success',
+                'total' => $total,
+                'ocr_progress_operation' => $ocrProgressOperation,
+                'ocr_progress_id' => $ocrProgressId,
+                'batch_id' => $batchId,
+            ], 202);
+
+        } catch (\Exception $e) {
+
             return response()->json([
-              'status'=> 'error', 
-              'message'=> 'Please select the invoice type and upload files.'
+                'status' => 'error',
+                'message' => $e->getMessage()
             ], 400);
-        }      
-      }//try
-      catch (\Exception $e) 
-      { 
-        return response()->json([
-          'status'=> 'error', 
-          'message'=> $e->getMessage()
-        ], 400); 
-      }//catch
+        }
     }
     /* -- POST /analyzepdf/bulk-upload -- */
 
@@ -1873,22 +3033,490 @@ class AnalyzePdfController extends Controller
     {     
         try 
         { 
-            Cache::forget('inbox_completed');
-            Cache::forget('inbox_total');
+            // Cache::forget('inbox_completed');
+            // Cache::forget('inbox_total');
             
             if($id == 'all')
             {
                 $selected_analyze_ids = [];
 
-                $selected_analyze_ids = OcrPdf::query()
-                                ->where('status', 'completed')
-                                ->where('is_deleted', 0)
-                                ->where('sync_db', 0)
-                                ->whereNot('invoice_type', 'com')                                
-                                //->where('extracted_data', 'LIKE', '%986211195%')  
-                                ->orderBy('id', 'ASC')            
-                                ->pluck('id')
-                                ->toArray(); 
+                // $selected_analyze_ids = OcrPdf::query()
+                //                 ->where('status', 'completed')
+                //                 ->where('is_deleted', 0)
+                //                 ->where('sync_db', 0)//delete this
+                //                 ->whereNot('invoice_type', 'com')                                
+                //                 //->where('extracted_data', 'LIKE', '%986211195%')  
+                //                 ->orderBy('id', 'ASC')            
+                //                 ->pluck('id')
+                //                 ->toArray(); 
+
+                //check duplicates only in extracted data : invoice type + client name + invoice number - omit specific client
+                // $myquery = <<<SQL
+                //     SELECT
+                //         p.invoice_type,
+                //         JSON_UNQUOTE(
+                //             JSON_EXTRACT(
+                //                 p.extracted_data,
+                //                 '$.invoice_number'
+                //             )
+                //         ) AS invoice_no,
+
+                //         CASE
+                //             WHEN p.invoice_type = 'com' THEN
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.recipient.name'
+                //                     )
+                //                 )
+                //             ELSE
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.supplier.name'
+                //                     )
+                //                 )
+                //         END AS client_name,
+
+                //         LOWER(TRIM(
+                //             JSON_UNQUOTE(
+                //                 JSON_EXTRACT(
+                //                     p.extracted_data,
+                //                     '$.currency'
+                //                 )
+                //             )
+                //         )) AS currency,
+
+                //         COUNT(*) AS duplicate_count,
+                //         GROUP_CONCAT(p.id ORDER BY p.id) AS invoice_ids
+
+                //     FROM dv_ocr_pdfs p
+
+                //     WHERE p.status = 'completed'
+                //       AND p.is_deleted = 0
+
+                //       AND JSON_UNQUOTE(
+                //             JSON_EXTRACT(
+                //                 p.extracted_data,
+                //                 '$.invoice_number'
+                //             )
+                //           ) IS NOT NULL
+
+                //       AND JSON_UNQUOTE(
+                //             JSON_EXTRACT(
+                //                 p.extracted_data,
+                //                 '$.invoice_number'
+                //             )
+                //           ) <> ''
+
+                //     AND LOWER(TRIM(
+                //         CASE
+                //             WHEN p.invoice_type = 'com' THEN
+                //                 JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.name'))
+                //             ELSE
+                //                 JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.name'))
+                //         END
+                //     )) NOT LIKE '%berg toys%'
+
+                //     AND LOWER(TRIM(
+                //         CASE
+                //             WHEN p.invoice_type = 'com' THEN
+                //                 JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.name'))
+                //             ELSE
+                //                 JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.name'))
+                //         END
+                //     )) NOT LIKE '%kitedanmark%'
+
+                //     GROUP BY
+                //         p.invoice_type,
+                //         JSON_UNQUOTE(
+                //             JSON_EXTRACT(
+                //                 p.extracted_data,
+                //                 '$.invoice_number'
+                //             )
+                //         ),
+                //         CASE
+                //             WHEN p.invoice_type = 'com' THEN
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.recipient.name'
+                //                     )
+                //                 )
+                //             ELSE
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.supplier.name'
+                //                     )
+                //                 )
+                //         END
+
+                //     HAVING COUNT(*) > 1
+
+                //     ORDER BY duplicate_count DESC
+                //     SQL;
+
+                // //check duplicates only in extracted data : invoice type + client name + invoice number + currency
+                // $myquery = <<<SQL
+                //             SELECT
+                //             p.invoice_type,
+
+                //             JSON_UNQUOTE(
+                //                 JSON_EXTRACT(
+                //                     p.extracted_data,
+                //                     '$.invoice_number'
+                //                 )
+                //             ) AS invoice_no,
+
+                //             LOWER(TRIM(
+                //                 CASE
+                //                     WHEN p.invoice_type = 'com' THEN
+                //                         JSON_UNQUOTE(
+                //                             JSON_EXTRACT(
+                //                                 p.extracted_data,
+                //                                 '$.recipient.name'
+                //                             )
+                //                         )
+                //                     ELSE
+                //                         JSON_UNQUOTE(
+                //                             JSON_EXTRACT(
+                //                                 p.extracted_data,
+                //                                 '$.supplier.name'
+                //                             )
+                //                         )
+                //                 END
+                //             )) AS client_name,
+
+                //             LOWER(TRIM(
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.currency'
+                //                     )
+                //                 )
+                //             )) AS currency,
+
+                //             COUNT(*) AS duplicate_count,
+
+                //             GROUP_CONCAT(
+                //                 p.id
+                //                 ORDER BY p.id
+                //             ) AS invoice_ids
+
+                //         FROM dv_ocr_pdfs p
+
+                //         WHERE p.status = 'completed'
+                //           AND p.is_deleted = 0
+
+                //           AND JSON_UNQUOTE(
+                //                 JSON_EXTRACT(
+                //                     p.extracted_data,
+                //                     '$.invoice_number'
+                //                 )
+                //               ) IS NOT NULL
+
+                //           AND JSON_UNQUOTE(
+                //                 JSON_EXTRACT(
+                //                     p.extracted_data,
+                //                     '$.invoice_number'
+                //                 )
+                //               ) <> ''
+
+                //         GROUP BY
+                //             p.invoice_type,
+
+                //             JSON_UNQUOTE(
+                //                 JSON_EXTRACT(
+                //                     p.extracted_data,
+                //                     '$.invoice_number'
+                //                 )
+                //             ),
+
+                //             LOWER(TRIM(
+                //                 CASE
+                //                     WHEN p.invoice_type = 'com' THEN
+                //                         JSON_UNQUOTE(
+                //                             JSON_EXTRACT(
+                //                                 p.extracted_data,
+                //                                 '$.recipient.name'
+                //                             )
+                //                         )
+                //                     ELSE
+                //                         JSON_UNQUOTE(
+                //                             JSON_EXTRACT(
+                //                                 p.extracted_data,
+                //                                 '$.supplier.name'
+                //                             )
+                //                         )
+                //                 END
+                //             )),
+
+                //             LOWER(TRIM(
+                //                 JSON_UNQUOTE(
+                //                     JSON_EXTRACT(
+                //                         p.extracted_data,
+                //                         '$.currency'
+                //                     )
+                //                 )
+                //             ))
+
+                //         HAVING COUNT(*) > 1
+
+                //         ORDER BY duplicate_count DESC
+                //     SQL;
+
+                //check duplicates only in extracted data : invoice type + client number + invoice number + currency
+                $myquery = <<<SQL
+                                SELECT
+                                CASE
+                                    WHEN p.invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                                    ELSE p.invoice_type
+                                END AS invoice_type,
+
+                                JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.invoice_number'
+                                    )
+                                ) AS invoice_no,
+
+                                CASE
+                                    WHEN p.invoice_type = 'com' THEN
+                                        REGEXP_REPLACE(
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.recipient.org_number'
+                                                )
+                                            ),
+                                            '[^0-9]',
+                                            ''
+                                        )
+                                    ELSE
+                                        REGEXP_REPLACE(
+                                            COALESCE(
+                                                NULLIF(
+                                                    JSON_UNQUOTE(
+                                                        JSON_EXTRACT(
+                                                            p.extracted_data,
+                                                            '$.supplier.org_number'
+                                                        )
+                                                    ),
+                                                    ''
+                                                ),
+                                                NULLIF(
+                                                    JSON_UNQUOTE(
+                                                        JSON_EXTRACT(
+                                                            p.extracted_data,
+                                                            '$.supplier.cvr_number'
+                                                        )
+                                                    ),
+                                                    ''
+                                                )
+                                            ),
+                                            '[^0-9]',
+                                            ''
+                                        )
+                                END AS client_no,
+
+                                LOWER(TRIM(
+                                    CASE
+                                        WHEN p.invoice_type = 'com' THEN
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.recipient.name'
+                                                )
+                                            )
+                                        ELSE
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.supplier.name'
+                                                )
+                                            )
+                                    END
+                                )) AS client_name,
+
+                                LOWER(TRIM(
+                                    JSON_UNQUOTE(
+                                        JSON_EXTRACT(
+                                            p.extracted_data,
+                                            '$.currency'
+                                        )
+                                    )
+                                )) AS currency,
+
+                                COUNT(*) AS duplicate_count,
+
+                                GROUP_CONCAT(
+                                    p.id
+                                    ORDER BY p.id
+                                ) AS invoice_ids
+
+                            FROM dv_ocr_pdfs p
+
+                            WHERE p.status = 'completed'
+                              AND p.is_deleted = 0
+
+                              -- AND p.id NOT IN (54841, 54842, 54843)
+
+                              AND JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.invoice_number'
+                                    )
+                                  ) IS NOT NULL
+
+                              AND JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.invoice_number'
+                                    )
+                                  ) <> ''
+
+                            GROUP BY
+                                CASE
+                                    WHEN p.invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                                    ELSE p.invoice_type
+                                END,
+
+                                JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.invoice_number'
+                                    )
+                                ),
+
+                                CASE
+                                    WHEN p.invoice_type = 'com' THEN
+                                        REGEXP_REPLACE(
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.recipient.org_number'
+                                                )
+                                            ),
+                                            '[^0-9]',
+                                            ''
+                                        )
+                                    ELSE
+                                        REGEXP_REPLACE(
+                                            COALESCE(
+                                                NULLIF(
+                                                    JSON_UNQUOTE(
+                                                        JSON_EXTRACT(
+                                                            p.extracted_data,
+                                                            '$.supplier.org_number'
+                                                        )
+                                                    ),
+                                                    ''
+                                                ),
+                                                NULLIF(
+                                                    JSON_UNQUOTE(
+                                                        JSON_EXTRACT(
+                                                            p.extracted_data,
+                                                            '$.supplier.cvr_number'
+                                                        )
+                                                    ),
+                                                    ''
+                                                )
+                                            ),
+                                            '[^0-9]',
+                                            ''
+                                        )
+                                END,
+
+                                LOWER(TRIM(
+                                    CASE
+                                        WHEN p.invoice_type = 'com' THEN
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.recipient.name'
+                                                )
+                                            )
+                                        ELSE
+                                            JSON_UNQUOTE(
+                                                JSON_EXTRACT(
+                                                    p.extracted_data,
+                                                    '$.supplier.name'
+                                                )
+                                            )
+                                    END
+                                )),
+
+                                LOWER(TRIM(
+                                    JSON_UNQUOTE(
+                                        JSON_EXTRACT(
+                                            p.extracted_data,
+                                            '$.currency'
+                                        )
+                                    )
+                                ))
+
+                            HAVING COUNT(*) > 1
+
+                            ORDER BY duplicate_count DESC
+
+                            SQL;
+
+                // //check duplicates along with sync DB
+                // $myquery = <<<SQL
+                //                 SELECT s.ocr_pdf_id
+                //                 FROM dv_ocr_pdf_sync_db s
+                //                 JOIN dv_ocr_pdfs p
+                //                     ON p.id = s.ocr_pdf_id
+                //                 WHERE p.status = 'completed' AND p.is_deleted = 0
+                //                   AND s.invoice_no IS NOT NULL
+                //                   AND s.invoice_no <> ''
+                //                   AND (s.client_name, s.invoice_type, s.invoice_no) IN (
+                //                       SELECT
+                //                           s2.client_name,
+                //                           s2.invoice_type,
+                //                           s2.invoice_no
+                //                       FROM dv_ocr_pdf_sync_db s2
+                //                       JOIN dv_ocr_pdfs p2
+                //                           ON p2.id = s2.ocr_pdf_id
+                //                       WHERE p2.status = 'completed' AND p2.is_deleted = 0
+                //                         AND s2.invoice_no IS NOT NULL
+                //                         AND s2.invoice_no <> ''
+                //                       GROUP BY
+                //                           s2.client_name,
+                //                           s2.invoice_type,
+                //                           s2.invoice_no
+                //                       HAVING COUNT(*) > 1
+                //                   )
+                //                 ORDER BY
+                //                     s.client_name,
+                //                     s.invoice_type,
+                //                     s.invoice_no
+                //                 SQL;
+
+                $connection = DB::connection(
+                    config('database.ocr_connection')
+                );
+
+                $rows = $connection->select($myquery);
+                // $selected_analyze_ids = collect($rows)
+                //     //->whereNotIn('ocr_pdf_id', [2770,4495])
+                //     ->pluck('ocr_pdf_id')
+                //     //->take(2)
+                //     ->toArray();
+                //$excludeIds = [55395, 55396, 55397];
+                $excludeIds = [];
+                $selected_analyze_ids = collect($rows)
+                    ->pluck('invoice_ids')
+                    ->filter()
+                    ->flatMap(function ($ids) {
+                        return explode(',', $ids);
+                    })
+                    ->map(fn ($id) => (int) trim($id))
+                    ->reject(fn ($id) => in_array($id, $excludeIds, true))
+                    ->unique()
+                    ->values()
+                    ->toArray();
 
                 dd($selected_analyze_ids, "change the query");
             }
@@ -1910,15 +3538,28 @@ class AnalyzePdfController extends Controller
                     'sync_db' => 0,
                 ]);
     
-            //dispatch((new ValidateOcrInvoicesJob(null, $selected_analyze_ids))->onQueue('ocrpdfvalidateinvoices'));
+            $total = count($selected_analyze_ids);
+           
+            $ocrProgressOperation = 'validate';
+            $ocrProgressId = (string) Str::uuid();
+            $ocrProgressKey = OcrProgressKeyHelper::getProgressKey(
+                $ocrProgressOperation,
+                $ocrProgressId
+            );
 
-            ValidateOcrInvoicesJob::dispatch(null, $selected_analyze_ids)
+            $ttl = now()->addHour();
+            Cache::put("{$ocrProgressKey}:total", $total, $ttl);
+            Cache::put("{$ocrProgressKey}:completed", 0, $ttl);
+
+            ValidateOcrInvoicesJob::dispatch($ocrProgressKey, null, $selected_analyze_ids)
                      ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
            
             return response()->json([
                 'status'=> 'success', 
                 'message'=> "Validation Done",
-                'total' => count($selected_analyze_ids)
+                'total' => $total,
+                'ocr_progress_operation' => $ocrProgressOperation,
+                'ocr_progress_id' => $ocrProgressId,
             ], 202);
         }//try
         catch (\Exception $e) 
@@ -1930,4 +3571,513 @@ class AnalyzePdfController extends Controller
         }//catch
     }
     /* --end GET /analyzepdf/{analyze_id}/validate -- */
+    
+    public function backfillOcrPdfSubjects(string $folderId, int $limit = 10): void
+    {
+        $mailService = new MicrosoftMailService();
+        $folderId = $mailService->getSubFolderId('OCR-Test', 'Done');
+
+        $mailbox = config('services.ms.mailbox');
+        $accessToken = $mailService->getAccessToken();
+
+        $url = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+            . "/mailFolders/{$folderId}/messages"
+            . "?\$select=id,subject,receivedDateTime,hasAttachments"    
+            . "?\$filter=isRead eq false"        
+            . "&\$orderby=receivedDateTime asc"
+            . "&\$top=10";
+
+        $checked = 0;
+        $updated = 0;
+
+        while ($url && $checked < $limit) {
+            $response = Http::withToken($accessToken)->get($url);
+
+            if (! $response->successful()) {
+                // Log::error('Graph API error while backfilling OCR subjects.', [
+                //     'status' => $response->status(),
+                //     'response' => $response->json(),
+                // ]);
+
+                return;
+            }
+
+            $data = $response->json();
+
+            foreach ($data['value'] ?? [] as $email) {
+                if ($checked >= $limit) {
+                    break;
+                }
+
+                $checked++;
+
+                if (empty($email['id']) || empty($email['subject'])) {
+                    continue;
+                }
+
+                $attachmentUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+                    . "/messages/{$email['id']}/attachments"
+                    . "?\$select=id,name";
+
+                $attachmentResponse = Http::withToken($accessToken)
+                    ->get($attachmentUrl);
+
+                if (! $attachmentResponse->successful()) {
+                    // Log::warning('Could not retrieve email attachments.', [
+                    //     'message_id' => $email['id'],
+                    //     'status' => $attachmentResponse->status(),
+                    // ]);
+
+                    continue;
+                }
+
+                foreach ($attachmentResponse->json('value', []) as $attachment) {
+                    $attachmentName = $attachment['name'] ?? null;
+
+                    if (! $attachmentName) {
+                        continue;
+                    }
+
+                    /*
+                     * Example:
+                     *
+                     * invoice_123.pdf
+                     *
+                     * Existing OcrPdf:
+                     *
+                     * invoice_123_20260912_220812_a7f3.pdf
+                     */
+                    $originalFileName = $attachmentName;
+
+                    $ocrPdfs = OcrPdf::query()
+                        ->whereNull('subject')
+                        ->where('file_name', 'like', $this->ocrFileNamePattern($originalFileName))
+                        ->get();
+
+                    $subjectUpdated = false;
+                    foreach ($ocrPdfs as $ocrpdf) {
+                        $ocrpdf->data_from = 'inbox';
+                        $ocrpdf->subject = $email['subject'];
+                        $ocrpdf->save();
+
+                        $subjectUpdated = true;
+                        $updated++;
+
+                        // Log::info('OCR PDF subject backfilled.', [
+                        //     'ocr_pdf_id' => $ocrpdf->id,
+                        //     'subject' => $email['subject'],
+                        //     'attachment' => $attachmentName,
+                        //     'message_id' => $email['id'],
+                        // ]);
+                    }
+
+                    // Mark email as read ONLY if subject was updated
+                    if ($subjectUpdated) {
+                        $response = Http::withToken($accessToken)
+                            ->patch(
+                                "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages/{$email['id']}",
+                                [
+                                    'isRead' => true,
+                                ]
+                            );
+
+                        if (! $response->successful()) {
+                            // Log::warning('Could not mark email as read.', [
+                            //     'message_id' => $email['id'],
+                            //     'status' => $response->status(),
+                            //     'response' => $response->json(),
+                            // ]);
+                        } else {
+                            // Log::info('Email marked as read after subject update.', [
+                            //     'message_id' => $email['id'],
+                            //     'subject' => $email['subject'],
+                            // ]);
+                        }
+                    }
+                }
+            }
+
+            $url = $data['@odata.nextLink'] ?? null;
+        }
+
+        // Log::info('OCR subject test backfill completed.', [
+        //     'emails_checked' => $checked,
+        //     'records_updated' => $updated,
+        // ]);
+
+        dd([
+            'emails_checked' => $checked,
+            'records_updated' => $updated,
+        ]);
+    }
+
+    public function processUnreadEmails(int $pageSize = 50): void
+    {
+        $mailService = new MicrosoftMailService();
+
+        // If you always want OCR-Test/Done, you can remove $folderId
+        // from the method arguments and keep this.
+        $folderId = $mailService->getSubFolderId('OCR-Test', 'Done');
+
+        $mailbox = config('services.ms.mailbox');
+        $accessToken = $mailService->getAccessToken();
+
+        $url = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+            . "/mailFolders/{$folderId}/messages"
+            . "?\$select=id,subject,conversationId,receivedDateTime,hasAttachments,isRead"
+            . "&\$filter=isRead eq false"
+            . "&\$orderby=receivedDateTime desc"
+            . "&\$top={$pageSize}";
+
+        $emailsChecked = 0;
+        $emailsMarkedRead = 0;
+        $ocrPdfsUpdated = 0;
+
+        while ($url) {
+            $response = Http::withToken($accessToken)->get($url);
+
+            if (! $response->successful()) {
+                // Log::error('Graph API error while fetching unread emails.', [
+                //     'status' => $response->status(),
+                //     'response' => $response->json(),
+                // ]);
+
+                return;
+            }
+
+            $data = $response->json();
+
+            foreach ($data['value'] ?? [] as $email) {
+                $emailsChecked++;
+
+                $originalMessageId = $email['id'] ?? null;
+                $originalSubject = $email['subject'] ?? null;
+                $conversationId = $email['conversationId'] ?? null;
+
+                if (! $originalMessageId) {
+                    continue;
+                }
+
+                /*
+                 * These are the messages whose attachments we need to inspect.
+                 *
+                 * Normally this is just the current email.
+                 *
+                 * If the current email has no attachment, we also check
+                 * other messages in the same conversation.
+                 */
+                $messagesToCheck = [$email];
+
+                if (empty($email['hasAttachments']) && $conversationId) {
+                    $conversationUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages"
+                        . "?\$filter=conversationId eq '{$conversationId}'"
+                        . "&\$select=id,subject,conversationId,receivedDateTime,hasAttachments";
+
+                    $conversationResponse = Http::withToken($accessToken)
+                        ->get($conversationUrl);
+
+                    if ($conversationResponse->successful()) {
+                        foreach ($conversationResponse->json('value', []) as $message) {
+                            /*
+                             * Don't add the original message twice.
+                             */
+                            if (($message['id'] ?? null) === $originalMessageId) {
+                                continue;
+                            }
+
+                            /*
+                             * Only messages that actually have attachments.
+                             */
+                            if (! empty($message['hasAttachments'])) {
+                                $messagesToCheck[] = $message;
+                            }
+                        }
+                    } else {
+                        // Log::warning('Could not retrieve conversation messages.', [
+                        //     'conversation_id' => $conversationId,
+                        //     'message_id' => $originalMessageId,
+                        //     'status' => $conversationResponse->status(),
+                        // ]);
+                    }
+                }
+
+                /*
+                 * This flag belongs to the ORIGINAL unread email.
+                 *
+                 * If any message in the conversation causes an OcrPdf
+                 * to be updated, we mark the original email as read.
+                 */
+                $subjectUpdated = false;
+
+                foreach ($messagesToCheck as $message) {
+                    $messageId = $message['id'] ?? null;
+                    $messageSubject = $message['subject'] ?? $originalSubject;
+
+                    if (! $messageId) {
+                        continue;
+                    }
+
+                    /*
+                     * Get attachments from THIS message.
+                     *
+                     * This was the main problem in your previous code:
+                     * you were always using $originalMessageId here.
+                     */
+                    $attachmentUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+                        . "/messages/{$messageId}/attachments"
+                        . "?\$select=id,name";
+
+                    $attachmentResponse = Http::withToken($accessToken)
+                        ->get($attachmentUrl);
+
+                    if (! $attachmentResponse->successful()) {
+                        // Log::warning('Could not retrieve email attachments.', [
+                        //     'message_id' => $messageId,
+                        //     'status' => $attachmentResponse->status(),
+                        // ]);
+
+                        continue;
+                    }
+
+                    $attachments = $attachmentResponse->json('value', []);
+
+                    foreach ($attachments as $attachment) {
+                        $attachmentName = $attachment['name'] ?? null;
+
+                        if (! $attachmentName) {
+                            continue;
+                        }
+
+                        /*
+                         * Example Outlook attachment:
+                         *
+                         * invoice_123.pdf
+                         *
+                         * Existing OcrPdf:
+                         *
+                         * invoice_123_20260912_220812_a7f3.pdf
+                         */
+
+                        $extension = pathinfo($attachmentName, PATHINFO_EXTENSION);
+                        $name = pathinfo($attachmentName, PATHINFO_FILENAME);
+
+                        /*
+                         * Match:
+                         *
+                         * invoice_123_20260912_220812_a7f3.pdf
+                         *
+                         * Pattern:
+                         *
+                         * invoice_123_????????_??????_????.pdf
+                         *
+                         * In MySQL LIKE:
+                         * _ = one character
+                         */
+                        $pattern = $name
+                            . '_????????_??????_????'
+                            . ($extension ? '.' . $extension : '');
+
+                        $ocrPdfs = OcrPdf::query()
+                            ->whereNull('subject')
+                            //->where('status', 'completed')
+                            ->where('file_name', 'like', $pattern)
+                            ->get();
+
+                        if ($ocrPdfs->isEmpty()) {
+                            continue;
+                        }
+
+                        foreach ($ocrPdfs as $ocrpdf) {
+                            /*
+                             * Use the subject of the message that actually
+                             * contains the attachment.
+                             */
+                            $ocrpdf->subject = $messageSubject;
+                            $ocrpdf->save();
+
+                            $subjectUpdated = true;
+                            $ocrPdfsUpdated++;
+
+                            // Log::info('OCR PDF subject updated.', [
+                            //     'ocr_pdf_id' => $ocrpdf->id,
+                            //     'file_name' => $ocrpdf->file_name,
+                            //     'subject' => $messageSubject,
+                            //     'attachment' => $attachmentName,
+                            //     'message_id' => $messageId,
+                            //     'original_message_id' => $originalMessageId,
+                            // ]);
+                        }
+                    }
+                }
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * Mark the ORIGINAL unread email as read only when
+                 * an OcrPdf subject was actually updated.
+                 */
+                if ($subjectUpdated) {
+                    $markReadResponse = Http::withToken($accessToken)
+                        ->patch(
+                            "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages/{$originalMessageId}",
+                            [
+                                'isRead' => true,
+                            ]
+                        );
+
+                    if ($markReadResponse->successful()) {
+                        $emailsMarkedRead++;
+
+                        // Log::info('Original email marked as read after OcrPdf update.', [
+                        //     'message_id' => $originalMessageId,
+                        //     'subject' => $originalSubject,
+                        // ]);
+                    } else {
+                        // Log::warning('Could not mark original email as read.', [
+                        //     'message_id' => $originalMessageId,
+                        //     'status' => $markReadResponse->status(),
+                        //     'response' => $markReadResponse->json(),
+                        // ]);
+                    }
+                }
+            }
+
+            /*
+             * Get the next Graph page.
+             */
+            $url = $data['@odata.nextLink'] ?? null;
+        }
+
+        // Log::info('Unread email processing completed.', [
+        //     'emails_checked' => $emailsChecked,
+        //     'ocr_pdfs_updated' => $ocrPdfsUpdated,
+        //     'emails_marked_read' => $emailsMarkedRead,
+        // ]);
+
+        dd([
+            'emails_checked' => $emailsChecked,
+            'ocr_pdfs_updated' => $ocrPdfsUpdated,
+            'emails_marked_read' => $emailsMarkedRead,
+        ]);
+    }
+
+
+    private function ocrFileNamePattern(string $originalFileName): string
+    {
+        $extension = pathinfo($originalFileName, PATHINFO_EXTENSION);
+        $name = pathinfo($originalFileName, PATHINFO_FILENAME);
+
+        /*
+         * Original:
+         * invoice_123.pdf
+         *
+         * Stored:
+         * invoice_123_20260912_220812_a7f3.pdf
+         */
+        return $name . '__________%.'.$extension;
+    }
+
+    public function findTimeout()
+    {
+        $duplicates = $this->findTimeoutInvoicesWithCompletedVersion();
+
+        dd($duplicates);
+    }
+
+    private function findTimeoutInvoicesWithCompletedVersion(): array
+    {
+        $results = [];
+
+        OcrPdf::query()
+            ->where('status', 'timeout')
+            ->where('is_deleted', 0)
+            ->select([
+                'id',
+                'file_name',
+            ])
+            ->orderBy('id')
+            ->chunkById(500, function ($timeoutInvoices) use (&$results) {
+
+                foreach ($timeoutInvoices as $timeoutInvoice) {
+
+                    if (empty($timeoutInvoice->file_name)) {
+                        continue;
+                    }
+
+                    // Remove .pdf from the original filename
+                    $baseFileName = pathinfo(
+                        $timeoutInvoice->file_name,
+                        PATHINFO_FILENAME
+                    );
+
+                    if ($baseFileName === '') {
+                        continue;
+                    }
+
+                    // /*
+                    //  * Example:
+                    //  *
+                    //  * Timeout:
+                    //  * Invoice_123.pdf
+                    //  *
+                    //  * Completed:
+                    //  * Invoice_123_20260912_220812_a7f3.pdf
+                    //  */
+                    // $completedInvoice = OcrPdf::query()
+                    //     ->where('status', 'completed')
+                    //     ->where('is_deleted', 0)
+                    //     ->where('invoice_type', 'com')
+                    //     ->where(
+                    //         'file_name',
+                    //         'LIKE',
+                    //         $baseFileName . '_%.pdf'
+                    //     )
+                    //     ->select([
+                    //         'id',
+                    //         'file_name',
+                    //     ])
+                    //     ->orderBy('id')
+                    //     ->first();
+
+                    // if ($completedInvoice) {
+                    //     $results[] = [
+                    //         'timeout_id' => $timeoutInvoice->id,
+                    //         'timeout_file_name' => $timeoutInvoice->file_name,
+                    //         'completed_id' => $completedInvoice->id,
+                    //         'completed_file_name' => $completedInvoice->file_name,
+                    //     ];
+                    // }
+
+
+                    $hasCompletedInvoice = OcrPdf::query()
+                        ->where('status', 'completed')
+                        ->where('is_deleted', 0)
+                        ->where('invoice_type', 'com')
+                        ->where(
+                            'file_name',
+                            'LIKE',
+                            //$baseFileName . '_%.pdf'
+                            $baseFileName . '.pdf'
+                        )
+                        ->exists();
+
+                    // Only return timeout invoices that DON'T
+                    // have another completed version.
+                    if (!$hasCompletedInvoice) {
+                        // $results[] = [
+                        //     'timeout_id' => $timeoutInvoice->id,
+                        //     'timeout_file_name' => $timeoutInvoice->file_name,
+                        // ];
+                        $results[] = $timeoutInvoice->id;
+                        // Stop after finding 10 valid IDs
+                        if (count($results) >= 100) {
+                            return false; // Stops chunkById()
+                        }
+                    }
+                }
+            });
+
+        return $results;
+    }
+
 }

@@ -96,7 +96,7 @@ $(function () {
       if(analyzepdf_name === 'completed')          
       {  
         $('#FilterInvoiceType').remove();
-        $('#FilterClientName').remove();
+        //$('#FilterClientName').remove();
 
         $('.' + analyzepdf_name + '-search-filter .sub-btns button').remove();
 
@@ -117,49 +117,54 @@ $(function () {
               .data()
               .unique()
               .sort()
-              .each(function (d, j) {
+              .each(function (d, j) {                
+                // Don't show Sales Invoice(CN) in the filter dropdown
+                if (d === 'Sales Invoice(CN)') {
+                  return;
+                }
+
                 select.append('<option value="' + d + '">' + d.replace(/-/g, " ") + '</option>');
               });
           });
 
-          table
-          .columns(3)
-          .every(function () {
-            var column = this;
-            var select = $(
-              '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
-            )
-              .appendTo('.client_name')
-              .on('change', function () {                
-                var val = $(this).val();//.replace(/-/g, " ");
-                column.search(val ? val : '', true, false).draw();
-              });
+          // table
+          // .columns(3)
+          // .every(function () {
+          //   var column = this;
+          //   var select = $(
+          //     '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
+          //   )
+          //     .appendTo('.client_name')
+          //     .on('change', function () {                
+          //       var val = $(this).val();//.replace(/-/g, " ");
+          //       column.search(val ? val : '', true, false).draw();
+          //     });
 
-            column
-              .data()
-              .unique()
-              .sort()
-              .each(function (d, j) {
-                var selected = (j === 0) ? 'selected' : '';
-                if(d)
-                  select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
-              });
+          //   column
+          //     .data()
+          //     .unique()
+          //     .sort()
+          //     .each(function (d, j) {
+          //       var selected = (j === 0) ? 'selected' : '';
+          //       if(d)
+          //         select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
+          //     });
 
-              // clients.forEach(function(client, index) {
-              //     if (client) {
-              //         var selected = (index === 0) ? 'selected' : '';
+          //     // clients.forEach(function(client, index) {
+          //     //     if (client) {
+          //     //         var selected = (index === 0) ? 'selected' : '';
 
-              //         select.append(
-              //             '<option value="' + client + '" ' + selected + '>' +
-              //             client.replace(/-/g, " ") +
-              //             '</option>'
-              //         );
-              //     }
-              // });
+          //     //         select.append(
+          //     //             '<option value="' + client + '" ' + selected + '>' +
+          //     //             client.replace(/-/g, " ") +
+          //     //             '</option>'
+          //     //         );
+          //     //     }
+          //     // });
 
-            // manually trigger filter
-            select.trigger('change');  
-          });
+          //   // manually trigger filter
+          //   select.trigger('change');  
+          // });
         
           // table
           // .columns(8)
@@ -244,16 +249,15 @@ $(function () {
 
 
       // Append slider only once
-      if (!$('.' + analyzepdf_name + '-search-filter .bx-slider').length) {
-          var sliderfilter =
-              '<label class="mx-2 cursor-pointer analyzepdf-slider-filter" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
-                  '<i class="bx bx-slider"></i>' +
-              '</label>';
+      // if (!$('.' + analyzepdf_name + '-search-filter .bx-slider').length) {
+      //     var sliderfilter =
+      //         '<label class="mx-2 cursor-pointer analyzepdf-slider-filter" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
+      //             '<i class="bx bx-slider"></i>' +
+      //         '</label>';
 
-          $('.' + analyzepdf_name + '-search-filter .dataTables_filter')
-              .append(sliderfilter);
-      }
-
+      //     $('.' + analyzepdf_name + '-search-filter .dataTables_filter')
+      //         .append(sliderfilter);
+      // }
 
       // Move export buttons only once
       var exportTarget = '.dt-analyzepdf-export .' + analyzepdf_name + '-analyzepdf-export';
@@ -267,6 +271,8 @@ $(function () {
   window.reloadAnalyzedPdf = function reloadAnalyzedPdf(analyzepdf_datas) { 
   // function reloadAnalyzedPdf(analyzepdf_datas) 
   // {  
+      $('#FilterInvoiceType').val('');
+
       var dt_analyzepdf_tables = $('.datatables-analyzepdf');
       for (var i = 0; i < dt_analyzepdf_tables.length; i++) 
       {      
@@ -286,16 +292,23 @@ $(function () {
                   var dt_analyzepdf = $(tableSelector).DataTable();
                   var rowsData = analyzepdf_datas['analyzepdf_'+ analyzepdf_name +'_datas'];
 
+                  // Clear previous filters
+                  dt_analyzepdf.search('');
+                  dt_analyzepdf.columns().search('');
+
                   dt_analyzepdf.clear().rows.add(rowsData).draw();                  
 
                   initAnalyzepdfTableFeatures(dt_analyzepdf, analyzepdf_name);
                   
+                  $('#FilterInvoiceType').val('');
+
                   $("#btn-analyzepdf-"+ analyzepdf_name +" span").html(rowsData.length);
 
                   // Enable/disable tab based on data
                   if (rowsData.length > 0) {
-                    $(".card.analyzepdfs .sk-bounce").hide();
-                    $(".card.analyzepdfs .card-header").show();
+                    //$(".card.analyzepdfs .sk-bounce").hide();                    
+                    //$(".card.analyzepdfs .card-header").show();
+                    $('#ocr-loading-overlay').addClass('d-none');
 
                       $(tabSelector).css({
                           'pointer-events': 'auto',
@@ -303,8 +316,9 @@ $(function () {
                           'cursor': 'pointer'
                       });
                   } else {
-                    $(".card.analyzepdfs .sk-bounce").show();
-                    $(".card.analyzepdfs .card-header").hide();
+                    //$(".card.analyzepdfs .sk-bounce").show();                    
+                    //$(".card.analyzepdfs .card-header").hide();
+                    $('#ocr-loading-overlay').removeClass('d-none');
 
                       $(tabSelector).css({
                           'pointer-events': 'none',
@@ -317,13 +331,54 @@ $(function () {
       }
   }
 
+  window.reloadAnalyzedPdfCompleted = function (rowsData) {
+
+      var tableSelector = ".datatables-completed-analyzepdf";
+
+      if (!$.fn.DataTable.isDataTable(tableSelector)) {
+          return;
+      }
+
+      var dt_analyzepdf = $(tableSelector).DataTable();
+
+      dt_analyzepdf
+          .clear()
+          .rows.add(rowsData)
+          .draw();
+
+      initAnalyzepdfTableFeatures(
+          dt_analyzepdf,
+          'completed'
+      );
+
+      $('#FilterInvoiceType').val('');
+
+      $("#btn-analyzepdf-completed span")
+          .html(rowsData.length);
+
+      if (rowsData.length > 0) {
+
+          //$(".card.analyzepdfs .sk-bounce").hide();          
+          //$(".card.analyzepdfs .card-header").show();
+          $('#ocr-loading-overlay').addClass('d-none');
+
+          $("#navs-analyzepdf-completed").css({
+              'pointer-events': 'auto',
+              'opacity': '1',
+              'cursor': 'pointer'
+          });
+      }
+  };
+
+  let currentAnalyzeClient = '';
+
   window.analyzepdf_completed_datas = [];   
   window.analyzepdf_processing_datas = [];
   window.analyzepdf_error_datas = [];
   window.analyzepdf_deleted_datas = [];
  
   window.vatregmains = [];
-
+/*
   let currentPage = 1;
   let lastPage = 1;
   let isLoading = false;
@@ -424,7 +479,362 @@ $(function () {
   }
 
   // START LOADING
-  loadAnalyzePdfData();
+  if(analyzepdf_type !== 'analyzepdf_search')
+    loadAnalyzePdfData();
+*/
+
+//   let currentPage = 1;
+//   let lastPage = 1;
+//   function loadAnalyzePdfData(clientName) {    
+//       // New client → clear previously fetched data
+//       if (currentAnalyzeClient !== clientName) {
+//           analyzepdf_completed_datas = [];
+//           analyzepdf_processing_datas = [];
+//           analyzepdf_error_datas = [];
+//           analyzepdf_deleted_datas = [];
+
+//           currentAnalyzeClient = clientName;
+//       }
+
+//       $(".card.analyzepdfs .sk-bounce").show();
+//       //$(".card.analyzepdfs .card-header").hide();
+
+//       $.ajax({
+//           url: `${analyzePdfUrl}data`,
+//           type: "GET",
+//           data: {
+//               client_name: clientName,
+//               page: currentPage
+//           },
+//           success: function(result) {
+//               // append vatregmains only when returned
+//               if (result.vatregmains) {
+//                   window.vatregmains = result.vatregmains;
+//               }
+
+//               // attach it back to result for existing functions
+//               result.vatregmains = window.vatregmains;
+
+//               const analyzepdf_datas =
+//                   drawDtTable(result, 'analyzepdf');
+
+//               if (analyzepdf_datas) {
+
+//                   // reloadAnalyzedPdf({
+//                   //     analyzepdf_completed_datas:
+//                   //         analyzepdf_datas
+//                   //             .analyzepdf_completed_datas || [],
+
+//                   //     analyzepdf_processing_datas:
+//                   //         analyzepdf_datas
+//                   //             .analyzepdf_processing_datas || [],
+
+//                   //     analyzepdf_error_datas:
+//                   //         analyzepdf_datas
+//                   //             .analyzepdf_error_datas || [],
+
+//                   //     analyzepdf_deleted_datas:
+//                   //         analyzepdf_datas
+//                   //             .analyzepdf_deleted_datas || []
+//                   // });
+
+//                   // Append new page data
+//                   analyzepdf_completed_datas.push(
+//                       ...(analyzepdf_datas.analyzepdf_completed_datas || [])
+//                   );
+
+//                   analyzepdf_processing_datas.push(
+//                       ...(analyzepdf_datas.analyzepdf_processing_datas || [])
+//                   );
+
+//                   analyzepdf_error_datas.push(
+//                       ...(analyzepdf_datas.analyzepdf_error_datas || [])
+//                   );
+
+//                   analyzepdf_deleted_datas.push(
+//                       ...(analyzepdf_datas.analyzepdf_deleted_datas || [])
+//                   );
+
+//                   reloadAnalyzedPdf({
+//                       analyzepdf_completed_datas,
+//                       analyzepdf_processing_datas,
+//                       analyzepdf_error_datas,
+//                       analyzepdf_deleted_datas
+//                   });
+                 
+//               }
+
+//               $(".card.analyzepdfs .sk-bounce").hide();
+//               $(".card.analyzepdfs .card-header").show();
+
+//               // Get pagination information
+//               currentPage = result.analyzepdfs.current_page;
+//               lastPage = result.analyzepdfs.last_page;
+// console.log(currentPage);
+// console.log(lastPage);
+//               // Load next page if available
+//               if (currentPage < lastPage) {
+
+//                   currentPage++;
+
+//                   // setTimeout(function () {
+//                   //     loadAnalyzePdfData(clientName, currentPage);
+//                   // }, 100);
+
+//               } else {
+
+//                   console.log('All pages loaded');
+
+//                   $(".card.analyzepdf .card-header")
+//                       .css("opacity", "")
+//                       .css("pointer-events", "");
+//               }
+//           },
+//           error: function(xhr) {
+//               console.error(xhr);            
+//               $(".card.analyzepdfs .sk-bounce").hide();
+//               $(".card.analyzepdfs .card-header").show();
+//           }
+//       });
+//   }
+
+  let currentPage = 1;
+  let lastPage = 1;
+
+  function loadAnalyzePdfData(clientName) {
+
+      if (currentAnalyzeClient !== clientName) {
+          analyzepdf_completed_datas = [];
+          analyzepdf_processing_datas = [];
+          analyzepdf_error_datas = [];
+          analyzepdf_deleted_datas = [];
+
+          currentAnalyzeClient = clientName;
+          currentPage = 1;
+          lastPage = 1;
+      }
+
+      //$(".card.analyzepdfs .sk-bounce").show();
+      $('#ocr-loading-overlay').removeClass('d-none');
+
+      $.ajax({
+          url: `${analyzePdfUrl}data`,
+          type: "GET",
+          data: {
+              client_name: clientName,
+              page: currentPage,
+              per_page: 1000
+          },
+
+          success: function(result) {
+
+              // VAT registrations only returned on page 1
+              if (result.vatregmains) {
+                  window.vatregmains = result.vatregmains;
+              }
+
+              result.vatregmains = window.vatregmains;
+
+              let analyzepdf_datas;
+
+              if (currentPage === 1) {
+
+                  // FIRST REQUEST:
+                  // Process all data and initialize all tables
+                  analyzepdf_datas =
+                      drawDtTable(result, 'analyzepdf');
+
+                  if (analyzepdf_datas) {
+
+                      // analyzepdf_completed_datas.push(
+                      //     ...(analyzepdf_datas.analyzepdf_completed_datas || [])
+                      // ); 
+
+                      analyzepdf_completed_datas =
+                          analyzepdf_datas.analyzepdf_completed_datas || [];                     
+
+                      analyzepdf_processing_datas =
+                          analyzepdf_datas.analyzepdf_processing_datas || [];
+
+                      analyzepdf_error_datas =
+                          analyzepdf_datas.analyzepdf_error_datas || [];
+
+                      analyzepdf_deleted_datas =
+                          analyzepdf_datas.analyzepdf_deleted_datas || [];
+
+                      reloadAnalyzedPdf({
+                          analyzepdf_completed_datas,
+                          analyzepdf_processing_datas,
+                          analyzepdf_error_datas,
+                          analyzepdf_deleted_datas
+                      });
+                  }
+
+              } else {
+
+                  analyzepdf_datas =
+                      drawDtTable(result, 'analyzepdf', true);
+
+                  if (analyzepdf_datas) {
+
+                      reloadAnalyzedPdfCompleted(
+                          analyzepdf_completed_datas
+                      );
+                  }
+
+                  // // SUBSEQUENT REQUESTS:
+                  // // Only completed data is needed
+                  // analyzepdf_datas =
+                  //     drawDtTable(result, 'analyzepdf', true);
+
+                  // if (analyzepdf_datas) {
+
+                  //     analyzepdf_completed_datas.push(
+                  //         ...(analyzepdf_datas.analyzepdf_completed_datas || [])
+                  //     );
+
+                  //     // Only reload completed data
+                  //     reloadAnalyzedPdfCompleted({
+                  //         analyzepdf_completed_datas
+                  //     });
+
+                  //     // const completedData =
+                  //     //     analyzepdf_datas.analyzepdf_completed_datas || [];
+
+                  //     // // Avoid push(...array) because there may
+                  //     // // be thousands of records.
+                  //     // for (const row of completedData) {
+                  //     //     analyzepdf_completed_datas.push(row);
+                  //     // }
+
+                  //     // // Only reload completed table
+                  //     // reloadAnalyzedPdfCompleted(
+                  //     //     analyzepdf_completed_datas
+                  //     // );
+                  // }
+              }
+
+              currentPage = result.current_page;
+              lastPage = result.last_page;
+
+              if (currentPage < lastPage) {
+
+                  currentPage++;
+
+                  setTimeout(function () {
+                      loadAnalyzePdfData(clientName);
+                  }, 100);
+
+              } else {
+
+                  console.log('All completed data loaded');
+
+                  //$(".card.analyzepdfs .sk-bounce").hide();                  
+                  //$(".card.analyzepdfs .card-header").show();
+                  $('#ocr-loading-overlay').addClass('d-none');
+              }
+          },
+
+          error: function(xhr) {
+              console.error(xhr);
+
+              //$(".card.analyzepdfs .sk-bounce").hide();              
+              //$(".card.analyzepdfs .card-header").show();
+              $('#ocr-loading-overlay').addClass('d-none');
+          }
+      });
+  }
+
+  // if($('.btn-ocr-capture-client').length > 0) 
+  // {
+  //     const clientName = $('.btn-ocr-capture-client')
+  //         .data('selected-client');
+
+  //     if (clientName) {
+  //         loadAnalyzePdfData(clientName);
+  //     }
+  // }
+
+//   if ($('#select2OcrCaptureClient').length) {
+// console.log("$clientSelect initiate");
+//       const $clientSelect = $('#select2OcrCaptureClient');
+
+//       // $clientSelect.select2({
+//       //     allowClear: true,
+//       //     placeholder: 'Select Client'          
+//       // });
+      
+//       $clientSelect.wrap('<div class="position-relative"></div>').select2({
+//         placeholder: 'Select Client',
+//         dropdownParent: $clientSelect.parent()
+//       });
+// console.log("$clientSelect initiateddddddd");
+//       // // Automatically focus search box when dropdown opens
+//       // $clientSelect.on('select2:open', function () {
+//       //     setTimeout(function () {
+//       //         $('.select2-container--open .select2-search__field').focus();
+//       //     }, 0);
+//       // });
+
+//       // Initial client
+//       const clientName = $clientSelect.val() || '';
+
+//       if (clientName) {
+//           loadAnalyzePdfData(clientName);
+//       }
+
+//       // Client changed
+//       $clientSelect.on('change', function () {
+// console.log("$clientSelect change");
+//           const clientName = $(this).val() || '';
+
+//           $('#FilterInvoiceType').val('');
+
+//           if (clientName) {
+//               loadAnalyzePdfData(clientName);
+//           }
+//       });
+//   }
+
+  const $clientSelectCapture = $('#select2OcrCaptureClient');
+
+  if ($clientSelectCapture.length) {
+
+      // Let Frest/Select2 initialize it
+      //$clientSelectCapture.select2();
+
+      // Automatically focus search box when dropdown opens
+      // $clientSelectCapture.on('select2:open', function () {
+      //     setTimeout(function () {
+      //        $('.select2-container--open .select2-search__field').focus();
+      //     }, 0);
+      // });
+
+      //$clientSelectCapture.on('click', function () {
+      $(document).on('click', '#select2-select2OcrCaptureClient-container', function() {
+// console.log("on click");
+// console.log($('.select2-container--open .select2-search__field'));
+// console.log($('.select2-container--open .select2-search__field').length);
+        $('.select2-container--open .select2-search__field').focus();
+      });
+
+      $clientSelectCapture.on('change', function () {
+console.log("on change");
+          const clientName = $(this).val() || '';
+
+          $('#FilterInvoiceType').val('');
+
+          if (clientName) {
+              loadAnalyzePdfData(clientName);
+          }
+      });
+
+      const clientName = $clientSelectCapture.val() || '';
+
+      if (clientName) {
+          loadAnalyzePdfData(clientName);
+      }
+  }
 
   var dt_analyzepdf_tables = $('.datatables-analyzepdf');
 
@@ -704,7 +1114,7 @@ $(function () {
 
                 let btn_delete_analyzepdf = (!full.is_deleted) ? `<div class="dropdown-divider"></div>
                                       <li>
-                                        <a href="javascript:;" class="dropdown-item text-danger btn-delete-analyzepdf" title="Delete Analyze PDF" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
+                                        <a href="javascript:;" class="dropdown-item text-danger btn-delete-analyzepdf" title="Delete Document Flow" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdf_name +`" data-invoice_no="`+ full['invoice_no'] +`">
                                           <span class="text-danger"><i class="bx bx-x"></i> Delete</span>
                                         </a>                                      
                                       </li>`
@@ -789,11 +1199,11 @@ $(function () {
             buttons: [
               {
                 extend: 'print',
-                title: 'Analyze PDF',
+                title: 'Document Flow',
                 text: '<i class="bx bx-printer me-2" ></i>Print',
                 className: 'dropdown-item',
                 exportOptions: {                
-                  columns: ':visible',                
+                  columns: [1, 2, 3, 4, 5, 6, 7],                
                 },
                 customize: function (win) {
                   //customize print view for dark
@@ -811,43 +1221,43 @@ $(function () {
               },                
               {
                 extend: 'csv',
-                title: 'Analyze PDF',
+                title: 'Document Flow',
                 text: '<i class="bx bx-file me-2" ></i>Csv',
                 className: 'dropdown-item',
                 exportOptions: {                
-                  columns: ':visible'
+                  columns: [1, 2, 3, 4, 5, 6, 7]
                 }
               },           
               {
                 extend: 'excel',
-                title: 'Analyze PDF',
+                title: 'Document Flow',
                 text: '<i class="bx bxs-file-export me-2"></i>Excel',
                 className: 'dropdown-item',              
                 exportOptions: {
-                  columns: ':visible'
+                  columns: [1, 2, 3, 4, 5, 6, 7]
                 },             
-                action: function (e, dt, node, config) {                  
-                    //exportToExcelPeriodOverviewNew(dt, declaration_name);
-                }
+                // action: function (e, dt, node, config) {                  
+                //     //exportToExcelPeriodOverviewNew(dt, declaration_name);
+                // }
               },
               {
                 extend: 'pdf',
                 orientation: 'landscape',
                 pageSize: 'LEGAL',
-                title: 'Analyze PDF',
+                title: 'Document Flow',
                 text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
                 className: 'dropdown-item',
                 exportOptions: {                
-                  columns: ':visible'
+                  columns: [1, 2, 3, 4, 5, 6, 7]
                 }
               },
               {
                 extend: 'copy',
-                title: 'Analyze PDF',
+                title: 'Document Flow',
                 text: '<i class="bx bx-copy me-2" ></i>Copy',
                 className: 'dropdown-item',
                 exportOptions: {               
-                  columns: ':visible'
+                  columns: [1, 2, 3, 4, 5, 6, 7]
                 }
               }        
             ]
@@ -975,8 +1385,8 @@ $(function () {
           // $(".card.analyzepdfs .sk-bounce").hide();
           // $(".card.analyzepdfs .card-datatable").show();   
 
-          $(".card.analyzepdfs .sk-bounce").show();
-          $(".card.analyzepdfs .card-header").hide(); 
+          //$(".card.analyzepdfs .sk-bounce").show();
+          //$(".card.analyzepdfs .card-header").hide(); 
 
           var table = this.api();
 
@@ -1018,6 +1428,9 @@ $(function () {
   var $repeater = $('.form-salesinvoice-repeater');
 
   if (!$repeater.data('repeater-initialized')) {
+
+    if(analyzepdf_type !== 'analyzepdf_bulkupload')
+    {
       $repeater.repeater({
           show: function () {
               $(this).slideDown();
@@ -1026,8 +1439,10 @@ $(function () {
               $(this).slideUp(deleteElement);
           }
       });
+    }
+    
+    $repeater.data('repeater-initialized', true);
 
-      $repeater.data('repeater-initialized', true);
   }
 
   function clearFormItems() {
@@ -1059,6 +1474,64 @@ $(function () {
     $("#offcanvasAnalyzePdfData").offcanvas('show');
     loadItem($(this).data('analyzepdf_id')); 
   });  
+
+  // $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
+  //     const analyzePdfId = $(this).attr('id').replace('invoice_', '');
+
+  //     $("#offcanvasAnalyzePdfData").offcanvas('show');
+  //     loadItem(analyzePdfId);
+  // });
+
+  $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
+
+      const rowId = $(this).attr('id');
+
+      if (!rowId) {
+          return;
+      }
+
+      let analyzePdfId;
+      let source;
+
+      if (rowId.startsWith('sftp_invoice_')) {
+
+          source = 'sftp';
+          analyzePdfId = rowId.replace('sftp_invoice_', '');
+
+      } else if (rowId.startsWith('ocr_invoice_')) {
+
+          source = 'ocr';
+          analyzePdfId = rowId.replace('ocr_invoice_', '');
+
+      } else {
+
+          console.error('Unknown invoice row:', rowId);
+          return;
+      }
+
+      //console.log('Source:', source);
+      //console.log('Invoice ID:', analyzePdfId);
+
+
+      $("#offcanvasAnalyzePdfData").offcanvas('show');      
+
+      if (source === 'sftp') {
+
+          // Load SFTP invoice
+          //console.log('Loading SFTP invoice:', rowId);
+
+          loadSFtpOioItem(analyzePdfId);
+          
+
+      } else if (source === 'ocr') {
+
+          // Load analyzed/OCR invoice
+          //console.log('Loading analyzed invoice:', rowId);
+
+          loadItem(analyzePdfId);
+      }
+  });
+
   
 //   $(document).on('click', '#show-analyzepdf-data', function () {
 //     clearFormItems();
@@ -1756,24 +2229,58 @@ $(function () {
 
   //Filter    
   $(document).on('click', '.btn-analyzepdf-clear-filter', function() {  
-    clearFilterItems();  
+    //clearFilterItems();  
+
+    clearFilter();
     let activeTab = $('.nav-tabs .nav-item .nav-link.active').attr('id').replace('btn-analyzepdf-', '')
                       .replace('btn-analyzepdfsearch-', '');
     console.log("activeTab :" + activeTab);
     filterAnalyzePdf(activeTab);
   });    
 
-  function clearFilterItems() {        
-    $("#filter_invoice_type").val('');
-    $("#filter_client_no").val('');
-    $("#filter_client_name").val('');
-    $("#filter_invoice_date").val('');
-    $("#filter_invoice_no").val('');
-    $("#filter_currency").val('');
-    $("#filter_credit_note").val('');
-    $("#filter_net_amount").val('');   
-    $("#filter_vat_amount").val('');
-    $("#filter_total_amount").val('');    
+  // function clearFilterItems() {        
+  //   $("#filter_invoice_type").val('');
+  //   $("#filter_client_no").val('');
+  //   $("#filter_client_name").val('');
+  //   $("#filter_invoice_date").val('');
+  //   $("#filter_invoice_no").val('');
+  //   $("#filter_currency").val('');
+  //   $("#filter_credit_note").val('');
+  //   $("#filter_net_amount").val('');   
+  //   $("#filter_vat_amount").val('');
+  //   $("#filter_total_amount").val('');    
+  // }
+
+  function clearFilter()
+  {
+    // Clear all filter inputs
+    $('.form-analyzepdf-filter')[0].reset();
+
+    // Explicitly clear fields if needed
+    $('#filter_client_no').val('');
+    $('#filter_client_name').val('');
+    $('#filter_invoice_date').val('');
+    $('#filter_invoice_no').val('');
+    $('#filter_currency').val('');
+    $('#filter_credit_note').prop('checked', false);
+    $('#filter_net_amount').val('');
+    $('#filter_vat_amount').val('');
+    $('#filter_total_amount').val('');
+
+    // const filteredCompleted = [];    
+    // const filteredProcessing = [];
+    // const filteredError = [];
+    // const filteredDeleted = [];
+
+    // reloadAnalyzedPdf(
+    //     filteredCompleted,
+    //     filteredProcessing,
+    //     filteredError,
+    //     filteredDeleted
+    // );
+
+    // Close filter panel
+    $('#offcanvasAnalyzePdfFilter').offcanvas('hide');
   }
 
   function filterAnalyzePdf(tab_name)
@@ -1929,37 +2436,37 @@ $(function () {
       $("#btn-analyzepdf-"+ tab_name +" span").html(item_count);
   }
 
-  //Update      
-  $(document).on("submit", "#addAnalyzePdfForm", function(event)
-  {
-    event.preventDefault();
+  // //Update      
+  // $(document).on("submit", "#addAnalyzePdfForm", function(event)
+  // {
+  //   event.preventDefault();
 
-    var form = $(this);        
-    var analyze_id = $('#analyze_id').val();
+  //   var form = $(this);        
+  //   var analyze_id = $('#analyze_id').val();
 
-    var btn_save_form = form.find("button.btn-save-analyze-data");
-    btn_save_form.attr('disabled', 'disabled');
-    btn_save_form.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
-              'Saving...');
+  //   var btn_save_form = form.find("button.btn-save-analyze-data");
+  //   btn_save_form.attr('disabled', 'disabled');
+  //   btn_save_form.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
+  //             'Saving...');
 
-    $.ajax({      
-      url: `${analyzePdfUrl}` + analyze_id,
-      type: 'PUT',     
-      data: form.serialize(),     
-      success: function (data) {       
-        $("#offcanvasAnalyzePdfData").offcanvas('hide');
+  //   $.ajax({      
+  //     url: `${analyzePdfUrl}` + analyze_id,
+  //     type: 'PUT',     
+  //     data: form.serialize(),     
+  //     success: function (data) {       
+  //       $("#offcanvasAnalyzePdfData").offcanvas('hide');
 
-        btn_save_form.removeAttr('disabled');
-        btn_save_form.html("Save");   
+  //       btn_save_form.removeAttr('disabled');
+  //       btn_save_form.html("Save");   
 
-        var analyzepdf_datas = drawDtTable(data, 'analyzepdf');       
-        reloadAnalyzedPdf(analyzepdf_datas);         
-      },
-      error: function (error) {
-        console.log(error);
-      }
-    }); 
-  });  
+  //       var analyzepdf_datas = drawDtTable(data, 'analyzepdf');       
+  //       reloadAnalyzedPdf(analyzepdf_datas);         
+  //     },
+  //     error: function (error) {
+  //       console.log(error);
+  //     }
+  //   }); 
+  // });  
 
   $(document).on('shown.bs.tab', 'button[data-bs-toggle="tab"]', function (e) {  
     var id = $(e.target).attr("id") // activated tab
@@ -2106,8 +2613,12 @@ $(function () {
       
       $("#analyzepdf-delete-reason-quill").val($(this).find(".ql-editor").html());
 
-      var formData = new FormData(this);         
-                   
+      var formData = new FormData(this);    
+
+      //const clientName = $(".ocr-capture-client-option").data('client-name') || '';     
+      const clientName = $('#select2OcrCaptureClient').val() || '';
+      formData.append("client_name", clientName);
+
       var btn_analyzepdf_delete_reason_save = $("#" + formId + " #btn-analyzepdf-delete-reason-save");
       btn_analyzepdf_delete_reason_save.attr('disabled', 'disabled');
       btn_analyzepdf_delete_reason_save.html('<span class="spinner-border me-1" role="status" aria-hidden="true"></span>' +
@@ -2165,7 +2676,7 @@ $(function () {
             //reInitializeTooltips();
 
             var swal_title = 'Deleted and reason saved';  
-            var swal_text = 'Analyze PDF has been deleted and the reason ';         
+            var swal_text = 'Document has been deleted and the reason ';         
                        
             //Clear Modal Values
             $("#analyzepdf_delete_id").val('');    
@@ -2224,6 +2735,10 @@ $(function () {
         const bar = document.getElementById('progress-bar');
         const text = document.getElementById('progress-text');
 
+        // Get these from the VALIDATE response
+        const progressOperation = response.ocr_progress_operation;
+        const progressId = response.ocr_progress_id;
+
         const data = response;
         const total = parseInt(data.total || 0);
 
@@ -2253,9 +2768,21 @@ $(function () {
             }
 
             try {
+                const progressUrl =
+                  `/analyzepdf/progress` +
+                  `?ocr_progress_operation=${encodeURIComponent(progressOperation)}` +
+                  `&ocr_progress_id=${encodeURIComponent(progressId)}`;
 
-                const res = await fetch(`/analyzepdf/progress`);
-                const progressData = await res.json();
+                //const res = await fetch(`/analyzepdf/progress`);
+                const res = await fetch(progressUrl, {
+                      cache: 'no-store'
+                });
+                  
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                  
+                const progressData = await res.json();                
 
                 const completed =
                     progressData.completed || 0;
@@ -2401,6 +2928,10 @@ console.log("LOADING--------: " + total);
         const bar = document.getElementById('progress-bar');
         const text = document.getElementById('progress-text');
 
+        // Get these from the VALIDATE response
+        const progressOperation = response.ocr_progress_operation;
+        const progressId = response.ocr_progress_id;
+
         const data = response;
         const total = parseInt(data.total || 0);
 
@@ -2430,8 +2961,20 @@ console.log("LOADING--------: " + total);
             }
 
             try {
+                const progressUrl =
+                  `/analyzepdf/progress` +
+                  `?ocr_progress_operation=${encodeURIComponent(progressOperation)}` +
+                  `&ocr_progress_id=${encodeURIComponent(progressId)}`;
 
-                const res = await fetch(`/analyzepdf/progress`);
+                //const res = await fetch(`/analyzepdf/progress`);
+                const res = await fetch(progressUrl, {
+                      cache: 'no-store'
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
                 const progressData = await res.json();
 
                 const completed =
@@ -2632,170 +3175,366 @@ console.log("LOADING--------: " + total);
           let completed = 0;
 
           let recapturePoll = null;
+          let pollingStarted = false;
           let pollingStopped = false;
 
-          myDropzone.on("addedfiles", function (file) {              
-            $("#ocr-bulk-upload .card-bulk-upload").hide();
-            var total_files = myDropzone.files.length;   
-            console.log(total_files);
+          let ocrProgressOperation = 'bulkupload';
+          let ocrProgressId = null;
+          let batchId = null;
 
-            $("#bulk_total_uploads").val(total_files);
+          // myDropzone.on("addedfiles", function (file) {              
+          //   $("#ocr-bulk-upload .card-bulk-upload").hide();
+          //   var total_files = myDropzone.files.length;   
+          //   console.log(total_files);
+
+          //   //$("#bulk_total_uploads").val(total_files);
             
-            total = total_files || 0;
+          //   total = total_files || 0;
+            
+          //   // Only show progress card if there are emails
+          //   //progressCard.classList.remove('d-none');
+          //   bar.style.width = '0%';
+          //   bar.innerText = '0%';
+          //   text.innerText = `Queuing ${total} bulk files…`;
+          // });
 
-            // Only show progress card if there are emails
-            //progressCard.classList.remove('d-none');
-            bar.style.width = '0%';
-            bar.innerText = '0%';
-            text.innerText = `Queuing ${total} bulk files…`;
-          });
+          myDropzone.on("addedfiles", function(files) {
 
-          myDropzone.on("complete", function(file) {            
-            completed++;
-            console.log("Bulk COMPLETED--------: " + completed);
+              $("#ocr-bulk-upload .card-bulk-upload").hide();
 
-            if (total === 0) {
-                text.innerText = "No bulk file to process";
-                progressCard.classList.add('d-none'); // Keep hidden
-                return;
-            }
+              total = myDropzone.files.length;
 
-            // =========================================
-            // REPLACE OLD setInterval BLOCK WITH THIS
-            // =========================================            
-
-            async function pollProgress() {
-
-                if (pollingStopped) {
-                    return;
-                }
-
-                try {
-
-                    const res = await fetch(`/analyzepdf/progress`);
-                    const progressData = await res.json();
-
-                    //const 
-                    completed =
-                        progressData.completed || 0;
-
-                    const percent = Math.min(
-                        100,
-                        Math.round((completed / total) * 100)
-                    );
-
-                    console.log("BULK COMPLETED:", completed);
-
-                    bar.style.width = percent + '%';
-                    bar.innerText = percent + '%';
-
-                    text.innerText =
-                        `${completed} / ${total} bulk files processed`;
-
-                    if (completed >= total && total > 0) {
-
-                        pollingStopped = true;
-
-                        clearTimeout(recapturePoll);
-
-                        bar.classList.remove('progress-bar-animated');
-                        bar.classList.add('bg-success');
-
-                        text.innerText =
-                            `All bulk files are processed`;                        
-
-                        console.log("BULK LOADING DONE");
-
-                        // var analyzepdf_datas =
-                        //     drawDtTable(progressData, 'analyzepdf');
-
-                        // reloadAnalyzedPdf(analyzepdf_datas);
-
-                        // completed = 0;
-                        // total = 0;
-
-                        // myDropzone.removeAllFiles(true);
-
-                        // $('html, body').animate({
-                        //     scrollTop: 0
-                        // }, 500);
-
-                        setTimeout(() => {
-                          Swal.fire({
-                            title: 'Bulk upload completed',
-                            text: 'Page will be reloaded now :)',
-                            icon: 'info',
-                            customClass: {
-                              confirmButton: 'btn btn-success'
-                            }
-                          }).then(function (result) { 
-                              if (result.isConfirmed)
-                                  window.location.reload();
-                          });
-                        }, 5000); // Show the alert after 5 seconds  
-
-                        return;
-                    }
-
-                    recapturePoll =
-                        setTimeout(pollProgress, 3000);
-
-                }
-                catch (e) {
-
-                    console.log(e);
-
-                    recapturePoll =
-                        setTimeout(pollProgress, 3000);
-                }
-            }
-
-            pollProgress();
-
-            /*
-            $.ajax({      
-              url: `${analyzePdfUrl}progress`,
-              type: 'GET',                   
-              success: function (data) {       
-                const progressData = data;
-
-                const percent = Math.min(100, Math.round((completed / total) * 100));
-    
-                bar.style.width = percent + '%';
-                bar.innerText = percent + '%';
-                text.innerText = `${completed} / ${total} bulk files processed`;
-
-                if (completed >= total) {             
-                  bar.classList.remove('progress-bar-animated');
-                  bar.classList.add('bg-success');
-                  text.innerText = `All bulk files are processed`;                
-                                      
-    console.log("Bulk LOADING--------: " + total);
-                  var analyzepdf_datas = drawDtTable(progressData, 'analyzepdf');            
-                  reloadAnalyzedPdf(analyzepdf_datas);
-
-                  completed = 0;
-                  total = 0;
-
-                  myDropzone.removeAllFiles(true);
-
-                  $('html, body').animate({
-                      scrollTop: 0
-                  }, 500);
-                  // Clear preview HTML
-                  //document.querySelector("#dropzone-ocr-bulk-upload").innerHTML = "";
-                }
-              },
-              error: function (error) {
-                console.log(error);
+              if (!ocrProgressId) {
+                  ocrProgressId = crypto.randomUUID();
+                  batchId = crypto.randomUUID();
               }
-            });
-            */             
+
+              console.log("Total:", total);
+              console.log("OCR Progress ID:", ocrProgressId);
+              console.log("Batch ID:", batchId);
+
+              // SHOW PROGRESS CARD
+              progressCard.classList.remove('d-none');
+
+              bar.style.width = '0%';
+              bar.innerText = '0%';
+
+              text.innerText = `Queuing ${total} bulk files…`;
           });
 
-          myDropzone.on("successmultiple", function (file, response) {
-            console.log("successssssssssssssss");   
+          myDropzone.on("sendingmultiple", function(files, xhr, formData) {
+              formData.append(
+                  'ocr_progress_operation',
+                  ocrProgressOperation
+              );
+
+              formData.append(
+                  'ocr_progress_id',
+                  ocrProgressId
+              );
+
+              formData.append(
+                  'batch_id',
+                  batchId
+              );
+
+              formData.append(
+                  'bulk_total',
+                  myDropzone.files.length
+              );
           });
+
+          myDropzone.on("complete", function(file) {
+
+              console.log("COMPLETE");
+              console.log("Operation:", ocrProgressOperation);
+              console.log("Progress ID:", ocrProgressId);
+
+              if (pollingStarted) {
+                  return;
+              }
+
+              pollingStarted = true;
+
+              if (total === 0) {
+                  text.innerText = "No bulk file to process";
+                  progressCard.classList.add('d-none');
+                  return;
+              }
+
+              async function pollProgress() {
+
+                  if (pollingStopped) {
+                      return;
+                  }
+
+                  try {
+
+                      const progressUrl =
+                          `/analyzepdf/progress` +
+                          `?ocr_progress_operation=${encodeURIComponent(ocrProgressOperation)}` +
+                          `&ocr_progress_id=${encodeURIComponent(ocrProgressId)}`;
+
+                      const res = await fetch(progressUrl, {
+                          cache: 'no-store'
+                      });
+
+                      if (!res.ok) {
+                          throw new Error(`HTTP ${res.status}`);
+                      }
+
+                      const progressData = await res.json();
+
+                      completed = progressData.completed || 0;
+
+                      const percent = Math.min(
+                          100,
+                          Math.round((completed / total) * 100)
+                      );
+
+                      console.log(
+                          "BULK OCR COMPLETED:",
+                          completed,
+                          "/",
+                          total
+                      );
+
+                      bar.style.width = percent + '%';
+                      bar.innerText = percent + '%';
+
+                      text.innerText =
+                          `${completed} / ${total} bulk files processed`;
+
+                      if (completed >= total && total > 0) {
+
+                          pollingStopped = true;
+
+                          clearTimeout(recapturePoll);
+
+                          bar.classList.remove('progress-bar-animated');
+                          bar.classList.add('bg-success');
+
+                          text.innerText =
+                              'All bulk files are processed';
+
+                          console.log("BULK LOADING DONE");
+
+                          setTimeout(() => {
+
+                              Swal.fire({
+                                  title: 'Bulk upload completed',
+                                  text: 'Page will be reloaded now :)',
+                                  icon: 'info',
+                                  customClass: {
+                                      confirmButton: 'btn btn-success'
+                                  }
+                              }).then(function(result) {
+
+                                  if (result.isConfirmed) {
+                                      window.location.reload();
+                                  }
+
+                              });
+
+                          }, 5000);
+
+                          return;
+                      }
+
+                      recapturePoll = setTimeout(
+                          pollProgress,
+                          3000
+                      );
+
+                  } catch (e) {
+
+                      console.log(e);
+
+                      recapturePoll = setTimeout(
+                          pollProgress,
+                          3000
+                      );
+                  }
+              }
+
+              pollProgress();
+          });
+
+    //       myDropzone.on("complete", function(file) {   
+         
+    //         console.log("COMPLETE");
+    //         console.log("Operation:", ocrProgressOperation);
+    //         console.log("Progress ID:", ocrProgressId);
+
+    //         completed++;
+    //         console.log("Bulk COMPLETED--------: " + completed);
+
+    //         if (total === 0) {
+    //             text.innerText = "No bulk file to process";
+    //             progressCard.classList.add('d-none'); // Keep hidden
+    //             return;
+    //         }
+
+    //         // =========================================
+    //         // REPLACE OLD setInterval BLOCK WITH THIS
+    //         // =========================================            
+
+    //         async function pollProgress() {
+
+    //             if (pollingStopped) {
+    //                 return;
+    //             }
+
+    //             try {
+    //                 const progressUrl =
+    //                   `/analyzepdf/progress` +
+    //                   `?ocr_progress_operation=${encodeURIComponent(ocrProgressOperation)}` +
+    //                   `&ocr_progress_id=${encodeURIComponent(ocrProgressId)}`;
+
+    //                 //const res = await fetch(`/analyzepdf/progress`);
+    //                 const res = await fetch(progressUrl, {
+    //                     cache: 'no-store'
+    //                 });  
+
+    //                 if (!res.ok) {
+    //                     throw new Error(`HTTP ${res.status}`);
+    //                 }
+
+    //                 const progressData = await res.json();
+
+    //                 //const 
+    //                 completed =
+    //                     progressData.completed || 0;
+
+    //                 const percent = Math.min(
+    //                     100,
+    //                     Math.round((completed / total) * 100)
+    //                 );
+
+    //                 console.log("BULK COMPLETED:", completed);
+
+    //                 bar.style.width = percent + '%';
+    //                 bar.innerText = percent + '%';
+
+    //                 text.innerText =
+    //                     `${completed} / ${total} bulk files processed`;
+
+    //                 if (completed >= total && total > 0) {
+
+    //                     pollingStopped = true;
+
+    //                     clearTimeout(recapturePoll);
+
+    //                     bar.classList.remove('progress-bar-animated');
+    //                     bar.classList.add('bg-success');
+
+    //                     text.innerText =
+    //                         `All bulk files are processed`;                        
+
+    //                     console.log("BULK LOADING DONE");
+
+    //                     // var analyzepdf_datas =
+    //                     //     drawDtTable(progressData, 'analyzepdf');
+
+    //                     // reloadAnalyzedPdf(analyzepdf_datas);
+
+    //                     // completed = 0;
+    //                     // total = 0;
+
+    //                     // myDropzone.removeAllFiles(true);
+
+    //                     // $('html, body').animate({
+    //                     //     scrollTop: 0
+    //                     // }, 500);
+
+    //                     setTimeout(() => {
+    //                       Swal.fire({
+    //                         title: 'Bulk upload completed',
+    //                         text: 'Page will be reloaded now :)',
+    //                         icon: 'info',
+    //                         customClass: {
+    //                           confirmButton: 'btn btn-success'
+    //                         }
+    //                       }).then(function (result) { 
+    //                           if (result.isConfirmed)
+    //                               window.location.reload();
+    //                       });
+    //                     }, 5000); // Show the alert after 5 seconds  
+
+    //                     return;
+    //                 }
+
+    //                 recapturePoll =
+    //                     setTimeout(pollProgress, 3000);
+
+    //             }
+    //             catch (e) {
+
+    //                 console.log(e);
+
+    //                 recapturePoll =
+    //                     setTimeout(pollProgress, 3000);
+    //             }
+    //         }
+
+    //         pollProgress();
+
+    //         /*
+    //         $.ajax({      
+    //           url: `${analyzePdfUrl}progress`,
+    //           type: 'GET',                   
+    //           success: function (data) {       
+    //             const progressData = data;
+
+    //             const percent = Math.min(100, Math.round((completed / total) * 100));
+    
+    //             bar.style.width = percent + '%';
+    //             bar.innerText = percent + '%';
+    //             text.innerText = `${completed} / ${total} bulk files processed`;
+
+    //             if (completed >= total) {             
+    //               bar.classList.remove('progress-bar-animated');
+    //               bar.classList.add('bg-success');
+    //               text.innerText = `All bulk files are processed`;                
+                                      
+    // console.log("Bulk LOADING--------: " + total);
+    //               var analyzepdf_datas = drawDtTable(progressData, 'analyzepdf');            
+    //               reloadAnalyzedPdf(analyzepdf_datas);
+
+    //               completed = 0;
+    //               total = 0;
+
+    //               myDropzone.removeAllFiles(true);
+
+    //               $('html, body').animate({
+    //                   scrollTop: 0
+    //               }, 500);
+    //               // Clear preview HTML
+    //               //document.querySelector("#dropzone-ocr-bulk-upload").innerHTML = "";
+    //             }
+    //           },
+    //           error: function (error) {
+    //             console.log(error);
+    //           }
+    //         });
+    //         */             
+    //       });
+          
+          myDropzone.on("successmultiple", function (file, response) {
+            console.log("successssssssssssssss");  
+            console.log(response);   
+          });
+
+          // myDropzone.on("successmultiple", function(files, response) {
+          //     console.log("Bulk upload response:");
+          //     console.log(response);
+
+          //     ocrProgressOperation = response.ocr_progress_operation;
+          //     ocrProgressId = response.ocr_progress_id;
+
+          //     console.log("Operation:", ocrProgressOperation);
+          //     console.log("Progress ID:", ocrProgressId);
+          // });
 
           myDropzone.on("error", function (file, errorMessage, xhr) {
             console.log(errorMessage);
@@ -2852,6 +3591,10 @@ console.log("LOADING--------: " + total);
         const bar = document.getElementById('progress-bar');
         const text = document.getElementById('progress-text');
 
+        // Get these from the VALIDATE response
+        const progressOperation = response.ocr_progress_operation;
+        const progressId = response.ocr_progress_id;
+
         const data = response;
         const total = parseInt(data.total || 0);
 
@@ -2870,20 +3613,113 @@ console.log("LOADING--------: " + total);
         let validatePoll = null;
         let pollingStopped = false;
 
+        let lastCompleted = null;
+        let lastProgressTime = Date.now();
+
+        const noProgressTimeout = 60 * 1000; // 1 minute
+
         async function pollProgress() {
+            console.log('POLL START:', new Date().toISOString());
 
             if (pollingStopped) {
                 return;
             }
 
             try {
+                console.log('BEFORE FETCH:', new Date().toISOString());
 
-                const res = await fetch(`/analyzepdf/progress`);
+                const progressUrl =
+                  `/analyzepdf/progress` +
+                  `?ocr_progress_operation=${encodeURIComponent(progressOperation)}` +
+                  `&ocr_progress_id=${encodeURIComponent(progressId)}`;
+
+                //const res = await fetch(`/analyzepdf/progress`);
+                const res = await fetch(progressUrl, {
+                  cache: 'no-store'
+              });  
+
+                console.log('AFTER FETCH:', new Date().toISOString());
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                            
                 const progressData = await res.json();
 
+                console.log('PROGRESS RESPONSE:', progressData);
+                
                 const completed =
                     progressData.completed || 0;
 
+                // ==========================================
+                // CHECK WHETHER PROGRESS HAS CHANGED
+                // ==========================================
+
+                if (lastCompleted === null) {
+
+                    // First response
+                    lastCompleted = completed;
+                    lastProgressTime = Date.now();
+
+                } else if (completed !== lastCompleted) {
+
+                    // Progress changed
+                    console.log(
+                        `Progress changed: ${lastCompleted} → ${completed}`
+                    );
+
+                    lastCompleted = completed;
+                    lastProgressTime = Date.now();
+
+                } else {
+
+                    // Same count again
+                    const noProgressDuration =
+                        Date.now() - lastProgressTime;
+
+                    console.log(
+                        `No progress for ${Math.round(noProgressDuration / 1000)} seconds`
+                    );
+
+                    // ==========================================
+                    // SAME COUNT FOR 1 MINUTE → STOP
+                    // ==========================================
+
+                    if (noProgressDuration >= noProgressTimeout) {
+
+                        pollingStopped = true;
+
+                        clearTimeout(validatePoll);
+
+                        console.warn(
+                            'Polling stopped: progress did not change for 1 minute.',
+                            {
+                                total: total,
+                                completed: completed
+                            }
+                        );
+
+                        bar.classList.remove(
+                            'progress-bar-animated'
+                        );
+
+                        bar.classList.add('bg-warning');
+
+                        text.innerText =
+                            `Validation stopped at ${completed} / ${total}. ` +
+                            `No progress detected for 1 minute.`;
+
+                        btn_validate
+                            .removeAttr('disabled')
+                            .removeClass('disabled-opacity')
+                            .html(
+                                '<span><i class="bx bx-check me-2"></i>Validate</span>'
+                            );
+
+                        return;
+                    }
+                }
+        
                 const percent = Math.min(
                     100,
                     Math.round((completed / total) * 100)
@@ -2949,7 +3785,8 @@ console.log("LOADING--------: " + total);
             }
             catch (e) {
 
-                console.log(e);
+                //console.log(e);
+                console.log('POLL ERROR:', e);
 
                 validatePoll =
                     setTimeout(pollProgress, 3000);
@@ -2964,5 +3801,38 @@ console.log("LOADING--------: " + total);
     });
 
   });
+
+  // $(document).on('click', '.ocr-capture-client-option', function(e) {
+  //     e.preventDefault();
+
+  //     const clientName =
+  //         $(this).data('client-name') || '';
+
+  //     $('.btn-ocr-capture-client').text(
+  //         clientName || 'Select Client'
+  //     );
+
+  //     $('.btn-ocr-capture-client')
+  //         .attr('data-selected-client', clientName);
+
+  //     // Reset invoice type filter     
+  //     $('#FilterInvoiceType').val('');
+       
+  //     loadAnalyzePdfData(clientName);
+  // });
+
+  // $(document).on('change', '#select2OcrCaptureClient', function() {
+
+  //     const clientName = $(this).val() || '';
+
+  //     // Reset invoice type filter
+  //     $('#FilterInvoiceType').val('');
+
+  //     // Load data only when a client is selected
+  //     if (clientName) {
+  //         loadAnalyzePdfData(clientName);
+  //     }
+  // });
+
 
 });

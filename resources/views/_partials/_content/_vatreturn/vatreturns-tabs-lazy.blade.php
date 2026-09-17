@@ -93,6 +93,40 @@
 		        <li class="nav-item">	         
 		          <button type="button" id="btn-declarations-{{ $vat_reg_id }}" class="btn-declarations nav-link {{ ($show_importreconciliation) ? '' : 'disabled' }}" role="tab" data-bs-toggle="tab" aria-controls="navs-vatreturns-declarations-{{ $vat_reg_id }}" aria-selected="true" data-vat_reg_id="{{ $vat_reg_id }}">Declaration view <sup class="alert-danger">beta</sup><i class="fa-solid fa-arrow-up-right-from-square ms-2"></i></button>
 		        </li>
+
+		        @php
+		        	$show_ocr = true;
+		        	$frequency = $vatreg->frequency;
+
+			        $serviceStart = \Carbon\Carbon::parse(
+			            $vatreg->service_start
+			        );
+
+			        $serviceEnd = $serviceStart
+			            ->copy()
+			            ->addMonths($frequency - 1)
+			            ->endOfMonth();
+
+			        $fetch_period_from = null;
+			        if ($vatreg->country == 'CH') {
+			            $fetch_period_from = ($serviceEnd >= '2026-04-01')
+			                ? '2026-04-01'
+			                : null;
+			        } else {
+			            $fetch_period_from = ($serviceEnd >= '2026-06-01')
+			                ? '2026-06-01'
+			                : null;
+			        }
+			        
+			        if (!$vatregmain->ocr_sync || !$fetch_period_from)
+			        	$show_ocr = false;
+		        @endphp
+
+		        @if($show_ocr)
+			        <li class="nav-item">	         
+			          <button type="button" id="btn-declarations-new-ocr-{{ $vat_reg_id }}" class="btn-declarations-new-ocr nav-link {{ ($show_importreconciliation) ? '' : 'disabled' }}" role="tab" data-bs-toggle="tab" aria-controls="navs-vatreturns-declarations-new-ocr-{{ $vat_reg_id }}" aria-selected="true" data-vat_reg_id="{{ $vat_reg_id }}">Declaration New <sup class="alert-danger">OCR</sup><i class="fa-solid fa-arrow-up-right-from-square ms-2"></i></button>
+			        </li>
+		        @endif
 		        @endif
 
 		        @if(strtoupper($vatreg->country) == 'CH')
@@ -118,9 +152,11 @@
 		          <button type="button" id="btn-importreconciliation-notes-{{ $vat_reg_id }}" class="btn-importreconciliation-notes nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#navs-importreconciliation-notes-{{ $vat_reg_id }}" aria-controls="navs-importreconciliation-notes-{{ $vat_reg_id }}" aria-selected="false">Notes</button>
 		        </li> 
 
+		        @if($environment !== 'live')
 		        <li class="nav-item">
 		          <button type="button" id="btn-importreconciliation-control-{{ $vat_reg_id }}" class="btn-importreconciliation-control nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#navs-importreconciliation-control-{{ $vat_reg_id }}" aria-controls="navs-importreconciliation-control-{{ $vat_reg_id }}" aria-selected="false">Control</button>
-		        </li>  
+		        </li> 
+		        @endif 
 		    @endif		   
 	    </ul>
 	</div>    
@@ -574,6 +610,11 @@
 	        <div class="tab-pane fade" id="navs-vatreturns-declarations-{{ $vat_reg_id }}" role="tabpanel">	
 	        </div>
 	        <!--/ Declarations -->
+
+	        <!-- Declarations New (OCR) -->
+	        <div class="tab-pane fade" id="navs-vatreturns-declarations-new-ocr-{{ $vat_reg_id }}" role="tabpanel">	
+	        </div>
+	        <!--/ Declarations New (OCR) -->
 	        --}}
 
 	        {{-- //DON'T DELETE

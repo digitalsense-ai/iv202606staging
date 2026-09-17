@@ -28,23 +28,40 @@ $(function () {
     }
   });  
 
+  let currentAnalyzeSyncedClient = '';
+
   window.syncedCommercialRawData = [];
   window.syncedSalesRawData = [];
 
   let currentPage = 1;
   let lastPage = 1;
   let isLoading = false;
-  function loadSyncedData() {
+  
+  function loadSyncedData(clientName) {
+      if (currentAnalyzeSyncedClient !== clientName) {
+          syncedCommercialRawData = [];
+          syncedSalesRawData = [];
+          
+          currentAnalyzeSyncedClient = clientName;   
+          currentPage = 1;
+          lastPage = 1;       
+      }
+
       if (isLoading) return;
 
       isLoading = true;
 
-      $(".card.analyzepdfsynced .sk-bounce").show();
+      if(isLoading)
+      {
+        //$(".card.analyzepdfsynced .sk-bounce").show();
+        $('#ocr-sync-loading-overlay').removeClass('d-none');
+      }
       
       $.ajax({
           url: `${analyzePdfSyncedUrl}synceddbdata`,
           type: "GET",
           data: {
+              client_name: clientName,
               page: currentPage
           },
 
@@ -68,13 +85,20 @@ $(function () {
 
               isLoading = false;
 
-              console.log(
-                  'Loaded page:',
-                  currentPage,
-                  'Commercial:',
-                  window.syncedCommercialRawData.length,
-                  'Sales:',
-                  window.syncedSalesRawData.length
+              // console.log(
+              //     'Loaded page:',
+              //     currentPage,
+              //     'Client Name:',
+              //     clientName,
+              //     'Commercial:',
+              //     window.syncedCommercialRawData.length,
+              //     'Sales:',
+              //     window.syncedSalesRawData.length
+              // );
+
+              reloadSyncedDbData(
+                  syncedCommercialRawData,
+                  syncedSalesRawData
               );
 
               // Continue loading next API page
@@ -83,10 +107,17 @@ $(function () {
                   currentPage++;
 
                   setTimeout(function () {
-                      loadSyncedData();
+                      loadSyncedData(clientName);
                   }, 100);
 
                   //return;
+              } else {
+
+                  console.log('All synced data loaded');
+
+                  // $(".card.analyzepdfsynced .sk-bounce").hide();
+                  // $(".card.analyzepdfsynced .card-header").show();
+                  $('#ocr-sync-loading-overlay').addClass('d-none');
               }
 
               // // ALL API DATA IS NOW STORED
@@ -102,8 +133,9 @@ $(function () {
               //     window.syncedSalesRawData.length
               // );
 
-              $(".card.analyzepdfsynced .sk-bounce").hide();
-              $(".card.analyzepdfsynced .card-header").show();
+              // $(".card.analyzepdfsynced .sk-bounce").hide();
+              // $(".card.analyzepdfsynced .card-header").show();
+              $('#ocr-sync-loading-overlay').addClass('d-none');
 
               //$('.analyzepdf-filter-disabled').removeClass('disabled').addClass('cursor-pointer');
           },
@@ -112,13 +144,14 @@ $(function () {
               isLoading = false;
               console.error(xhr);
 
-              $(".card.analyzepdfsynced .sk-bounce").hide();
-              $(".card.analyzepdfsynced .card-header").show();
+              // $(".card.analyzepdfsynced .sk-bounce").hide();
+              // $(".card.analyzepdfsynced .card-header").show();
+              $('#ocr-sync-loading-overlay').addClass('d-none');
           }
       });
   }
 
-  loadSyncedData();
+  //loadSyncedData();
 
   function reloadSyncedDbData(
       commercialData = [],
@@ -179,13 +212,20 @@ $(function () {
       }
   }
 
-  $('.btn-analyzepdf-filter').on('click', function () {
+  function applySyncedDbFilter(selectedClientName = '') {
 
       const clientNo =
           $('#filter_client_no').val().trim().toLowerCase();
 
+      // const clientName = 
+      //     $('#filter_client_name').val().trim().toLowerCase();
+
+      // const clientName =
+      //     selectedClientName?.trim().toLowerCase() ||
+      //     $('#filter_client_name').val().trim().toLowerCase();
+
       const clientName =
-          $('#filter_client_name').val().trim().toLowerCase();
+          selectedClientName?.trim().toLowerCase();
 
       const invoiceDate =
           $('#filter_invoice_date').val();
@@ -343,46 +383,104 @@ $(function () {
           filteredCommercial,
           filteredSales
       );
+  }
+
+  $('.btn-analyzepdf-filter').on('click', function () { 
+    const selectedClient =
+        $('.btn-syncdb-client').attr('data-selected-client') || '';
+
+    applySyncedDbFilter(selectedClient);   
   });
 
+  $(document).on('dblclick', '.datatables-analyzepdfsynced tbody tr', function () {
+      const analyzePdfId = $(this).attr('id').replace('invoice_', '');
+
+      $("#offcanvasAnalyzePdfData").offcanvas('show');
+      loadItem(analyzePdfId);
+  });
+
+  // $(document).on('click', '.syncdb-client-option', function (e) {
+  //     e.preventDefault();
+
+  //     const clientName =
+  //         $(this).data('client-name') || '';
+
+  //     // Update button text
+  //     $('.btn-syncdb-client').text(
+  //         clientName || 'Select Client'
+  //     );
+
+  //     // Store selected client
+  //     $('.btn-syncdb-client')
+  //         .attr('data-selected-client', clientName);
+
+  //     // Apply filter immediately
+  //     applySyncedDbFilter(clientName);
+  // });
+
+  const $clientSelectSyncDB = $('#select2OcrSyncDbClient');
+
+  if ($clientSelectSyncDB.length) {
+
+      $clientSelectSyncDB.on('change', function () {
+          const clientName = $(this).val() || '';          
+
+          if (clientName) {
+              loadSyncedData(clientName);
+          }
+      });
+
+      const clientName = $clientSelectSyncDB.val() || '';
+
+      if (clientName) {
+          loadSyncedData(clientName);
+      }
+  }
+
+  clearFilter();
   // =========================
   // CLEAR FILTER
   // =========================
   $('.btn-analyzepdf-clear-filter').on('click', function () {
-
-      // Clear all filter inputs
-      $('.form-analyzepdf-filter')[0].reset();
-
-      // Explicitly clear fields if needed
-      $('#filter_client_no').val('');
-      $('#filter_client_name').val('');
-      $('#filter_invoice_date').val('');
-      $('#filter_invoice_no').val('');
-      $('#filter_currency').val('');
-      $('#filter_credit_note').prop('checked', false);
-      $('#filter_net_amount').val('');
-      $('#filter_vat_amount').val('');
-      $('#filter_total_amount').val('');
-
-      // const filteredCommercial =
-      //     window.syncedCommercialRawData || [];
-
-      // const filteredSales =
-      //     window.syncedSalesRawData || [];
-
-      const filteredCommercial = [];
-
-      const filteredSales = [];
-
-      reloadSyncedDbData(
-          filteredCommercial,
-          filteredSales
-      );
-
-      // Close filter panel
-      $('#offcanvasAnalyzePdfFilter').offcanvas('hide');
+    clearFilter();      
   });
 
+  function clearFilter()
+  {
+    // Clear all filter inputs
+    $('.form-analyzepdf-filter')[0].reset();
+
+    // Explicitly clear fields if needed
+    $('#filter_client_no').val('');
+    $('#filter_client_name').val('');
+    $('#filter_invoice_date').val('');
+    $('#filter_invoice_no').val('');
+    $('#filter_currency').val('');
+    $('#filter_credit_note').prop('checked', false);
+    $('#filter_net_amount').val('');
+    $('#filter_vat_amount').val('');
+    $('#filter_total_amount').val('');
+
+    // const filteredCommercial =
+    //     window.syncedCommercialRawData || [];
+
+    // const filteredSales =
+    //     window.syncedSalesRawData || [];
+
+    $clientSelectSyncDB.trigger('change');
+
+    const filteredCommercial = [];
+
+    const filteredSales = [];
+
+    reloadSyncedDbData(
+        filteredCommercial,
+        filteredSales
+    );
+
+    // Close filter panel
+    $('#offcanvasAnalyzePdfFilter').offcanvas('hide');
+  }
 
   // =========================
   // CANCEL
@@ -430,7 +528,8 @@ $(function () {
       let actiontargets = 9;
 
       let invoiceDateIndex = -1;
-      let netAmountIndex = -1;
+      //let netAmountIndex = -1;
+      let euroIndexes = [];
       let relatedInvoiceIndex = -1;
       let fetchDateIndex = -1;
 
@@ -462,7 +561,8 @@ $(function () {
 
         actiontargets = 9;
         invoiceDateIndex = 4;
-        netAmountIndex = 6;
+        //netAmountIndex = 6;
+        euroIndexes = [6];
         relatedInvoiceIndex = 7;
         fetchDateIndex = 8;
       }
@@ -519,7 +619,8 @@ $(function () {
 
         actiontargets = 21;
         invoiceDateIndex = 4;
-        netAmountIndex = 7;
+        //netAmountIndex = 7;
+        euroIndexes = [7, 8, 10, 11, 12, 13, 14];
         fetchDateIndex = 20;
       }
 
@@ -555,7 +656,7 @@ $(function () {
 
         data: analyzepdfsynced_datas,
         rowId: function (data) {
-            return 'invoice_' + data.id;
+            return 'invoice_' + data.ocr_pdf_id;
         },
         scrollCollapse: true,
         scrollX: true,
@@ -589,14 +690,32 @@ $(function () {
           },
 
           // ================= NUMBER SORT FIX =================
+          // {
+          //   targets: netAmountIndex,
+          //   className: 'text-end',
+          //   render: function (data, type) {
+          //     if (type === 'sort' || type === 'type') {
+          //       return parseFloat(String(data).replace(/,/g, '')) || 0;
+          //     }
+          //     return data;
+          //   }
+          // },
           {
-            targets: netAmountIndex,
+            targets: euroIndexes,
             className: 'text-end',
-            render: function (data, type) {
+            render: function (data, type) {             
+              const numericValue = parseEuropeanNumber(data) || 0;
+
+              // Sorting / type detection
               if (type === 'sort' || type === 'type') {
-                return parseFloat(String(data).replace(/,/g, '')) || 0;
+                  return numericValue;
               }
-              return data;
+
+              // Display
+              return numericValue.toLocaleString('de-DE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
             }
           },
           // ================= FETCH DATE SORT FIX =================
@@ -697,7 +816,7 @@ $(function () {
         dom:
           '<"row mx-0 '+ analyzepdfsynced_name +'-synced-filter '+ analyzepdfsynced_filter_class +'"' +
           '<"col-sm-12 col-md-6 sub-btns text-start my-auto">' +
-          '<"col-sm-12 col-md-6"lfB>' +
+          '<"col-sm-12 col-md-6"plfB>' +
           '>r' +
           '<"row mx-0"<"col-sm-12 p-0"t>>' +
           '<"row mx-2"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
@@ -1088,6 +1207,7 @@ $(function () {
   }
   */
 
+  /*
   // Sync Data
   $(document).on('click', '.btn-sync-data', function () {
     var btn_sync_data = $(this);   
@@ -1137,6 +1257,7 @@ $(function () {
     }
 
   });
+  */
   
   // Sync DB
   $(document).on('click', '.btn-sync-db', function () {

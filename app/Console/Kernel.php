@@ -38,12 +38,18 @@ class Kernel extends ConsoleKernel
         $schedule->command('apidatas:load')->dailyAt('00:00');    
         $schedule->command('exchangerate:task')->dailyAt('14:30');  
         //$schedule->command('reminder:task')->hourly();
-        $schedule->command('crmreminder:task')->hourly();
+        //$schedule->command('crmreminder:task')->hourly();
         
         //$schedule->command('irazure:task')->dailyAt('00:00'); 
                
         if($environment === "live")
         {
+            $schedule->command('ocrinbox:process')->everyThirtyMinutes();
+
+            //$schedule->command('ocrsftp:process')->dailyAt('00:00');
+
+            $schedule->command('ocrsyncdb:process')->everyFifteenMinutes();
+
             $schedule->command('mailbox:task')->dailyAt('00:00'); 
             $schedule->command('irftp:task')->dailyAt('00:00'); 
             $schedule->command('irefacto:task')->dailyAt('00:00'); 

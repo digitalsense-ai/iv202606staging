@@ -21,6 +21,7 @@ class SubmitAnalyzeJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable;
 
     public function __construct(
+        public string $ocrProgressKey, 
         public array $clients,
         public int $documentId,
         public string $filePath,
@@ -69,6 +70,7 @@ class SubmitAnalyzeJob implements ShouldQueue
         }
 
         PollAnalyzeResultJob::dispatch(
+            $this->ocrProgressKey, 
             $this->clients,
             $this->documentId,
             $this->filePath,

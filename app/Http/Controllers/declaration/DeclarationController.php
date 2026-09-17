@@ -189,7 +189,7 @@ class DeclarationController extends Controller
               {  
                 $com_invoice_id = $cominvoice->id;
 
-                $salesinvoices = ImportReconciliationSalesInvoices::where('com_invoice_id', $com_invoice_id)->get();
+                $salesinvoices = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $com_invoice_id)->get();
 
                 if($salesinvoices)
                 {
@@ -219,7 +219,8 @@ class DeclarationController extends Controller
                     $subquery->where('id', $client_id);
                 })           
                 ->whereNot('data_from', 'ivf')
-                ->whereNot('data_from', 'ftp')          
+                ->whereNot('data_from', 'ftp')
+                ->whereNot('data_from', 'ocr')
                 ->get();            
           /* --end GET ALL COM. INVOICES FOR THE CLIENT -- */
 
@@ -349,6 +350,7 @@ class DeclarationController extends Controller
                                     'importreconciliationcominvoices' => function($query) {                                
                                       $query->where('data_from', '!=', 'ivf')
                                         ->where('data_from', '!=', 'ftp')
+                                        ->where('data_from', '!=', 'ocr')
                                         ->orderBy('last_modified_at', 'desc')                                  
                                         ->get();
                                     }
@@ -612,7 +614,7 @@ class DeclarationController extends Controller
             $invoice_name_text = 'Sales Invoices';
             $log_name_text = 'sales-invoice';
 
-            $invoice = ImportReconciliationSalesInvoices::where('id', $invoice_id)->first();       
+            $invoice = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('id', $invoice_id)->first();       
 
             if($is_disregard == "1")
             {
@@ -714,7 +716,7 @@ class DeclarationController extends Controller
           $invoice_name_text = 'Sales Invoices';
           $log_name_text = 'sales-invoice';
 
-          $invoice = ImportReconciliationSalesInvoices::where('id', $invoice_id)->first();       
+          $invoice = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('id', $invoice_id)->first();       
         }
         else
         {
@@ -828,10 +830,10 @@ class DeclarationController extends Controller
               $rematch_invoice->vat_reg_id = $invoice->vat_reg_id;
               $rematch_invoice->save();
 
-              $salesinvoices = ImportReconciliationSalesInvoices::where('com_invoice_id', $rematch_invoice->id);
+              $salesinvoices = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $rematch_invoice->id);
               if($salesinvoices)
               {                                
-                  $update_sales = ImportReconciliationSalesInvoices::where('com_invoice_id', $rematch_invoice->id)
+                  $update_sales = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $rematch_invoice->id)
                                       ->update(['vat_reg_id' => $invoice->vat_reg_id]);                  
               }
             }
@@ -1003,7 +1005,7 @@ class DeclarationController extends Controller
 
             $com_invoice = ImportReconciliationComInvoices::where('id', $move_invoice_id)->first();    
 
-            $invoice = ImportReconciliationSalesInvoices::where('id', $invoice_id)->first();    
+            $invoice = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('id', $invoice_id)->first();    
             
             $invoice->vat_reg_id = ($invoice->vat_reg_id == $com_invoice->vat_reg_id) ? $invoice->vat_reg_id : $com_invoice->vat_reg_id;   
             $invoice->com_invoice_id = $move_invoice_id; 
@@ -1577,7 +1579,7 @@ class DeclarationController extends Controller
           $invoice_name_text = 'Sales Invoices';
           $log_name_text = 'sales-invoice';
 
-          $invoice = ImportReconciliationSalesInvoices::where('id', $invoice_id)->first(); 
+          $invoice = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('id', $invoice_id)->first(); 
         }
 
         $vat_reg_id = $invoice->vat_reg_id;
@@ -1742,7 +1744,8 @@ class DeclarationController extends Controller
         if($invoice_name == 'com')
         {
           $invoice_name_text = 'Commercial Invoices';
-          $log_name_text = 'com-invoice';
+          //$log_name_text = 'com-invoice';
+          $log_name_text = 'com';
 
           $invoice = ImportReconciliationComInvoices::where('id', $invoice_id)->first();  
 
@@ -1750,7 +1753,7 @@ class DeclarationController extends Controller
           {
             $newRow = $invoice->replicate();
 
-            $newRow->data_from = 'azure';
+            $newRow->data_from = ($invoice->ocr_pdf_id) ? 'ocr' : 'azure';
             $newRow->expo_no = NULL;
             $newRow->lope_no = NULL;
             $newRow->duties = NULL;
@@ -1772,7 +1775,7 @@ class DeclarationController extends Controller
             $invoice->rematch_com_invoice_id = NULL;           
             $invoice->save();
             
-            $salesinvoices = ImportReconciliationSalesInvoices::where('com_invoice_id', $invoice->id)
+            $salesinvoices = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $invoice->id)
                                   ->update(['com_invoice_id' => $newRow->id]);
           }
           else
@@ -1833,7 +1836,7 @@ class DeclarationController extends Controller
             $invoice_name_text = 'Sales Invoices File';
             $log_name_text = 'sales-invoice-file';
             
-            $sales_invoices = ImportReconciliationSalesInvoices::where('invoice_no', $invoice_no)->get();    
+            $sales_invoices = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('invoice_no', $invoice_no)->get();    
             
             if(count($sales_invoices) == 0)
             {

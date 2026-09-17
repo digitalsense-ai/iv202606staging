@@ -67,11 +67,14 @@ use App\Models\VATReturnOFiles;
 use App\Models\VATReturnNotes;
 use App\Models\VATReturns;
 
+use App\Models\OcrPdfSyncDb;
+
 use App\Jobs\InsertInvoices;
 use App\Jobs\InsertComSalesInvoices;
 use App\Events\ImportReconciliationComSalesInvoicesJobProgressEvent;
 use App\Events\OcrInvoicesSyncEvent;
-use App\Jobs\InsertComSalesInvoicesFromOcr;
+//use App\Jobs\InsertComSalesInvoicesFromOcr;
+use App\Jobs\InsertComSalesInvoicesFromNewOcr;
 use App\Jobs\ProcessReminderEmailJob;
 
 use Illuminate\Support\Facades\DB;
@@ -4423,7 +4426,10 @@ class CommonClass
             break;  
           case "importreconcilation-global-search-refresh":
             Log::info($authUserName . " refreshed global search.", $extras);
-            break;   
+            break; 
+          case "importreconcilation-ocr-refresh":
+            Log::info($authUserName . " refreshed OCR.", $extras);
+            break;    
           case "importreconcilation-com-invoice-rematch":
             Log::info($authUserName . " rematched the import reconciliation com. invoice.", $extras);
             break;  
@@ -4463,6 +4469,12 @@ class CommonClass
           case "importreconcilation-sales-invoice-specific-invoice-global-search-refresh":
             Log::info($authUserName . " refreshed global search for specific sales invoices.", $extras);
             break;
+          case "importreconcilation-com-invoice-specific-invoice-ocr-refresh":
+            Log::info($authUserName . " refreshed OCR for specific com. invoices.", $extras);
+            break;
+          case "importreconcilation-sales-invoice-specific-invoice-ocr-refresh":
+            Log::info($authUserName . " refreshed OCR for specific sales invoices.", $extras);
+            break;  
           case "importreconcilation-invoice-currency-conversion":
             Log::info($authUserName . " converted the currencies for the declaration invoices.", $extras);
             break;   
@@ -7632,7 +7644,7 @@ class CommonClass
                 
               }             
             } //TAX TOTAL
-            else if(strpos(strtolower($xmlTag), 'monetarytotal') !== false || strpos(strtolower($xmlTag), 'legaltotal') !== false) 
+            else if(strpos(strtolower($xmlTag), 'monetarytotal') !== false || strpos(strtolower($xmlTag), 'legaltotal') !== false || strpos(strtolower($xmlTag), 'legalmonetarytotal') !== false) 
             {
               if(isset($xmlTagValue->LineExtensionAmount))
               {
@@ -7897,13 +7909,26 @@ class CommonClass
         else
           $org_no = str_replace(['.', '-'], '', $vatregmain->vat_no);
              
+        $frequency = $this->getFrequency(
+            $vatreg->general_periods
+        );
+
+        $serviceStart = Carbon::parse(
+            $vatreg->service_start
+        );
+
+        $serviceEnd = $serviceStart
+            ->copy()
+            ->addMonths($frequency - 1)
+            ->endOfMonth();
+
         $fetch_period_from = null;
         if ($vatregmain->country == 'CH') {
-            $fetch_period_from = ($vatregmain->service_start >= '2026-04-01')
+            $fetch_period_from = ($serviceEnd >= '2026-04-01')
                 ? '2026-04-01'
                 : null;
         } else {
-            $fetch_period_from = ($vatregmain->service_start >= '2026-06-01')
+            $fetch_period_from = ($serviceEnd >= '2026-06-01')
                 ? '2026-06-01'
                 : null;
         }
@@ -7915,10 +7940,12 @@ class CommonClass
         if ($vatregmain->ocr_sync && $fetch_period_from)
         {          
           //sync from OCR extraction
-          $from = str_replace('global', 'ocr', $from);
+          $from = str_replace('global-search', 'ocr', $from);
 
           $insert_invoices = 0;          
           // $insert_invoices = $this->loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from, $fetch_period_from, $full_refresh, $invoice_name, $ocr_pdf_id);
+
+          // $insert_invoices = $this->loadImportReconciliationDatasFromNewOcr($authUser, $vatreg, $from, $fetch_period_from, $full_refresh, $invoice_name, $invoice_no, $ocr_pdf_id);
 
           return $insert_invoices;          
         } //OCR
@@ -8124,635 +8151,1559 @@ class CommonClass
       return $invoiceValues->unique()->sort()->values();
   }
 
-  public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $fetch_period_from = null, $full_refresh = false, $invoice_name = null, $ocr_pdf_id = null)
-    {
-        try {
+  public function loadImportReconciliationDatasFromNewOcr(
+      $authUser,
+      $vatreg,
+      $from = 'ocr',      
+      $invoice_no = null,
+      $ocr_pdf_id = null
+  ) {
+      try {
 
-            $client_id = $vatreg->client_id;
-            $client_name = $vatreg->client->client_name;
-            $vat_reg_main_id = $vatreg->vat_reg_main_id;
-
-            $vatregmain = $vatreg->vatregmain;
-
-            $org_no = ($vatregmain->country == 'NO')
-                ? $vatregmain->org_no
-                : str_replace(['.', '-'], '', $vatregmain->vat_no);
-
-            $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
-
-            $totalProcessed = 0;
-
-            // Fetch VAT regs once (lightweight)
-            $vatregs = $this->getLazy(
-                'vatreg',
-                ['client'],
-                ['vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]],
-                [],
-                ['id' => 'DESC'],
-                'get'
-            );
-// Log::info("BEFORE dooooooooooooooooooooo");
-// Log::info($org_no);
-
-            //$hasDispatchedAnyJobs = false;
-
-            // OcrPdf::query()->where('sync_status', 0)
-            //   ->where('is_locked', 1)
-            //   ->update(['is_locked' => 0]);
-
-            // OcrPdf::query()->where('invoice_type', 'com')              
-            //   ->where('is_locked', 1)
-            //   ->update(['is_locked' => 0]);  
-            
-            OcrSyncStatus::query()
-              ->currentEnvironment()
-              ->where('sync_status', false)
-              ->where('is_locked', true)
-              ->update([
-                  'is_locked' => false,
-                  'locked_at' => null,
-              ]);
-
-            OcrSyncStatus::query()
-              ->currentEnvironment()
-              ->where('is_locked', true)
-              ->whereIn('ocr_pdf_id', function ($query) {
-                  $query->select('id')
-                      ->from('dv_ocr_pdfs')
-                      ->where('invoice_type', 'com');
+          /*
+           * =========================================================
+           * CLEANUP DELETED OCR PDF SYNC RECORDS
+           * =========================================================
+           *
+           * Remove sync records whose source OCR PDF has already
+           * been marked as deleted.
+           */
+          OcrPdfSyncDb::query()
+              ->whereIn('id', function ($query) {
+                  $query->select('s.id')
+                      ->from('dv_ocr_pdf_sync_db as s')
+                      ->join('dv_ocr_pdfs as p', 'p.id', '=', 's.ocr_pdf_id')
+                      ->where('p.is_deleted', 1)
+                      //->where('p.status', 'completed');
+                      ;
               })
-              ->update([
-                  'is_locked' => false,
-                  'locked_at' => null,
+              ->delete();
+          
+          /*
+           * =========================================================
+           * AUTO REFRESH
+           *
+           * When $ocr_pdf_id is provided, we already know exactly
+           * which OCR PDF triggered the refresh.
+           *
+           * Only find its COM group and dispatch the reconciliation
+           * job.
+           * =========================================================
+           */
+
+          if ($ocr_pdf_id) {
+
+              $ocrRecord = OcrPdfSyncDb::query()
+                  ->select([
+                      'id',
+                      'invoice_type',
+                      'invoice_no',
+                      'related_sales_invoices',
+                  ])
+                  ->where('ocr_pdf_id', $ocr_pdf_id)
+                  ->first();
+
+              if (!$ocrRecord) {
+                  Log::warning('OCR Sync DB record not found', [
+                      'ocr_pdf_id' => $ocr_pdf_id,
+                  ]);
+
+                  return 0;
+              }
+
+              /*
+               * -----------------------------------------------------
+               * Determine the COM invoice.
+               * -----------------------------------------------------
+               */
+
+              if ($ocrRecord->invoice_type === 'com') {
+
+                  $commInvoice = $ocrRecord;
+
+              } else {
+
+                  $commInvoice = OcrPdfSyncDb::query()
+                      ->select([
+                          'id',
+                          'invoice_type',
+                          'invoice_no',
+                          'related_sales_invoices',
+                      ])
+                      ->where('invoice_type', 'com')
+                      ->whereJsonContains(
+                          'related_sales_invoices',
+                          $ocrRecord->invoice_no
+                      )
+                      ->first();
+
+                  if (!$commInvoice) {
+                      // Log::warning('COM invoice not found', [
+                      //     'ocr_pdf_id' => $ocr_pdf_id,
+                      //     'invoice_no' => $ocrRecord->invoice_no,
+                      // ]);
+
+                      return 0;
+                  }
+              }
+
+              /*
+               * -----------------------------------------------------
+               * Get related SALES invoice numbers.
+               * -----------------------------------------------------
+               */
+
+              $relatedSalesInvoices =
+                  $commInvoice->related_sales_invoices ?? [];
+
+              if (!is_array($relatedSalesInvoices)) {
+                  $relatedSalesInvoices = [$relatedSalesInvoices];
+              }
+
+              $relatedSalesInvoices = collect($relatedSalesInvoices)
+                  ->filter()
+                  ->unique()
+                  ->values();
+
+              /*
+               * -----------------------------------------------------
+               * Get related SALES IDs in one query.
+               * -----------------------------------------------------
+               */
+
+              $relatedSalesIds = [];
+
+              if ($relatedSalesInvoices->isNotEmpty()) {
+
+                  $relatedSalesIds = OcrPdfSyncDb::query()
+                      ->where('invoice_type', 'sales')
+                      ->whereIn(
+                          'invoice_no',
+                          $relatedSalesInvoices->all()
+                      )
+                      ->pluck('id')
+                      ->all();
+              }
+
+              /*
+               * -----------------------------------------------------
+               * Dispatch one reconciliation job.
+               * -----------------------------------------------------
+               */
+
+              Bus::dispatch(
+                  (new InsertComSalesInvoicesFromNewOcr(
+                      $commInvoice->id,
+                      $relatedSalesIds,
+                      $vatreg,
+                      $authUser,
+                      $from
+                  ))->onQueue('ocrpdfsyncinvoices')
+              );
+
+              return 1;
+          }
+
+          /*
+           * =========================================================
+           * NORMAL / FULL REFRESH
+           * =========================================================
+           */
+
+          $country = $vatreg->vatregmain?->country;
+
+          $client_no = (
+              $country === 'CH'
+                  ? $vatreg->vatregmain?->org_no
+                  : $vatreg->vatregmain?->vat_no
+          );
+
+          $client_no = preg_replace(
+              '/[^0-9]/',
+              '',
+              $client_no ?? ''
+          );
+
+          $frequency = $this->getFrequency(
+              $vatreg->vatregmain?->general_periods
+          );
+
+          if (!$frequency || !$vatreg->service_start) {
+              return 0;
+          }
+
+          $serviceStart = Carbon::parse(
+              $vatreg->service_start
+          )->subMonth();
+
+          $serviceEnd = Carbon::parse(
+                  $vatreg->service_start
+              )
+              ->copy()
+              ->addMonths($frequency - 1)
+              ->endOfMonth();
+
+          if ($country === 'CH') {
+
+              $fetch_period_from = $serviceStart
+                  ->copy()
+                  ->max(Carbon::parse('2026-04-01'))
+                  ->format('Y-m-d');
+
+          } elseif ($country === 'NO') {
+
+              $fetch_period_from = $serviceStart
+                  ->copy()
+                  ->max(Carbon::parse('2026-06-01'))
+                  ->format('Y-m-d');
+
+          } else {
+
+              $fetch_period_from = $serviceStart
+                  ->format('Y-m-d');
+          }
+
+
+          /*
+           * =========================================================
+           * SPECIFIC INVOICE
+           *
+           * First get the COM invoice, then get its related SALES
+           * invoices separately.
+           * =========================================================
+           */
+
+          if ($invoice_no) {
+
+              $commInvoice = OcrPdfSyncDb::query()
+                  ->select([
+                      'id',
+                      'invoice_type',
+                      'invoice_no',
+                      'invoice_date',
+                      'related_sales_invoices',
+                  ])
+                  ->where('client_no', $client_no)
+                  ->where('invoice_no', $invoice_no)
+                  ->where('invoice_type', 'com')
+                  ->first();
+
+              if (!$commInvoice) {
+                  Log::warning('COM invoice not found for OCR refresh.', [
+                      'client_no'  => $client_no,
+                      'invoice_no' => $invoice_no,
+                  ]);
+
+                  return 0;
+              }
+
+              $relatedSalesInvoiceNos = collect(
+                  $commInvoice->related_sales_invoices ?? []
+              )
+                  ->filter()
+                  ->unique()
+                  ->values();
+
+              Log::info('Specific COM invoice OCR refresh.', [
+                  'client_no' => $client_no,
+                  'invoice_no' => $invoice_no,
+                  'related_sales_invoices' => $relatedSalesInvoiceNos->all(),
               ]);
 
-            $environment = EnvironmentHelper::getEnvironment();
-//Log::info("invoice_no: " . $invoice_no);            
-            do {
-//Log::info("start dooooooooooooooooooooo1111111");
-                /**
-                 * STEP 1: FETCH + LOCK 100 COM INVOICES
-                 */
-                //$com_ids = DB::transaction(function () use ($org_no, $client_id, $invoice_no) {
-                //$com_ids = DB::transaction(function () use ($org_no, $invoice_no) {
-                $com_ids = DB::connection(config('database.ocr_connection'))->transaction(function () use ($environment, $org_no, $ocr_pdf_id, $fetch_period_from) {  
+              /*
+               * Get the related SALES invoices using the invoice numbers
+               * stored in related_sales_invoices.
+               */
+              $salesInvoices = OcrPdfSyncDb::query()
+                  ->select([
+                      'id',
+                      'invoice_type',
+                      'invoice_no',
+                      'related_sales_invoices',
+                  ])
+                  ->where('client_no', $client_no)
+                  ->where('invoice_type', 'sales')
+                  ->whereIn('invoice_no', $relatedSalesInvoiceNos)
+                  ->get()
+                  ->keyBy('invoice_no');
 
-                  // $com_query_params = [
-                  //     $org_no,
-                  //     $org_no,
-                  //     $org_no
-                  // ];
-                  $com_query_params = [];
+              $relatedSalesIds = [];
 
-                  $com_query = "
-                      SELECT p.id
-                      FROM dv_ocr_pdfs p
-                      LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
-                      WHERE p.invoice_type = 'com'
-                        AND p.is_deleted = 0
-                        AND p.status = 'completed'                        
-                  ";
+              foreach ($relatedSalesInvoiceNos as $salesInvoiceNo) {
 
-                  if ($ocr_pdf_id) {                      
-                    $com_query .= "
-                          AND p.id = ?
-                      ";
+                  $salesInvoice = $salesInvoices->get(
+                      $salesInvoiceNo
+                  );
 
-                    $com_query_params[] = $ocr_pdf_id;
+                  if ($salesInvoice) {
+                      $relatedSalesIds[] = $salesInvoice->id;
                   }
+              }
 
-                  $com_query .= "                      
-                        AND (
-                          REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                          OR
-                          REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                          OR
-                          REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                        )
-                  ";
+              Log::info('Related SALES invoices found.', [
+                  'com_invoice_no' => $invoice_no,
+                  'requested_sales_invoices' => $relatedSalesInvoiceNos->all(),
+                  'found_sales_invoices' => $salesInvoices->keys()->all(),
+                  'related_sales_ids' => $relatedSalesIds,
+              ]);
 
-                  $com_query_params[] = $org_no;
-                  $com_query_params[] = $org_no;
-                  $com_query_params[] = $org_no;
+              Bus::dispatch(
+                  (new InsertComSalesInvoicesFromNewOcr(
+                      $commInvoice->id,
+                      $relatedSalesIds,
+                      $vatreg,
+                      $authUser,
+                      $from
+                  ))->onQueue('ocrpdfsyncinvoices')
+              );
 
-                  // if ($invoice_no) {
-                  //     $com_query .= "
-                  //         AND (
-                  //             JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number')) = ?
-                  //         )
-                  //     ";
+              return 1;
+          }
 
-                  //     $com_query_params[] = $invoice_no;
-                  // }
 
-                  if ($fetch_period_from) {
-                      $com_query .= "
-                          AND (
-                              JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_date')) >= ?
-                          )
-                      ";
+          /*
+           * =========================================================
+           * NORMAL / FULL REFRESH
+           *
+           * Existing behavior.
+           * =========================================================
+           */
 
-                      $com_query_params[] = $fetch_period_from;
+          $query = OcrPdfSyncDb::query()
+              ->select([
+                  'id',
+                  'invoice_type',
+                  'invoice_no',
+                  'related_sales_invoices',
+              ])
+              ->where('client_no', $client_no)
+              ->whereBetween(
+                  'invoice_date',
+                  [
+                      $fetch_period_from,
+                      $serviceEnd->format('Y-m-d'),
+                  ]
+              );
+
+          // Log::info([
+          //     'fetch_period_from' => $fetch_period_from,
+          //     'serviceEnd' => $serviceEnd->format('Y-m-d'),
+          // ]);
+
+          $synceddbdatas = $query
+              ->orderBy('invoice_date')
+              ->get();
+
+          // Log::info([
+          //     'query' => $query->toSql(),
+          // ]);
+
+
+          /*
+           * Index SALES invoices once.
+           */
+          $salesInvoices = $synceddbdatas
+              ->where('invoice_type', 'sales')
+              ->keyBy('invoice_no');
+
+          $totalJobs = 0;
+
+
+          /*
+           * One job per COM invoice.
+           */
+          foreach (
+              $synceddbdatas->where('invoice_type', 'com')
+              as $commInvoice
+          ) {
+
+              $relatedSalesIds = [];
+
+              foreach (
+                  $commInvoice->related_sales_invoices ?? []
+                  as $salesInvoiceNo
+              ) {
+
+                  $salesInvoice = $salesInvoices->get(
+                      $salesInvoiceNo
+                  );
+
+                  if ($salesInvoice) {
+                      $relatedSalesIds[] = $salesInvoice->id;
                   }
+              }
 
-                  $com_query .= "
-                      AND (s.environment = ? OR s.environment IS NULL)
-                      AND (s.is_locked = 0 OR s.is_locked IS NULL)
-                      LIMIT 100
-                      FOR UPDATE SKIP LOCKED
-                  ";
+              Bus::dispatch(
+                  (new InsertComSalesInvoicesFromNewOcr(
+                      $commInvoice->id,
+                      $relatedSalesIds,
+                      $vatreg,
+                      $authUser,
+                      $from
+                  ))->onQueue('ocrpdfsyncinvoices')
+              );
 
-                  $com_query_params[] = $environment;
+              $totalJobs++;
+          }
 
-                  $rows = DB::connection(config('database.ocr_connection'))
-                      ->select($com_query, $com_query_params);
-
-                  /*
-                  if($invoice_no)
-                  {
-                    // $rows = DB::connection(config('database.ocr_connection'))->select("
-                    //     SELECT id
-                    //     FROM dv_ocr_pdfs
-                    //     WHERE invoice_type = 'com'
-                    //       AND is_locked = 0
-                    //       AND is_deleted = 0
-                    //       AND status = 'completed'
-                    //       AND (
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                    //         OR
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                    //         OR
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                    //       )
-                    //       AND (                            
-                    //         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')) = ?
-                    //       )                        
-                    //     FOR UPDATE SKIP LOCKED
-                    // ", [$org_no, $org_no, $org_no, $invoice_no]);       
+          return $totalJobs;
 
 
-                    $rows = DB::connection(config('database.ocr_connection'))->select("
-                        SELECT p.id
-                        FROM dv_ocr_pdfs p
-                        LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
-                        WHERE p.invoice_type = 'com'                          
-                          AND p.is_deleted = 0
-                          AND p.status = 'completed'
-                          AND (
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                            OR
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                            OR
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                          )
-                          AND (                            
-                            JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number')) = ?
-                          )
-                          AND (s.environment = ? OR s.environment IS NULL)
-                          AND (s.is_locked = 0 OR s.is_locked IS NULL)                             
-                        FOR UPDATE SKIP LOCKED
-                    ", [$org_no, $org_no, $org_no, $invoice_no, $environment]);                
-                  }
-                  else
-                  {
-                    // $rows = DB::connection(config('database.ocr_connection'))->select("
-                    //     SELECT id
-                    //     FROM dv_ocr_pdfs
-                    //     WHERE invoice_type = 'com'
-                    //       AND is_locked = 0
-                    //       AND is_deleted = 0
-                    //       AND status = 'completed'
-                    //       AND (
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                    //         OR
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                    //         OR
-                    //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                    //       )
-                    //     LIMIT 100
-                    //     FOR UPDATE SKIP LOCKED
-                    // ", [$org_no, $org_no, $org_no]);
+//           /*
+//            * =========================================================
+//            * NORMAL / FULL REFRESH
+//            *
+//            * Existing behaviour.
+//            * =========================================================
+//            */
 
-                    $rows = DB::connection(config('database.ocr_connection'))->select("
-                        SELECT p.id
-                        FROM dv_ocr_pdfs p
-                        LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
-                        WHERE p.invoice_type = 'com'                          
-                          AND p.is_deleted = 0
-                          AND p.status = 'completed'
-                          AND (
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
-                            OR
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
-                            OR
-                            REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
-                          )                          
-                          AND (s.environment = ? OR s.environment IS NULL)
-                          AND (s.is_locked = 0 OR s.is_locked IS NULL)                        
-                        LIMIT 100                         
-                        FOR UPDATE SKIP LOCKED
-                    ", [$org_no, $org_no, $org_no, $environment]);   
-                  }
-                  */
+//           $country = $vatreg->vatregmain?->country;
+
+//           $client_no = (
+//               $country === 'CH'
+//                   ? $vatreg->vatregmain?->org_no
+//                   : $vatreg->vatregmain?->vat_no
+//           );
+
+//           $client_no = preg_replace(
+//               '/[^0-9]/',
+//               '',
+//               $client_no ?? ''
+//           );
+
+//           $frequency = $this->getFrequency(
+//               $vatreg->vatregmain?->general_periods
+//           );
+
+//           if (!$frequency || !$vatreg->service_start) {
+//               return 0;
+//           }
+
+//           $serviceStart = Carbon::parse(
+//               $vatreg->service_start
+//           )->subMonth();
+
+//           $serviceEnd = Carbon::parse(
+//                   $vatreg->service_start
+//               )
+//               ->copy()
+//               ->addMonths($frequency - 1)
+//               ->endOfMonth();
+
+//           if ($country === 'CH') {
+
+//               $fetch_period_from = $serviceStart
+//                   ->copy()
+//                   ->max(Carbon::parse('2026-04-01'))
+//                   ->format('Y-m-d');
+
+//           } elseif ($country === 'NO') {
+
+//               $fetch_period_from = $serviceStart
+//                   ->copy()
+//                   ->max(Carbon::parse('2026-06-01'))
+//                   ->format('Y-m-d');
+
+//           } else {
+
+//               $fetch_period_from = $serviceStart
+//                   ->format('Y-m-d');
+//           }
+
+//           $query = OcrPdfSyncDb::query()
+//               ->select([
+//                   'id',
+//                   'invoice_type',
+//                   'invoice_no',
+//                   'related_sales_invoices',
+//               ])
+//               ->where('client_no', $client_no);
+
+//           if ($invoice_no) {
+
+//               // Specific invoice: don't restrict by invoice_date
+//               $query->where('invoice_no', $invoice_no);
+
+//           } else {
+
+//               // Normal refresh: restrict to service period
+//               $query->whereBetween(
+//                   'invoice_date',
+//                   [
+//                       $fetch_period_from,
+//                       $serviceEnd->format('Y-m-d'),
+//                   ]
+//               );
+//           }
+// Log::info([
+//   'fetch_period_from' => $fetch_period_from,
+//   'serviceEnd' => $serviceEnd->format('Y-m-d'),
+// ]);
+//           $synceddbdatas = $query
+//               ->orderBy('invoice_date')
+//               ->get();
+// Log::info([
+//   'query' => $query->toSql()
+// ]);
+//           /*
+//            * Index SALES invoices once.
+//            */
+//           $salesInvoices = $synceddbdatas
+//               ->where('invoice_type', 'sales')
+//               ->keyBy('invoice_no');
+
+//           $totalJobs = 0;
+
+//           /*
+//            * One job per COM invoice.
+//            */
+//           foreach (
+//               $synceddbdatas->where('invoice_type', 'com')
+//               as $commInvoice
+//           ) {
+
+//               $relatedSalesIds = [];
+
+//               foreach (
+//                   $commInvoice->related_sales_invoices ?? []
+//                   as $salesInvoiceNo
+//               ) {
+
+//                   $salesInvoice = $salesInvoices->get(
+//                       $salesInvoiceNo
+//                   );
+
+//                   if ($salesInvoice) {
+//                       $relatedSalesIds[] = $salesInvoice->id;
+//                   }
+//               }
+
+//               Bus::dispatch(
+//                   (new InsertComSalesInvoicesFromNewOcr(
+//                       $commInvoice->id,
+//                       $relatedSalesIds,
+//                       $vatreg,
+//                       $authUser,
+//                       $from
+//                   ))->onQueue('ocrpdfsyncinvoices')
+//               );
+
+//               $totalJobs++;
+//           }
+
+//           return $totalJobs;
+
+      } catch (\Throwable $e) {
+
+          Log::error('New OCR Load Failed', [
+              'ocr_pdf_id' => $ocr_pdf_id,
+              'error' => $e->getMessage(),
+          ]);
+
+          return 0;
+      }
+  }
+
+  // public function loadImportReconciliationDatasFromNewOcr($authUser, $vatreg, $from = 'ocr', $fetch_period_from = null, $full_refresh = false, $invoice_name = null, $invoice_no = null, $ocr_pdf_id = null)
+  // {
+  //     try {
+  //       $totalJobs = 0;
+
+  //       $client_name = $vatreg->client?->client_name;
+  //       $country = $vatreg->vatregmain?->country;
+
+  //       $client_no = ($country === 'CH') ? $vatreg->vatregmain?->org_no : $vatreg->vatregmain?->vat_no;
+  //       $client_no = preg_replace('/[^0-9]/', '', $client_no ?? '');
+
+  //       // $frequency = $this->getFrequency($vatreg->general_periods);
+  //       // $service_start = Carbon::parse($vatreg->service_start)->format('Y-m-d');
+  //       // $service_end = Carbon::parse($vatreg->service_start)->addMonth(($frequency-1))->format('Y-m-d');
+
+  //       $frequency = $this->getFrequency(
+  //           $vatreg->general_periods
+  //       );
+
+  //       // $serviceStart = Carbon::parse(
+  //       //     $vatreg->service_start
+  //       // );
+
+  //       $serviceStart = Carbon::parse(
+  //           $vatreg->service_start
+  //       )->subMonth();
+
+  //       $serviceEnd = $serviceStart
+  //           ->copy()
+  //           ->addMonths($frequency - 1)
+  //           ->endOfMonth();
+
+  //       $fetch_period_from = null;
+  //       if ($country == 'CH') {
+  //           $fetch_period_from = $serviceStart
+  //               ->copy()
+  //               ->max(Carbon::parse('2026-04-01'))
+  //               ->format('Y-m-d');
+  //       } elseif ($country == 'NO') {
+  //           $fetch_period_from = $serviceStart
+  //               ->copy()
+  //               ->max(Carbon::parse('2026-06-01'))
+  //               ->format('Y-m-d');
+  //       }
+
+  //       $query = OcrPdfSyncDb::query()
+  //           ->select([
+  //               'id',
+  //               'invoice_type',
+  //               'invoice_no',
+  //               'related_sales_invoices',
+  //           ]);
+
+  //       // if ($ocr_pdf_id) {
+
+  //       //     // First find the refreshed OCR record
+  //       //     $ocrRecord = $query
+  //       //         ->where('ocr_pdf_id', $ocr_pdf_id)
+  //       //         ->first();
+
+  //       //     if (!$ocrRecord) {
+  //       //         return;
+  //       //     }
+
+  //       //     /*
+  //       //      * If refreshed record is COM
+  //       //      */
+  //       //     if ($ocrRecord->invoice_type === 'com') {
+
+  //       //         $commInvoice = $ocrRecord;
+
+  //       //         $relatedSalesIds = OcrPdfSyncDb::query()
+  //       //             ->where('invoice_type', 'sales')
+  //       //             ->whereIn(
+  //       //                 'invoice_no',
+  //       //                 $commInvoice->related_sales_invoices ?? []
+  //       //             )
+  //       //             ->pluck('id')
+  //       //             ->toArray();
+  //       //     }
+
+  //       //     /*
+  //       //      * If refreshed record is SALES
+  //       //      */
+  //       //     else {
+
+  //       //         $salesInvoice = $ocrRecord;
+
+  //       //         /*
+  //       //          * Find the COM invoice which contains
+  //       //          * this Sales invoice number.
+  //       //          */
+  //       //         $commInvoice = OcrPdfSyncDb::query()
+  //       //             ->where('invoice_type', 'com')
+  //       //             ->whereJsonContains(
+  //       //                 'related_sales_invoices',
+  //       //                 $salesInvoice->invoice_no
+  //       //             )
+  //       //             ->first();
+
+  //       //         if (!$commInvoice) {
+  //       //             // No related COM invoice found
+  //       //             return;
+  //       //         }
+
+  //       //         /*
+  //       //          * Now get ALL Sales invoices related
+  //       //          * to this COM invoice.
+  //       //          */
+  //       //         $relatedSalesIds = OcrPdfSyncDb::query()
+  //       //             ->where('invoice_type', 'sales')
+  //       //             ->whereIn(
+  //       //                 'invoice_no',
+  //       //                 $commInvoice->related_sales_invoices ?? []
+  //       //             )
+  //       //             ->pluck('id')
+  //       //             ->toArray();
+  //       //     }
+
+  //       //     /*
+  //       //      * Dispatch one COM + all related Sales
+  //       //      */
+  //       //     Bus::dispatch(
+  //       //         (new InsertComSalesInvoicesFromNewOcr(
+  //       //             $commInvoice->id,
+  //       //             $relatedSalesIds,
+  //       //             $vatreg,
+  //       //             $authUser,
+  //       //             $from
+  //       //         ))->onQueue('ocrpdfsyncinvoices')
+  //       //     );
+
+  //       //     $totalJobs++;
+
+  //       // } 
+  //         if ($ocr_pdf_id) {
+
+  //             /*
+  //              * ---------------------------------------------------------
+  //              * Specific OCR PDF refresh
+  //              *
+  //              * We already know which OCR PDF triggered the refresh.
+  //              * Only process that OCR PDF and its related invoices.
+  //              * ---------------------------------------------------------
+  //              */
+
+  //             $ocrRecord = $query
+  //                 ->where('ocr_pdf_id', $ocr_pdf_id)
+  //                 ->first();
+
+  //             if (!$ocrRecord) {
+  //                 return 0;
+  //             }
+
+  //             /*
+  //              * ---------------------------------------------------------
+  //              * COM invoice
+  //              * ---------------------------------------------------------
+  //              */
+  //             if ($ocrRecord->invoice_type === 'com') {
+
+  //                 $commInvoice = $ocrRecord;
+
+  //                 /*
+  //                  * related_sales_invoices should already be converted
+  //                  * to the individual invoice numbers by the parser.
+  //                  */
+  //                 $relatedSalesInvoices =
+  //                     $commInvoice->related_sales_invoices ?? [];
+
+  //                 if (!is_array($relatedSalesInvoices)) {
+  //                     $relatedSalesInvoices = [$relatedSalesInvoices];
+  //                 }
+
+  //                 /*
+  //                  * Get all Sales invoices belonging to this COM invoice.
+  //                  */
+  //                 $relatedSalesIds = OcrPdfSyncDb::query()
+  //                     ->where('invoice_type', 'sales')
+  //                     ->whereIn(
+  //                         'invoice_no',
+  //                         $relatedSalesInvoices
+  //                     )
+  //                     ->pluck('id')
+  //                     ->toArray();
+  //             }
+
+  //             /*
+  //              * ---------------------------------------------------------
+  //              * SALES invoice
+  //              * ---------------------------------------------------------
+  //              */
+  //             else {
+
+  //                 $salesInvoice = $ocrRecord;
+
+  //                 /*
+  //                  * Find the COM invoice which contains this
+  //                  * Sales invoice number.
+  //                  */
+  //                 $commInvoice = OcrPdfSyncDb::query()
+  //                     ->where('invoice_type', 'com')
+  //                     ->whereJsonContains(
+  //                         'related_sales_invoices',
+  //                         $salesInvoice->invoice_no
+  //                     )
+  //                     ->first();
+
+  //                 if (!$commInvoice) {
+  //                     return 0;
+  //                 }
+
+  //                 $relatedSalesInvoices =
+  //                     $commInvoice->related_sales_invoices ?? [];
+
+  //                 if (!is_array($relatedSalesInvoices)) {
+  //                     $relatedSalesInvoices = [$relatedSalesInvoices];
+  //                 }
+
+  //                 /*
+  //                  * Get ALL Sales invoices related to the COM invoice.
+  //                  */
+  //                 $relatedSalesIds = OcrPdfSyncDb::query()
+  //                     ->where('invoice_type', 'sales')
+  //                     ->whereIn(
+  //                         'invoice_no',
+  //                         $relatedSalesInvoices
+  //                     )
+  //                     ->pluck('id')
+  //                     ->toArray();
+  //             }
+
+  //             /*
+  //              * ---------------------------------------------------------
+  //              * Dispatch COM + related Sales invoices
+  //              * ---------------------------------------------------------
+  //              */
+  //             Bus::dispatch(
+  //                 (new InsertComSalesInvoicesFromNewOcr(
+  //                     $commInvoice->id,
+  //                     $relatedSalesIds,
+  //                     $vatreg,
+  //                     $authUser,
+  //                     $from
+  //                 ))->onQueue('ocrpdfsyncinvoices')
+  //             );
+
+  //             $totalJobs++;
+
+  //         }
+  
+  //         else {
+
+  //           // $synceddbdatas = $query
+  //           //             ->where('client_no', $client_no)  
+  //           //             ->where('invoice_date', '>=', $serviceStart->format('Y-m-d'))      
+  //           //             ->where('invoice_date', '<=', $serviceEnd->format('Y-m-d'))                          
+  //           //             ->orderBy('invoice_date') 
+  //           //             ->get(); 
+
+  //           // $query
+  //           //   ->where('client_no', $client_no)  
+  //           //   ->where('invoice_date', '>=', $serviceStart->format('Y-m-d'))      
+  //           //   ->where('invoice_date', '<=', $serviceEnd->format('Y-m-d'))                          
+  //           //   ;
+
+  //           $query
+  //             ->where('client_no', $client_no)
+  //             ->where('invoice_date', '>=', $fetch_period_from)
+  //             ->where('invoice_date', '<=', $serviceEnd->format('Y-m-d'));
+
+  //           if($invoice_no)
+  //           {
+  //             $query->where('invoice_no', $invoice_no);
+  //           }
+
+  //           $synceddbdatas = $query                         
+  //                               ->orderBy('invoice_date') 
+  //                               ->get();
+
+  //           $salesInvoices = $synceddbdatas
+  //               ->where('invoice_type', 'sales')
+  //               ->keyBy('invoice_no');
+
+  //           $commInvoices = $synceddbdatas
+  //               ->where('invoice_type', 'com');
+
+  //           foreach ($commInvoices as $commInvoice) {
+  //               $relatedSalesIds = [];
+
+  //               foreach ($commInvoice->related_sales_invoices ?? [] as $salesInvoiceNo) {
+
+  //                   if ($salesInvoices->has($salesInvoiceNo)) {
+  //                       $relatedSalesIds[] = $salesInvoices->get($salesInvoiceNo)->id;
+  //                   }
+  //               }
+
+  //               Bus::dispatch(
+  //                   (new InsertComSalesInvoicesFromNewOcr(
+  //                       $commInvoice->id,
+  //                       $relatedSalesIds,
+  //                       $vatreg,
+  //                       $authUser,
+  //                       $from
+  //                   ))->onQueue('ocrpdfsyncinvoices')
+  //               );
+
+  //             $totalJobs++;  
+  //         }
+  //       }
+  //       return $totalJobs;
+  
+  //       // $query = OcrPdfSyncDb::query()
+  //       //           ->select([
+  //       //               'id',
+  //       //               'invoice_type',
+  //       //               'invoice_no',
+  //       //               'related_sales_invoices',
+  //       //           ]);
+
+  //       // if($ocr_pdf_id)
+  //       // {
+  //       //   $synceddbdatas = $query
+  //       //                     ->where('ocr_pdf_id', $ocr_pdf_id)                              
+  //       //                     ->get(); 
+  //       // }
+  //       // else
+  //       // {
+  //       //   $synceddbdatas = $query
+  //       //                     ->where('client_no', $client_no)  
+  //       //                     ->where('invoice_date', '>=', $serviceStart->format('Y-m-d'))      
+  //       //                     ->where('invoice_date', '<=', $serviceEnd->format('Y-m-d'))                          
+  //       //                     ->orderBy('invoice_date') 
+  //       //                     ->get(); 
+  //       // }
+
+  //       // $salesInvoices = $synceddbdatas
+  //       //     ->where('invoice_type', 'sales')
+  //       //     ->keyBy('invoice_no');
+
+  //       // $commInvoices = $synceddbdatas
+  //       //     ->where('invoice_type', 'com');
+
+  //       // foreach ($commInvoices as $commInvoice) {
+  //       //     $relatedSalesIds = [];
+
+  //       //     foreach ($commInvoice->related_sales_invoices ?? [] as $salesInvoiceNo) {
+
+  //       //         if ($salesInvoices->has($salesInvoiceNo)) {
+  //       //             $relatedSalesIds[] = $salesInvoices->get($salesInvoiceNo)->id;
+  //       //         }
+  //       //     }
+
+  //       //     Bus::dispatch(
+  //       //         new InsertComSalesInvoicesFromOcr(
+  //       //             $commInvoice->id,
+  //       //             $relatedSalesIds,
+  //       //             $vatreg,
+  //       //             $authUser,
+  //       //             $from
+  //       //         )
+  //       //     )->onQueue('ocrpdfsyncinvoices');
+  //       // }
+
+       
+  //     } catch (\Exception $e) {
+  //         Log::error('New OCR Load Failed: ' . $e->getMessage());
+  //         return $e->getMessage();
+  //     }
+  // }
+
+//   public function loadImportReconciliationDatasFromOcr($authUser, $vatreg, $from = 'ocr', $fetch_period_from = null, $full_refresh = false, $invoice_name = null, $ocr_pdf_id = null)
+//     {
+//         try {
+
+//             $client_id = $vatreg->client_id;
+//             $client_name = $vatreg->client->client_name;
+//             $vat_reg_main_id = $vatreg->vat_reg_main_id;
+
+//             $vatregmain = $vatreg->vatregmain;
+
+//             $org_no = ($vatregmain->country == 'NO')
+//                 ? $vatregmain->org_no
+//                 : str_replace(['.', '-'], '', $vatregmain->vat_no);
+
+//             $org_no = $org_no ? preg_replace('/\D/', '', $org_no) : '';
+
+//             $totalProcessed = 0;
+
+//             // Fetch VAT regs once (lightweight)
+//             $vatregs = $this->getLazy(
+//                 'vatreg',
+//                 ['client'],
+//                 ['vat_reg_main_id' => ['operator' => '=', 'value' => $vat_reg_main_id]],
+//                 [],
+//                 ['id' => 'DESC'],
+//                 'get'
+//             );
+// // Log::info("BEFORE dooooooooooooooooooooo");
+// // Log::info($org_no);
+
+//             //$hasDispatchedAnyJobs = false;
+
+//             // OcrPdf::query()->where('sync_status', 0)
+//             //   ->where('is_locked', 1)
+//             //   ->update(['is_locked' => 0]);
+
+//             // OcrPdf::query()->where('invoice_type', 'com')              
+//             //   ->where('is_locked', 1)
+//             //   ->update(['is_locked' => 0]);  
+            
+//             OcrSyncStatus::query()
+//               ->currentEnvironment()
+//               ->where('sync_status', false)
+//               ->where('is_locked', true)
+//               ->update([
+//                   'is_locked' => false,
+//                   'locked_at' => null,
+//               ]);
+
+//             OcrSyncStatus::query()
+//               ->currentEnvironment()
+//               ->where('is_locked', true)
+//               ->whereIn('ocr_pdf_id', function ($query) {
+//                   $query->select('id')
+//                       ->from('dv_ocr_pdfs')
+//                       ->where('invoice_type', 'com');
+//               })
+//               ->update([
+//                   'is_locked' => false,
+//                   'locked_at' => null,
+//               ]);
+
+//             $environment = EnvironmentHelper::getEnvironment();
+// //Log::info("invoice_no: " . $invoice_no);            
+//             do {
+// //Log::info("start dooooooooooooooooooooo1111111");
+//                 /**
+//                  * STEP 1: FETCH + LOCK 100 COM INVOICES
+//                  */
+//                 //$com_ids = DB::transaction(function () use ($org_no, $client_id, $invoice_no) {
+//                 //$com_ids = DB::transaction(function () use ($org_no, $invoice_no) {
+//                 $com_ids = DB::connection(config('database.ocr_connection'))->transaction(function () use ($environment, $org_no, $ocr_pdf_id, $fetch_period_from) {  
+
+//                   // $com_query_params = [
+//                   //     $org_no,
+//                   //     $org_no,
+//                   //     $org_no
+//                   // ];
+//                   $com_query_params = [];
+
+//                   $com_query = "
+//                       SELECT p.id
+//                       FROM dv_ocr_pdfs p
+//                       LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
+//                       WHERE p.invoice_type = 'com'
+//                         AND p.is_deleted = 0
+//                         AND p.status = 'completed'                        
+//                   ";
+
+//                   if ($ocr_pdf_id) {                      
+//                     $com_query .= "
+//                           AND p.id = ?
+//                       ";
+
+//                     $com_query_params[] = $ocr_pdf_id;
+//                   }
+
+//                   $com_query .= "                      
+//                         AND (
+//                           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                           OR
+//                           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                           OR
+//                           REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                         )
+//                   ";
+
+//                   $com_query_params[] = $org_no;
+//                   $com_query_params[] = $org_no;
+//                   $com_query_params[] = $org_no;
+
+//                   // if ($invoice_no) {
+//                   //     $com_query .= "
+//                   //         AND (
+//                   //             JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number')) = ?
+//                   //         )
+//                   //     ";
+
+//                   //     $com_query_params[] = $invoice_no;
+//                   // }
+
+//                   if ($fetch_period_from) {
+//                       $com_query .= "
+//                           AND (
+//                               JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_date')) >= ?
+//                           )
+//                       ";
+
+//                       $com_query_params[] = $fetch_period_from;
+//                   }
+
+//                   $com_query .= "
+//                       AND (s.environment = ? OR s.environment IS NULL)
+//                       AND (s.is_locked = 0 OR s.is_locked IS NULL)
+//                       LIMIT 100
+//                       FOR UPDATE SKIP LOCKED
+//                   ";
+
+//                   $com_query_params[] = $environment;
+
+//                   $rows = DB::connection(config('database.ocr_connection'))
+//                       ->select($com_query, $com_query_params);
+
+//                   /*
+//                   if($invoice_no)
+//                   {
+//                     // $rows = DB::connection(config('database.ocr_connection'))->select("
+//                     //     SELECT id
+//                     //     FROM dv_ocr_pdfs
+//                     //     WHERE invoice_type = 'com'
+//                     //       AND is_locked = 0
+//                     //       AND is_deleted = 0
+//                     //       AND status = 'completed'
+//                     //       AND (
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                     //         OR
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                     //         OR
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                     //       )
+//                     //       AND (                            
+//                     //         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')) = ?
+//                     //       )                        
+//                     //     FOR UPDATE SKIP LOCKED
+//                     // ", [$org_no, $org_no, $org_no, $invoice_no]);       
+
+
+//                     $rows = DB::connection(config('database.ocr_connection'))->select("
+//                         SELECT p.id
+//                         FROM dv_ocr_pdfs p
+//                         LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
+//                         WHERE p.invoice_type = 'com'                          
+//                           AND p.is_deleted = 0
+//                           AND p.status = 'completed'
+//                           AND (
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                             OR
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                             OR
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                           )
+//                           AND (                            
+//                             JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number')) = ?
+//                           )
+//                           AND (s.environment = ? OR s.environment IS NULL)
+//                           AND (s.is_locked = 0 OR s.is_locked IS NULL)                             
+//                         FOR UPDATE SKIP LOCKED
+//                     ", [$org_no, $org_no, $org_no, $invoice_no, $environment]);                
+//                   }
+//                   else
+//                   {
+//                     // $rows = DB::connection(config('database.ocr_connection'))->select("
+//                     //     SELECT id
+//                     //     FROM dv_ocr_pdfs
+//                     //     WHERE invoice_type = 'com'
+//                     //       AND is_locked = 0
+//                     //       AND is_deleted = 0
+//                     //       AND status = 'completed'
+//                     //       AND (
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                     //         OR
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                     //         OR
+//                     //         REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                     //       )
+//                     //     LIMIT 100
+//                     //     FOR UPDATE SKIP LOCKED
+//                     // ", [$org_no, $org_no, $org_no]);
+
+//                     $rows = DB::connection(config('database.ocr_connection'))->select("
+//                         SELECT p.id
+//                         FROM dv_ocr_pdfs p
+//                         LEFT JOIN dv_ocr_sync_status s ON s.ocr_pdf_id = p.id
+//                         WHERE p.invoice_type = 'com'                          
+//                           AND p.is_deleted = 0
+//                           AND p.status = 'completed'
+//                           AND (
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.org_number')), '[^0-9]', '') = ?
+//                             OR
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.supplier.cvr_number')), '[^0-9]', '') = ?
+//                             OR
+//                             REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.recipient.org_number')), '[^0-9]', '') = ?
+//                           )                          
+//                           AND (s.environment = ? OR s.environment IS NULL)
+//                           AND (s.is_locked = 0 OR s.is_locked IS NULL)                        
+//                         LIMIT 100                         
+//                         FOR UPDATE SKIP LOCKED
+//                     ", [$org_no, $org_no, $org_no, $environment]);   
+//                   }
+//                   */
                     
-                    $ids = collect($rows)->pluck('id');
+//                     $ids = collect($rows)->pluck('id');
 
-                    if ($ids->isNotEmpty()) {
+//                     if ($ids->isNotEmpty()) {
 
-                        // Lock COM invoices
-                        // OcrPdf::query()
-                        //     ->whereIn('id', $ids)
-                        //     ->update([
-                        //         'is_locked' => 1,                                
-                        //         'updated_at' => now()
-                        //     ]);
+//                         // Lock COM invoices
+//                         // OcrPdf::query()
+//                         //     ->whereIn('id', $ids)
+//                         //     ->update([
+//                         //         'is_locked' => 1,                                
+//                         //         'updated_at' => now()
+//                         //     ]);
 
-                        OcrSyncStatus::query()
-                          ->currentEnvironment()
-                          ->whereIn('ocr_pdf_id', $ids)
-                          ->update([
-                              'is_locked' => true,
-                              'locked_at' => now(),
-                              'updated_at' => now(),
-                          ]);
-                    }
+//                         OcrSyncStatus::query()
+//                           ->currentEnvironment()
+//                           ->whereIn('ocr_pdf_id', $ids)
+//                           ->update([
+//                               'is_locked' => true,
+//                               'locked_at' => now(),
+//                               'updated_at' => now(),
+//                           ]);
+//                     }
 
-                    return $ids;
-                });
-// Log::info("Com IDs: ");
-// Log::info($com_ids);
-                if ($com_ids->isEmpty()) {
-                    break;
-                }
+//                     return $ids;
+//                 });
+// // Log::info("Com IDs: ");
+// // Log::info($com_ids);
+//                 if ($com_ids->isEmpty()) {
+//                     break;
+//                 }
 
-                /**
-                 * STEP 2: LOAD COM (ONLY REQUIRED FIELDS)
-                 */
-                $comInvoices = OcrPdf::query()->whereIn('id', $com_ids)
-                    ->select('id', 'extracted_data')
-                    ->get();
+//                 /**
+//                  * STEP 2: LOAD COM (ONLY REQUIRED FIELDS)
+//                  */
+//                 $comInvoices = OcrPdf::query()->whereIn('id', $com_ids)
+//                     ->select('id', 'extracted_data')
+//                     ->get();
 
-                /**
-                 * STEP 3: PARSE RELATED NUMBERS
-                 */
-                $comParsedMap = [];
-                $allRelatedNumbers = collect();
+//                 /**
+//                  * STEP 3: PARSE RELATED NUMBERS
+//                  */
+//                 $comParsedMap = [];
+//                 $allRelatedNumbers = collect();
 
-                foreach ($comInvoices as $com) {
+//                 foreach ($comInvoices as $com) {
 
-                    $data = is_string($com->extracted_data)
-                        ? json_decode($com->extracted_data, true)
-                        : $com->extracted_data;
+//                     $data = is_string($com->extracted_data)
+//                         ? json_decode($com->extracted_data, true)
+//                         : $com->extracted_data;
 
-                    $related = $this->parseRelatedInvoices($data['related_sales_invoices'] ?? '');
+//                     $related = $this->parseRelatedInvoices($data['related_sales_invoices'] ?? '');
 
-                    $related = collect($related)
-                        ->filter()
-                        ->map(fn($v) => ltrim($v, '#'));
+//                     $related = collect($related)
+//                         ->filter()
+//                         ->map(fn($v) => ltrim($v, '#'));
 
-                    $comParsedMap[$com->id] = $related;
+//                     $comParsedMap[$com->id] = $related;
 
-                    $allRelatedNumbers = $allRelatedNumbers->merge($related);
-                }
+//                     $allRelatedNumbers = $allRelatedNumbers->merge($related);
+//                 }
 
-                $allRelatedNumbers = $allRelatedNumbers->unique()->values();
-// Log::info("Related sales invoices: ");
-// Log::info($allRelatedNumbers);
-                // if ($allRelatedNumbers->isEmpty()) {
-                //     // nothing to match → continue next batch
-                //     continue;
-                // }
+//                 $allRelatedNumbers = $allRelatedNumbers->unique()->values();
+// // Log::info("Related sales invoices: ");
+// // Log::info($allRelatedNumbers);
+//                 // if ($allRelatedNumbers->isEmpty()) {
+//                 //     // nothing to match → continue next batch
+//                 //     continue;
+//                 // }
 
-                /**
-                 * STEP 4: FETCH MATCHING SALES (UNLOCKED ONLY)
-                 */
-                $salesInvoices = collect();
+//                 /**
+//                  * STEP 4: FETCH MATCHING SALES (UNLOCKED ONLY)
+//                  */
+//                 $salesInvoices = collect();
 
-                if ($allRelatedNumbers->isNotEmpty()) {
+//                 if ($allRelatedNumbers->isNotEmpty()) {
 
-                  if ($client_name && (
-                      stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
-                      stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
-                      stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
-                    )
-                  ) 
-                  {
-                    $salesInvoices = ImportReconciliationSalesInvoicesData::select('id', 'invoice_no')
-                                        ->whereIn('invoice_no', $allRelatedNumbers)
-                                        ->get();                    
-                  } //in sales invoice data table
-                  else
-                  {
-                    $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])
-                          ->where(function ($q) {
-                              $q->whereDoesntHave('syncStatus')
-                                ->orWhereHas('syncStatus', function ($q) {
-                                    $q->where('is_locked', false)
-                                      ->where('sync_status', false);
-                                });
-                          })
-                          ->where('is_deleted', 0)
-                          ->where('status', 'completed')
-                          ->select('id', 'extracted_data')
-                          ->with(['syncStatus' => function ($q) {
-                              $q->select(
-                                  'id',
-                                  'ocr_pdf_id',
-                                  'environment',
-                                  'is_locked',
-                                  'sync_status'
-                              );
-                          }])
-                          ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+//                   if ($client_name && (
+//                       stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+//                       stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+//                       stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+//                     )
+//                   ) 
+//                   {
+//                     $salesInvoices = ImportReconciliationSalesInvoicesData::select('id', 'invoice_no')
+//                                         ->whereIn('invoice_no', $allRelatedNumbers)
+//                                         ->get();                    
+//                   } //in sales invoice data table
+//                   else
+//                   {
+//                     $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])
+//                           ->where(function ($q) {
+//                               $q->whereDoesntHave('syncStatus')
+//                                 ->orWhereHas('syncStatus', function ($q) {
+//                                     $q->where('is_locked', false)
+//                                       ->where('sync_status', false);
+//                                 });
+//                           })
+//                           ->where('is_deleted', 0)
+//                           ->where('status', 'completed')
+//                           ->select('id', 'extracted_data')
+//                           ->with(['syncStatus' => function ($q) {
+//                               $q->select(
+//                                   'id',
+//                                   'ocr_pdf_id',
+//                                   'environment',
+//                                   'is_locked',
+//                                   'sync_status'
+//                               );
+//                           }])
+//                           ->where(function ($q) use ($allRelatedNumbers, $client_name) {
 
-                              foreach ($allRelatedNumbers->chunk(500) as $chunk) {
+//                               foreach ($allRelatedNumbers->chunk(500) as $chunk) {
 
-                                  $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+//                                   $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
-                                  if(str_contains(strtolower($client_name), 'stof'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else if(str_contains(strtolower($client_name), 'horn bord'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else  
-                                    $q->orWhereRaw("
-                                        REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
-                                    ", $chunk->toArray());
+//                                   if(str_contains(strtolower($client_name), 'stof'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else if(str_contains(strtolower($client_name), 'horn bord'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else  
+//                                     $q->orWhereRaw("
+//                                         REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
+//                                     ", $chunk->toArray());
 
-                                  $q->orWhereRaw("
-                                      REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
-                                  ", $chunk->toArray());
-                              }
-                          })
-                          ->get();
+//                                   $q->orWhereRaw("
+//                                       REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
+//                                   ", $chunk->toArray());
+//                               }
+//                           })
+//                           ->get();
 
-                    /*
-                    if($invoice_no)
-                    {
-                      $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])                           
-                          //->where('sync_status', 1)                         
-                          ->where(function ($q) {
-                              $q->whereDoesntHave('syncStatus')
-                                ->orWhereHas('syncStatus', function ($q) {
-                                    $q->where('is_locked', false)
-                                      ->where('sync_status', false);
-                                });
-                          })
-                          ->where('is_deleted', 0)
-                          ->where('status', 'completed')
-                          ->select('id', 'extracted_data')
-                          ->with(['syncStatus' => function ($q) {
-                              $q->select(
-                                  'id',
-                                  'ocr_pdf_id',
-                                  'environment',
-                                  'is_locked',
-                                  'sync_status'
-                              );
-                          }])
-                          ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+//                     /*
+//                     if($invoice_no)
+//                     {
+//                       $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])                           
+//                           //->where('sync_status', 1)                         
+//                           ->where(function ($q) {
+//                               $q->whereDoesntHave('syncStatus')
+//                                 ->orWhereHas('syncStatus', function ($q) {
+//                                     $q->where('is_locked', false)
+//                                       ->where('sync_status', false);
+//                                 });
+//                           })
+//                           ->where('is_deleted', 0)
+//                           ->where('status', 'completed')
+//                           ->select('id', 'extracted_data')
+//                           ->with(['syncStatus' => function ($q) {
+//                               $q->select(
+//                                   'id',
+//                                   'ocr_pdf_id',
+//                                   'environment',
+//                                   'is_locked',
+//                                   'sync_status'
+//                               );
+//                           }])
+//                           ->where(function ($q) use ($allRelatedNumbers, $client_name) {
 
-                              foreach ($allRelatedNumbers->chunk(500) as $chunk) {
+//                               foreach ($allRelatedNumbers->chunk(500) as $chunk) {
 
-                                  $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+//                                   $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
-                                  if(str_contains(strtolower($client_name), 'stof'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else if(str_contains(strtolower($client_name), 'horn bord'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else  
-                                    $q->orWhereRaw("
-                                        REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
-                                    ", $chunk->toArray());
+//                                   if(str_contains(strtolower($client_name), 'stof'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else if(str_contains(strtolower($client_name), 'horn bord'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else  
+//                                     $q->orWhereRaw("
+//                                         REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
+//                                     ", $chunk->toArray());
 
-                                  $q->orWhereRaw("
-                                      REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
-                                  ", $chunk->toArray());
-                              }
-                          })
-                          ->get();
-                    }
-                    else
-                    {                      
-                      $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])
-                          //->where('is_locked', 0)
-                          //->where('sync_status', 0)
-                          // ->whereHas('syncStatus', function ($q) {
-                          //     $q->where('is_locked', false)
-                          //       ->where('sync_status', false);
-                          // })
-                          ->where(function ($q) {
-                              $q->whereDoesntHave('syncStatus')
-                                ->orWhereHas('syncStatus', function ($q) {
-                                    $q->where('is_locked', false)
-                                      ->where('sync_status', false);
-                                });
-                          })
-                          ->where('is_deleted', 0)
-                          ->where('status', 'completed')
-                          ->select('id', 'extracted_data')
-                          ->with(['syncStatus' => function ($q) {
-                              $q->select(
-                                  'id',
-                                  'ocr_pdf_id',
-                                  'environment',
-                                  'is_locked',
-                                  'sync_status'
-                              );
-                          }])
-                          ->where(function ($q) use ($allRelatedNumbers, $client_name) {
+//                                   $q->orWhereRaw("
+//                                       REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
+//                                   ", $chunk->toArray());
+//                               }
+//                           })
+//                           ->get();
+//                     }
+//                     else
+//                     {                      
+//                       $salesInvoices = OcrPdf::query()->whereIn('invoice_type', ['sales', 'multi-invoices'])
+//                           //->where('is_locked', 0)
+//                           //->where('sync_status', 0)
+//                           // ->whereHas('syncStatus', function ($q) {
+//                           //     $q->where('is_locked', false)
+//                           //       ->where('sync_status', false);
+//                           // })
+//                           ->where(function ($q) {
+//                               $q->whereDoesntHave('syncStatus')
+//                                 ->orWhereHas('syncStatus', function ($q) {
+//                                     $q->where('is_locked', false)
+//                                       ->where('sync_status', false);
+//                                 });
+//                           })
+//                           ->where('is_deleted', 0)
+//                           ->where('status', 'completed')
+//                           ->select('id', 'extracted_data')
+//                           ->with(['syncStatus' => function ($q) {
+//                               $q->select(
+//                                   'id',
+//                                   'ocr_pdf_id',
+//                                   'environment',
+//                                   'is_locked',
+//                                   'sync_status'
+//                               );
+//                           }])
+//                           ->where(function ($q) use ($allRelatedNumbers, $client_name) {
 
-                              foreach ($allRelatedNumbers->chunk(500) as $chunk) {
+//                               foreach ($allRelatedNumbers->chunk(500) as $chunk) {
 
-                                  $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+//                                   $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
-                                  if(str_contains(strtolower($client_name), 'stof'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else if(str_contains(strtolower($client_name), 'horn bord'))
-                                    $q->orWhereRaw("
-                                        REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
-                                        IN ($placeholders)
-                                    ", $chunk->toArray());
-                                  else  
-                                    $q->orWhereRaw("
-                                        REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
-                                    ", $chunk->toArray());
+//                                   if(str_contains(strtolower($client_name), 'stof'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else if(str_contains(strtolower($client_name), 'horn bord'))
+//                                     $q->orWhereRaw("
+//                                         REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.order_number')), '#', ''), '-', '')
+//                                         IN ($placeholders)
+//                                     ", $chunk->toArray());
+//                                   else  
+//                                     $q->orWhereRaw("
+//                                         REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.invoice_number')), '#', '') IN ($placeholders)
+//                                     ", $chunk->toArray());
 
-                                  $q->orWhereRaw("
-                                      REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
-                                  ", $chunk->toArray());
-                              }
-                          })
-                          ->get();
-                      }
-                      */
-                  }//else in OCR table
-                }               
-// Log::info("SALES invoices");
-// Log::info($salesInvoices);
-                /**
-                 * STEP 5: INDEX SALES
-                 */
-                $salesMap = [];
+//                                   $q->orWhereRaw("
+//                                       REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.no_invoice_number')), '#', '') IN ($placeholders)
+//                                   ", $chunk->toArray());
+//                               }
+//                           })
+//                           ->get();
+//                       }
+//                       */
+//                   }//else in OCR table
+//                 }               
+// // Log::info("SALES invoices");
+// // Log::info($salesInvoices);
+//                 /**
+//                  * STEP 5: INDEX SALES
+//                  */
+//                 $salesMap = [];
 
-                foreach ($salesInvoices as $sale) {
+//                 foreach ($salesInvoices as $sale) {
 
-                  if ($client_name && (
-                    stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
-                    stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
-                    stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
-                    )
-                  ) 
-                  {
-                    $inv = ltrim($sale->invoice_no ?? '', '#');
+//                   if ($client_name && (
+//                     stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+//                     stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+//                     stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+//                     )
+//                   ) 
+//                   {
+//                     $inv = ltrim($sale->invoice_no ?? '', '#');
 
-                    $noInv = null;
+//                     $noInv = null;
 
-                    if ($inv) $salesMap[$inv][] = $sale->id;
-                    if ($noInv) $salesMap[$noInv][] = $sale->id;
-                  } //in sales invoice data table
-                  else
-                  {
-                    $data = is_string($sale->extracted_data)
-                        ? json_decode($sale->extracted_data, true)
-                        : $sale->extracted_data;
+//                     if ($inv) $salesMap[$inv][] = $sale->id;
+//                     if ($noInv) $salesMap[$noInv][] = $sale->id;
+//                   } //in sales invoice data table
+//                   else
+//                   {
+//                     $data = is_string($sale->extracted_data)
+//                         ? json_decode($sale->extracted_data, true)
+//                         : $sale->extracted_data;
 
-                    if(str_contains(strtolower($client_name), 'stof'))
-                      $inv = preg_replace('/-/', '', $data['invoice_number']);
-                    else if(str_contains(strtolower($client_name), 'horn bord'))
-                      $inv = preg_replace('/-/', '', $data['order_number']);
-                    else
-                      $inv = ltrim($data['invoice_number'] ?? '', '#');
+//                     if(str_contains(strtolower($client_name), 'stof'))
+//                       $inv = preg_replace('/-/', '', $data['invoice_number']);
+//                     else if(str_contains(strtolower($client_name), 'horn bord'))
+//                       $inv = preg_replace('/-/', '', $data['order_number']);
+//                     else
+//                       $inv = ltrim($data['invoice_number'] ?? '', '#');
                     
-                    $noInv = ltrim($data['no_invoice_number'] ?? '', '#');
+//                     $noInv = ltrim($data['no_invoice_number'] ?? '', '#');
 
-                    if ($inv) $salesMap[$inv][] = $sale->id;
-                    if ($noInv) $salesMap[$noInv][] = $sale->id;
-                  }//else from OCR table extracted_data
-                }               
-// Log::info("SALES MAP");
-// Log::info($salesMap);
-                /**
-                 * STEP 6: BUILD FINAL (LIGHTWEIGHT)
-                 */
-                $final = [];
+//                     if ($inv) $salesMap[$inv][] = $sale->id;
+//                     if ($noInv) $salesMap[$noInv][] = $sale->id;
+//                   }//else from OCR table extracted_data
+//                 }               
+// // Log::info("SALES MAP");
+// // Log::info($salesMap);
+//                 /**
+//                  * STEP 6: BUILD FINAL (LIGHTWEIGHT)
+//                  */
+//                 $final = [];
 
-                foreach ($comParsedMap as $comId => $numbers) {
-                    $matchedSales = [];
+//                 foreach ($comParsedMap as $comId => $numbers) {
+//                     $matchedSales = [];
 
-                    foreach ($numbers as $num) {
-                        if (isset($salesMap[$num])) {
-                            $matchedSales = array_merge($matchedSales, $salesMap[$num]);
-                        }
-                    }
+//                     foreach ($numbers as $num) {
+//                         if (isset($salesMap[$num])) {
+//                             $matchedSales = array_merge($matchedSales, $salesMap[$num]);
+//                         }
+//                     }
 
-                    // $matchedSales = array_unique($matchedSales);
+//                     // $matchedSales = array_unique($matchedSales);
 
-                    // if (!empty($matchedSales)) {
-                    //     $final[] = [
-                    //         'com_id' => $comId,
-                    //         'sales_ids' => $matchedSales
-                    //     ];
-                    // }
+//                     // if (!empty($matchedSales)) {
+//                     //     $final[] = [
+//                     //         'com_id' => $comId,
+//                     //         'sales_ids' => $matchedSales
+//                     //     ];
+//                     // }
 
-                    $final[] = [
-                        'com_id' => $comId,
-                        'sales_ids' => array_values(array_unique($matchedSales))
-                    ];
-                }
-// Log::info("BEFORE INSERT");
-// Log::info($final);
+//                     $final[] = [
+//                         'com_id' => $comId,
+//                         'sales_ids' => array_values(array_unique($matchedSales))
+//                     ];
+//                 }
+// // Log::info("BEFORE INSERT");
+// // Log::info($final);
                 
-                if (!empty($final)) {
-                  //$hasDispatchedAnyJobs = true;
+//                 if (!empty($final)) {
+//                   //$hasDispatchedAnyJobs = true;
 
-                    /**
-                     * STEP 7: LOCK SALES (PREVENT DUPLICATES)
-                     */
-                    $allSalesIds = collect($final)->pluck('sales_ids')->flatten()->unique();
+//                     /**
+//                      * STEP 7: LOCK SALES (PREVENT DUPLICATES)
+//                      */
+//                     $allSalesIds = collect($final)->pluck('sales_ids')->flatten()->unique();
 
-                    if ($client_name && (
-                      stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
-                    stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
-                    stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
-                      )
-                    ) 
-                    {
+//                     if ($client_name && (
+//                       stripos(strtolower($client_name), "aubo") !== false || stripos(strtolower($client_name), "beck") !== false ||
+//                     stripos(strtolower($client_name), "geisler") !== false || stripos(strtolower($client_name), "noscomed") !== false ||
+//                     stripos(strtolower($client_name), "rexholm") !== false || stripos(strtolower($client_name), "villy") !== false
+//                       )
+//                     ) 
+//                     {
                       
-                    } //in sales invoice data table
-                    else
-                    {
-                      // OcrPdf::query()
-                      //     ->whereIn('id', $allSalesIds)
-                      //     ->update([
-                      //       'is_locked' => 1,                            
-                      //       'updated_at' => now()
-                      //     ]);
+//                     } //in sales invoice data table
+//                     else
+//                     {
+//                       // OcrPdf::query()
+//                       //     ->whereIn('id', $allSalesIds)
+//                       //     ->update([
+//                       //       'is_locked' => 1,                            
+//                       //       'updated_at' => now()
+//                       //     ]);
 
-                      OcrSyncStatus::query()
-                        ->currentEnvironment()
-                        ->whereIn('ocr_pdf_id', $allSalesIds)
-                        ->update([
-                            'is_locked' => true,
-                            'locked_at' => now(),
-                            'updated_at' => now(),
-                        ]);    
-                    }//else from OCR table extracted_data
-//Log::info($vatregs);                        
-// Log::info("FINALLLLLLLLLLLLLLLLLLLL");
-// Log::info($final);
-                    /**
-                     * STEP 8: DISPATCH JOBS IMMEDIATELY
-                     */
-                    foreach (array_chunk($final, 10) as $chunk) {
-                        Bus::dispatch(
-                            (new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from))
-                                ->onQueue('ocrpdfsyncinvoices')
-                        );
-                    }
+//                       OcrSyncStatus::query()
+//                         ->currentEnvironment()
+//                         ->whereIn('ocr_pdf_id', $allSalesIds)
+//                         ->update([
+//                             'is_locked' => true,
+//                             'locked_at' => now(),
+//                             'updated_at' => now(),
+//                         ]);    
+//                     }//else from OCR table extracted_data
+// //Log::info($vatregs);                        
+// // Log::info("FINALLLLLLLLLLLLLLLLLLLL");
+// // Log::info($final);
+//                     /**
+//                      * STEP 8: DISPATCH JOBS IMMEDIATELY
+//                      */
+//                     foreach (array_chunk($final, 10) as $chunk) {
+//                         Bus::dispatch(
+//                             (new InsertComSalesInvoicesFromOcr($chunk, $vatregs, $authUser, $from))
+//                                 ->onQueue('ocrpdfsyncinvoices')
+//                         );
+//                     }
 
-                    $totalProcessed += count($final);
-                }                
+//                     $totalProcessed += count($final);
+//                 }                
 
-                /**
-                 * STEP 9: FREE MEMORY
-                 */
-                unset(
-                    $comInvoices,
-                    $salesInvoices,
-                    $salesMap,
-                    $comParsedMap,
-                    $allRelatedNumbers,
-                    $final
-                );
+//                 /**
+//                  * STEP 9: FREE MEMORY
+//                  */
+//                 unset(
+//                     $comInvoices,
+//                     $salesInvoices,
+//                     $salesMap,
+//                     $comParsedMap,
+//                     $allRelatedNumbers,
+//                     $final
+//                 );
 
-                gc_collect_cycles();
+//                 gc_collect_cycles();
 
-            } while (true);            
+//             } while (true);            
 
-            return [
-                'processed' => $totalProcessed
-            ];
+//             return [
+//                 'processed' => $totalProcessed
+//             ];
 
-        } catch (\Exception $e) {
-            Log::error('OCR Load Failed: ' . $e->getMessage());
-            return $e->getMessage();
-        }
-    }
+//         } catch (\Exception $e) {
+//             Log::error('OCR Load Failed: ' . $e->getMessage());
+//             return $e->getMessage();
+//         }
+//     }
 
     /*  DON'T USE THIS METHOD */
     public function loadImportReconciliationDatasFromFtp($authUser, $vatreg, $system = null, $refresh = false, $from = 'ftp', $which_folder = 'main')
@@ -10890,7 +11841,8 @@ dd($matches);
                         ->whereNull('rematch_com_invoice_id')                                                            
                         ->where('invoice_no', 'NOT LIKE', 'SPG-%-NO')                                                
                         ->whereNot('data_from', 'ivf')
-                        ->whereNot('data_from', 'swiss')                                             
+                        ->whereNot('data_from', 'swiss')
+                        ->whereNot('data_from', 'ocr')
                         ->get();
       
         foreach($importreconciliationcominvoices as $importreconciliationcominvoice)       
@@ -10997,10 +11949,155 @@ dd($matches);
 
                     $_changed_com_period = true;
 
-                    $salesinvoices = ImportReconciliationSalesInvoices::where('com_invoice_id', $importreconciliationcominvoice->id);
+                    $salesinvoices = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $importreconciliationcominvoice->id);
                     if($salesinvoices)
                     {                                
-                        $update_sales = ImportReconciliationSalesInvoices::where('com_invoice_id', $importreconciliationcominvoice->id)
+                        $update_sales = ImportReconciliationSalesInvoices::whereNull('ocr_pdf_id')->where('com_invoice_id', $importreconciliationcominvoice->id)
+                                            ->update(['vat_reg_id' => $match_cominvoice->vat_reg_id]);
+
+                        $_changed_sales_period = true;
+                    }
+                }
+
+                if($sample)
+                  echo $importreconciliationcominvoice->invoice_no . " matched with " . $match_cominvoice->invoice_no .
+                      (($_changed_com_period) ? ' ---- changed Com invoice period ' : '') . 
+                      (($_changed_sales_period) ? ' ---- changed Sales invoice period ' : '') .
+                  "<br>";
+            }                            
+        }
+      }
+      catch (\Exception $e)        
+      {
+        return $e->getMessage();
+      }  
+    }
+    /* --end Re-match Com. Invoices -- */
+
+    /* -- Re-match Com. Invoices -- */
+    public function rematchOcrComInvoices($client_id, $sample = false)
+    {
+      try
+      {
+        $importreconciliationcominvoices = ImportReconciliationComInvoices::with(['vatreg', 'vatreg.client'])
+                        ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
+                            $subquery->where('id', $client_id); //SPORTS
+                        })                           
+                        ->whereNull('rematch_ocr_com_invoice_id')                                                            
+                        ->where('invoice_no', 'NOT LIKE', 'SPG-%-NO')                                                
+                        //->whereNot('data_from', 'ivf')
+                        //->whereNot('data_from', 'swiss')
+                        ->where('data_from', 'ocr')
+                        ->get();
+      
+        foreach($importreconciliationcominvoices as $importreconciliationcominvoice)       
+        {           
+          //GET MATCH COM. INVOICE ROW
+          $query_match_cominvoice = ImportReconciliationComInvoices::with(['vatreg', 'vatreg.client'])
+                    ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
+                        $subquery->where('id', $client_id);
+                    })
+                    ->whereNull('rematch_ocr_com_invoice_id');                    
+                   
+          if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')
+          {
+            if(Str::startsWith(Str::lower($importreconciliationcominvoice->invoice_no), ['ic']))
+            {
+              $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+                                    $query->where('invoice_no', $importreconciliationcominvoice->invoice_no) ;
+                                });
+            }
+            else
+            {
+              $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+                                    $query->where('invoice_no', str_replace('IC', '', $importreconciliationcominvoice->invoice_no)) ;
+                                });
+            }
+          }
+          else if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'REXHOLM A/S')
+          {            
+            $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+
+                                $changed_invoice_no = str_replace('PROF', '', $importreconciliationcominvoice->invoice_no);
+                                $query->where('invoice_no', $changed_invoice_no)
+                                        ->orWhere('invoice_no', $importreconciliationcominvoice->invoice_no);
+
+                                if(str_starts_with($changed_invoice_no, '0'))
+                                {
+                                  $remove_leading_zero = preg_replace('/^0/', '', $changed_invoice_no);
+                                  $query->orWhere('invoice_no', $remove_leading_zero);
+                                }
+                              });
+          }        
+          else if(stripos(strtoupper($importreconciliationcominvoice->vatreg->client->client_name), "BECKS") !== false) 
+          {          
+            $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+
+                                $changed_invoice_no = str_replace('NIC', '', $importreconciliationcominvoice->invoice_no);
+                                $query->where('invoice_no', $changed_invoice_no)
+                                        ->orWhere('invoice_no', $importreconciliationcominvoice->invoice_no);
+
+                                if(str_starts_with($changed_invoice_no, '0'))
+                                {
+                                  $remove_leading_zero = preg_replace('/^0/', '', $changed_invoice_no);
+                                  $query->orWhere('invoice_no', $remove_leading_zero)
+                                        ->orWhere('invoice_no', 'NIC' . $remove_leading_zero);
+                                }
+                              });
+          }
+          else if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'DAN-FORM A/S')
+          {
+            $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+
+                                $changed_invoice_no = str_replace('S-NO-', '', $importreconciliationcominvoice->invoice_no);
+                                $query->where('invoice_no', $changed_invoice_no)
+                                        ->orWhere('invoice_no', $importreconciliationcominvoice->invoice_no)
+                                        ->orWhere('invoice_no', str_replace('-', '', $importreconciliationcominvoice->invoice_no));
+                              });
+          }
+          else
+          {
+             $specific_query = $query_match_cominvoice->where(function ($query) use($importreconciliationcominvoice) {
+                                  $query->where('invoice_no', 'LIKE', 'SPG-'. $importreconciliationcominvoice->invoice_no .'-NO%')
+                                        ->orWhere('invoice_no', $importreconciliationcominvoice->invoice_no) ;
+                              });
+          }
+
+          $match_cominvoice = $specific_query->where('id', '!=', $importreconciliationcominvoice->id) 
+                                ->whereNotNull('lope_no')
+                                ->where('unmatch', 0) 
+                                ->first();  
+          
+            if ($match_cominvoice) 
+            {      
+              if($match_cominvoice->rematch_ocr_com_invoice_id == $importreconciliationcominvoice->id)  
+              {
+                if($sample)
+                  echo $importreconciliationcominvoice->invoice_no . " matched with same ID. So Don't match." . "<br>";
+              }
+              else
+              {
+                if(!$match_cominvoice->no_of_split)
+                {
+                  $match_cominvoice->rematch_ocr_com_invoice_id = $importreconciliationcominvoice->id;
+                  $match_cominvoice->save();
+                }
+              }
+
+                $_changed_com_period = false;
+                $_changed_sales_period = false;
+                if($importreconciliationcominvoice->month_year != $match_cominvoice->month_year)
+                {
+                    $importreconciliationcominvoice->month_year = $match_cominvoice->month_year;
+                    $importreconciliationcominvoice->vat_reg_id = $match_cominvoice->vat_reg_id;
+                    $importreconciliationcominvoice->save();
+
+                    $_changed_com_period = true;
+
+                    $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')->where('com_invoice_id', $importreconciliationcominvoice->id);
+                    if($salesinvoices)
+                    {                                
+                        $update_sales = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')->where('com_invoice_id', $importreconciliationcominvoice->id)
                                             ->update(['vat_reg_id' => $match_cominvoice->vat_reg_id]);
 
                         $_changed_sales_period = true;

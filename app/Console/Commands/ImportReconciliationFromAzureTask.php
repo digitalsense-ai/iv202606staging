@@ -50,6 +50,7 @@ class ImportReconciliationFromAzureTask extends Command
                                         $query
                                             ->where('data_from', '!=', 'ivf')
                                             ->where('data_from', '!=', 'ftp')
+                                            ->where('data_from', '!=', 'ocr')
                                             ->orderBy('last_modified_at', 'desc')                                         
                                             ->get();
                                       }

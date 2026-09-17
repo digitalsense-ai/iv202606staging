@@ -28,364 +28,7 @@ $(function () {
       'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     }
   });  
-  
-
-  /*  
-  var dt_analyzepdfsearch_tables = $('.datatables-analyzepdfsearch');
-console.log(dt_analyzepdfsearch_tables);
-  for (var i = 0; i < dt_analyzepdfsearch_tables.length; i++) {
-   
-    var dt_analyzepdfsearch_table = $(dt_analyzepdfsearch_tables[i]); // This is a DOM element, not a jQuery object
-
-    if (dt_analyzepdfsearch_table) 
-    {
-      var analyzepdfsearch_filter_class = 'd-none';
-      let analyzepdfsearch_name = '';
-      var analyzepdfsearch_datas = [];
-      if(i === 0)
-      {
-        analyzepdfsearch_filter_class = '';
-        analyzepdfsearch_name = 'commercial-invoice';
-        analyzepdfsearch_datas = analyzepdf_commercial_invoice_datas;
-      }
-      else if(i === 1)
-      {
-        analyzepdfsearch_name = 'sales-invoice';
-        analyzepdfsearch_datas = analyzepdf_sales_invoice_datas;
-      }
-      else if(i === 2)
-      {
-        analyzepdfsearch_name = 'declaration';
-        analyzepdfsearch_datas = analyzepdf_declaration_datas;
-      }
-console.log(i);      
-console.log(analyzepdfsearch_name);
-      let columns = [];      
-      let invisiblecolumntargets = [];
-      let columntargets = [];
-      let actiontargets = 9;
-
-      if(i === 0)
-      {
-        columns = [
-            { data: 'fake_id', className: 'text-start w-px-100' },
-            { data: 'client_no', className: 'text-start w-px-150' },
-            { data: 'client_name', className: 'text-start w-px-200' },
-            { data: 'invoice_no', className: 'text-start w-px-150' },
-            { data: 'invoice_date', className: 'text-start w-px-150' },
-            { data: 'currency', className: 'text-start w-px-100' },
-            { data: 'net_amount', className: 'text-end w-px-150' },
-            { data: 'related_sales_invoices', className: 'text-start w-px-300 ellipsis' },
-            { data: 'created_at', className: 'text-start w-px-200' },            
-            { data: 'action', className: 'w-px-50' }  
-        ];
-
-        columntargets = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-      }
-      else if(i === 1)
-      {
-        columns = [
-            { data: 'fake_id', className: 'text-start w-px-100' },
-            { data: 'client_no', className: 'text-start w-px-150' },
-            { data: 'client_name', className: 'text-start w-px-200' },
-            { data: 'invoice_no', className: 'text-start w-px-150' },
-            { data: 'invoice_date', className: 'text-start w-px-150' },
-            { data: 'currency', className: 'text-start w-px-100' },
-            { data: 'credit_note', className: 'text-start w-px-100' },
-            { data: 'net_amount', className: 'text-end w-px-150' },
-            { data: 'vat_rate', className: 'w-px-50' },
-            { data: 'vat_amount', className: 'text-end w-px-150' },
-            { data: 'variance_amount', className: 'text-end w-px-150' },
-            { data: 'freight_amount', className: 'text-end w-px-150' },
-            { data: 'discount_amount', className: 'text-end w-px-150' },
-            { data: 'total_amount', className: 'text-end w-px-150' },
-            { data: 'created_at', className: 'text-start w-px-200' },            
-            { data: 'action', className: 'w-px-50' }  
-        ];
-
-        actiontargets = 15;
-        columntargets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-      }
-      else if(i === 2)
-      {
-        columns = [
-            { data: 'fake_id' },
-            { data: 'client_no', className: 'text-start' },
-            { data: 'client_name', className: 'text-start' },
-            { data: 'declaration_no', className: 'text-start' },
-            { data: 'expo_no', className: 'text-start' },
-            { data: 'invoice_date', className: 'text-start' },
-            { data: 'currency' },           
-            { data: 'net_amount', className: 'text-end' },
-            { data: 'duties', className: 'text-end' },
-            { data: 'adjustment', className: 'text-end' },
-            { data: 'reference_no', className: 'text-start' },            
-            { data: 'created_at', className: 'text-start' },            
-            { data: 'action' }  
-        ];
-
-        actiontargets = 12;
-        columntargets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-      }
-
-      let invoiceDateIndex = columns.findIndex(c => c.data === 'invoice_date');
-
-      var dt_analyzepdfsearch = dt_analyzepdfsearch_table.DataTable({  
-          data: analyzepdfsearch_datas,              
-          scrollCollapse: false,        
-          scrollX: true,        
-          fixedHeader: true,             
-          searching: true,    
-          lengthMenu: [
-              [10, 25, 50, 100],
-              [10, 25, 50, 100]
-          ],
-          pageLength: 100,     
-          autoWidth: false, 
-          ordering: true,                
-          columns: columns,          
-          columnDefs: [           
-            {
-              // For Uparrow Icons
-              targets:  columntargets,         
-              searchable: true,
-              orderable: true,
-              visible: true
-            }, 
-            {
-              targets: invoiceDateIndex,
-              render: function (data, type) {
-                if (!data) return '';
-
-                // FORCE consistent sort format
-                let m = moment(data, ['YYYY-MM-DD', 'DD-MM-YYYY', 'YYYY/MM/DD']);
-
-                if (type === 'sort' || type === 'type') {
-                  return m.isValid() ? m.format('YYYYMMDD') : '00000000';
-                }
-
-                return data;
-              }
-            },                  
-            {
-              targets: 7,
-              searchable: true,
-              orderable: true,
-              visible: true,
-              render: function (data, type, full, meta) {
-
-                if (full.invoice_type === 'com') {
-
-                  let arr = full.related_sales_invoices || [];
-
-                  // EXPORT + SEARCH → full data
-                  if (type === 'display') {
-                    return arr.join(', ');
-                  }
-
-                  // DISPLAY → shortened
-                  if (arr.length === 1)
-                    return arr[0];
-                  else if (arr.length > 1)
-                    return arr[0] + " ...";
-                  else
-                    return '';
-                } 
-                else {
-                  return full.net_amount;
-                }
-              }
-            },          
-            {
-              // For Action
-              targets: actiontargets,              
-              searchable: false,
-              orderable: false,              
-              render: function (data, type, full, meta) { 
-
-                return `<div class="d-inline-block">
-                          <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></a>
-                          <ul class="dropdown-menu dropdown-menu-end m-0">` + 
-                            //((i === 0) ?                       
-                            `<li>
-                              <a href="javascript:;" class="dropdown-item btn-show-data" id="show-analyzepdf-data" title="Show Data" data-analyzepdf_id="`+ full['id'] +`" data-tab_name="`+ analyzepdfsearch_name +`" data-invoice_no="`+ full['invoice_no'] +`" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfData">
-                                <span><i class="bx bx-show me-2"></i>Show Data</span>
-                              </a>                                     
-                            </li>` +// : '') +
-                          `</ul>
-                        </div>`;
-              }
-            }                     
-          ],
-          processing: true, 
-          order: [[0, 'asc']],
-          dom:     
-            '<"row mx-0 '+ analyzepdfsearch_name +'-search-filter '+ analyzepdfsearch_filter_class +'"' +                      
-            '<"col-sm-12 col-md-6 sub-btns text-start my-auto">' +
-            '<"col-sm-12 col-md-6"lfB>' +            
-            '>r' +
-            '<"row mx-0"' +
-            '<"col-sm-12 p-0"t' +                    
-            '>>' +
-            '<"row mx-2"' +
-            '<"col-sm-12 col-md-6"i>' +
-            '<"col-sm-12 col-md-6"p>' +
-            '>',
-          select: {            
-            style: 'multi'
-          },
-          language: {
-            processing: '<div class="sk-bounce sk-primary sk-center">' +
-                          '<div class="sk-bounce-dot"></div>' +
-                          '<div class="sk-bounce-dot"></div>' +
-                        '</div>',
-            sLengthMenu: '_MENU_',
-            search: '',
-            searchPlaceholder: 'Search..',
-            infoEmpty: 'No entries to show',
-            info : '_START_ to _END_ of _TOTAL_',          
-            infoFiltered: ' - filtered from _MAX_ records'
-          },           
-          buttons: [                   
-          {
-            extend: 'collection',
-            className: 'btn btn-outline-secondary dropdown-toggle ml-3',
-            text: '<i class="bx bx-export me-2"></i>Export',
-            autoClose: true,
-            buttons: [
-              {
-                extend: 'print',
-                title: 'Analyze PDF',
-                text: '<i class="bx bx-printer me-2" ></i>Print',
-                className: 'dropdown-item',
-                exportOptions: {                
-                  columns: columntargets               
-                },
-                customize: function (win) {
-                  //customize print view for dark
-                  $(win.document.body)
-                    .css('color', config.colors.headingColor)
-                    .css('border-color', config.colors.borderColor)
-                    .css('background-color', config.colors.body);
-                  $(win.document.body)
-                    .find('table')
-                    .addClass('compact')
-                    .css('color', 'inherit')
-                    .css('border-color', 'inherit')
-                    .css('background-color', 'inherit');
-                }
-              },                
-              {
-                extend: 'csv',
-                title: 'Analyze PDF',
-                text: '<i class="bx bx-file me-2" ></i>Csv',
-                className: 'dropdown-item',
-                exportOptions: {                
-                  columns: columntargets
-                }
-              },           
-              {
-                extend: 'excel',
-                title: 'Analyze PDF',
-                text: '<i class="bx bxs-file-export me-2"></i>Excel',
-                className: 'dropdown-item',              
-                exportOptions: {                  
-                  columns: columntargets,                  
-                },                            
-              },
-              {
-                extend: 'pdf',
-                orientation: 'landscape',
-                pageSize: 'LEGAL',
-                title: 'Analyze PDF',
-                text: '<i class="bx bxs-file-pdf me-2"></i>Pdf',
-                className: 'dropdown-item',
-                exportOptions: {                
-                  columns: columntargets
-                }
-              },
-              {
-                extend: 'copy',
-                title: 'Analyze PDF',
-                text: '<i class="bx bx-copy me-2" ></i>Copy',
-                className: 'dropdown-item',
-                exportOptions: {               
-                  columns: columntargets
-                }
-              }        
-            ]
-          }            
-        ],       
-        initComplete: function (settings, json) {   
-          
-          const api = this.api(); // ✅ DataTable instance
-
-          const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
-          const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
-          const $topScroll    = $('#top-scroll-navs-analyzepdfsearch-' + analyzepdfsearch_name);
-          const $topInner     = $topScroll.find('.dt-top-scroll-inner');
-
-          let isSyncing = false;
-
-          // Match widths
-          function syncWidth() {
-              if ($scrollBody.length) {
-                  $topInner.width($scrollBody.get(0).scrollWidth);
-              }
-          }
-
-          // Remove previous handlers to avoid duplicates
-          $scrollBody.off('scroll.dtTop');
-          $topScroll.off('scroll.dtTop');
-
-          // Sync scrolling
-          $scrollBody.on('scroll.dtTop', function () {
-              if (isSyncing) return;
-              isSyncing = true;
-              $topScroll.scrollLeft(this.scrollLeft);
-              isSyncing = false;
-          });
-
-          $topScroll.on('scroll.dtTop', function () {
-              if (isSyncing) return;
-              isSyncing = true;
-              $scrollBody.scrollLeft(this.scrollLeft);
-              isSyncing = false;
-          });
-
-          // Initial sync
-          syncWidth();
-
-          // Re-sync on redraw
-          api.on('draw.dtTop', syncWidth);
-
-          // Re-sync on resize
-          $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
-
-          // Re-sync on tab show
-          $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
-              .on('shown.bs.tab.dtTop', syncWidth);
-
-          $("."+ analyzepdfsearch_name +"-search-filter").appendTo('.dt-search-filter');
-
-          var sliderfilter =  '<label class="mx-3 cursor-pointer" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
-                                '<i class="bx bx-slider"></i>' +
-                              '</label>';
-          $(sliderfilter).appendTo('.'+ analyzepdfsearch_name +'-search-filter .dataTables_filter');
-         
-          $("."+ analyzepdfsearch_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-analyzepdfsearch-export .'+ analyzepdfsearch_name +'-analyzepdfsearch-export');
-
-          var analyzepdfsearch_total = this.api().data().length;
-          $("#btn-analyzepdfsearch-"+ analyzepdfsearch_name +" span").html(analyzepdfsearch_total);
-
-          $(".card.analyzepdfsearch .sk-bounce").hide();
-          $(".card.analyzepdfsearch .card-datatable").show();          
-        }
-      });          
-    } //if dt exist
-  } //for loop dt
-*/
-
+    
   window.initAnalyzepdfSearchTableFeatures = function initAnalyzepdfSearchTableFeatures(api, analyzepdfsearch_name) { 
       function fixLayout() {
         api.columns.adjust();
@@ -501,7 +144,13 @@ console.log(analyzepdfsearch_name);
               if ($.fn.DataTable.isDataTable(tableSelector))
               {
                   var dt_analyzepdfsearch = $(tableSelector).DataTable();
-                  var rowsData = analyzepdfsearch_datas['analyzepdf_'+ analyzepdfsearch_name.replace('-', '_') +'_datas'];
+                  //var rowsData = analyzepdfsearch_datas['analyzepdf_'+ analyzepdfsearch_name.replace('-', '_') +'_datas'];
+                  var rowsData =
+                    analyzepdfsearch_datas[
+                        'analyzepdf_' +
+                        analyzepdfsearch_name.replace('-', '_') +
+                        '_datas'
+                    ] || [];
 
                   dt_analyzepdfsearch.clear().rows.add(rowsData).draw();                  
 
@@ -511,17 +160,19 @@ console.log(analyzepdfsearch_name);
 
                   // Enable/disable tab based on data
                   if (rowsData.length > 0) {
-                    $(".card.analyzepdfsearch .sk-bounce").hide();
-                    $(".card.analyzepdfsearch .card-header").show();
+                    // $(".card.analyzepdfsearch .sk-bounce").hide();
+                    // $(".card.analyzepdfsearch .card-header").show();
+                    $('#ocr-search-loading-overlay').addClass('d-none');
 
                       $(tabSelector).css({
                           'pointer-events': 'auto',
                           'opacity': '1',
                           'cursor': 'pointer'
                       });
-                  } else {
-                    $(".card.analyzepdfsearch .sk-bounce").show();
-                    $(".card.analyzepdfsearch .card-header").hide();
+                  } else { console.log("show");
+                    // $(".card.analyzepdfsearch .sk-bounce").show();
+                    // $(".card.analyzepdfsearch .card-header").hide();
+                    $('#ocr-search-loading-overlay').removeClass('d-none');
 
                       $(tabSelector).css({
                           'pointer-events': 'none',
@@ -534,95 +185,436 @@ console.log(analyzepdfsearch_name);
       }
   }
 
+  function loadAnalyzePdfSearchDataAll(clientName) {
+
+    if (currentAnalyzeSearchClient !== clientName) {
+
+        analyzepdf_commercial_invoice_datas = [];
+        analyzepdf_sales_invoice_datas = [];
+
+        currentAnalyzeSearchClient = clientName;
+    }
+
+    $('#ocr-search-loading-overlay').removeClass('d-none');
+
+    $.ajax({
+        url: `${analyzePdfSearchUrl}dataall`,
+        type: "GET",
+
+        data: {
+            client_name: clientName,
+            page: 1,
+            per_page: 1000
+        },
+
+        success: function (result) {
+
+            const analyzepdfsearch_datas =
+                drawDtTable(result, 'analyzepdf_search');
+
+            if (!analyzepdfsearch_datas) {
+                $('#ocr-search-loading-overlay').addClass('d-none');
+                return;
+            }
+
+
+            /*
+             * ---------------------------------------------------------
+             * OCR DATA
+             * ---------------------------------------------------------
+             */
+
+            let commercialData =
+                analyzepdfsearch_datas
+                    .analyzepdf_commercial_invoice_datas || [];
+
+            let salesData =
+                analyzepdfsearch_datas
+                    .analyzepdf_sales_invoice_datas || [];
+
+
+            /*
+             * ---------------------------------------------------------
+             * SFTP SALES DATA
+             * ---------------------------------------------------------
+             */
+
+            // const sftpSalesData =
+            //     result.sftp_sales_invoices || [];
+            const sftpSalesData = result.sftpdatas?.data || [];
+
+            /*
+             * Identify source
+             */
+
+            commercialData = commercialData.map(item => ({
+                ...item,
+                source: 'ocr'
+            }));
+
+            salesData = salesData.map(item => ({
+                ...item,
+                source: 'ocr'
+            }));
+
+            const identifiedSftpData = sftpSalesData.map(item => ({
+                ...item,
+                source: 'sftp'
+            }));
+
+            /*
+             * Add SFTP sales invoices to the SAME sales invoice table.
+             */
+
+            // salesData = [
+            //     ...salesData,
+            //     ...sftpSalesData
+            // ];
+
+            salesData = [
+                ...salesData,
+                ...identifiedSftpData
+            ];
+
+
+            /*
+             * ---------------------------------------------------------
+             * RELOAD BOTH DATATABLES
+             * ---------------------------------------------------------
+             */
+
+            reloadAnalyzedPdfSearch({
+
+                analyzepdf_commercial_invoice_datas:
+                    commercialData,
+
+                analyzepdf_sales_invoice_datas:
+                    salesData
+            });
+
+
+            /*
+             * ---------------------------------------------------------
+             * Counts
+             * ---------------------------------------------------------
+             */
+
+            //console.log('Commercial invoices:', commercialData.length);
+
+            // console.log('OCR sales invoices:',
+            //     analyzepdfsearch_datas
+            //         .analyzepdf_sales_invoice_datas?.length || 0
+            // );
+
+            // console.log('SFTP sales invoices:',
+            //     sftpSalesData.length
+            // );
+
+            // console.log('Total sales invoices:',
+            //     salesData.length
+            // );
+
+
+            $('#ocr-search-loading-overlay').addClass('d-none');
+        },
+
+        error: function (xhr) {
+
+            console.error(xhr);
+
+            $('#ocr-search-loading-overlay').addClass('d-none');
+        }
+    });
+}
+
+/*
+  function appendUniqueData(target, newData) {
+
+      const existingIds = new Set(
+          target.map(item => String(item.id))
+      );
+
+      newData.forEach(item => {
+
+          const id = String(item.id);
+
+          if (!existingIds.has(id)) {
+              target.push(item);
+              existingIds.add(id);
+          }
+      });
+  }  
+  
+  window.analyzepdf_commercial_client_index = new Map();
+  window.analyzepdf_sales_client_index = new Map();
+
+  function buildClientIndexes() {
+
+      window.analyzepdf_commercial_client_index.clear();
+      window.analyzepdf_sales_client_index.clear();
+
+      (window.analyzepdf_commercial_invoice_datas || []).forEach(item => {
+
+          const clientName =
+              String(item.client_name || '').trim().toLowerCase();
+
+          if (!window.analyzepdf_commercial_client_index.has(clientName)) {
+              window.analyzepdf_commercial_client_index.set(clientName, []);
+          }
+
+          window.analyzepdf_commercial_client_index
+              .get(clientName)
+              .push(item);
+      });
+
+      (window.analyzepdf_sales_invoice_datas || []).forEach(item => {
+
+          const clientName =
+              String(item.client_name || '').trim().toLowerCase();
+
+          if (!window.analyzepdf_sales_client_index.has(clientName)) {
+              window.analyzepdf_sales_client_index.set(clientName, []);
+          }
+
+          window.analyzepdf_sales_client_index
+              .get(clientName)
+              .push(item);
+      });
+  }
+  */
+
+  let currentAnalyzeSearchClient = '';
+
   window.analyzepdf_commercial_invoice_datas = [];   
   window.analyzepdf_sales_invoice_datas = [];
-  
+
   window.vatregmains = [];
 
-  let currentPage = 1;
-  let lastPage = 1;
-  let isLoading = false;
-  function loadAnalyzePdfSearchData() {
-      if (isLoading) return;
+//   let currentPage = 1;
+//   let lastPage = 1;
+//   let isLoading = false;
+//   function loadAnalyzePdfSearchData() {
+//       if (isLoading) return;
 
-      isLoading = true;
+//       isLoading = true;
+// console.log("show 2222222");
+//       $(".card.analyzepdfsearch .sk-bounce").show();
 
-      $(".card.analyzepdfsearch .sk-bounce").show();
+//       $.ajax({          
+//           url: `${analyzePdfSearchUrl}data`,
+//           type: "GET",
+//           data: {
+//               page: currentPage
+//           },
+//           /*
+//           success: function(result) {
 
-      $.ajax({          
-          url: `${analyzePdfUrl}data`,
+//               // append vatregmains only when returned
+//               if (result.vatregmains) {
+//                   window.vatregmains = result.vatregmains;
+//               }
+
+//               // attach it back to result for existing functions
+//               result.vatregmains = window.vatregmains;
+
+//               lastPage = result.last_page;
+
+//               let pageData = result.data;
+            
+//               result.analyzepdfs = pageData;
+
+//               let analyzepdfsearch_datas = drawDtTable(result, 'analyzepdf_search');
+
+//               if (analyzepdfsearch_datas) {
+//                 // Get commercial invoices from this page
+//                 const commercialData =
+//                     analyzepdfsearch_datas.analyzepdf_commercial_invoice_datas || [];
+
+//                 // Get sales invoices from this page
+//                 const salesData =
+//                     analyzepdfsearch_datas.analyzepdf_sales_invoice_datas || [];
+
+
+//                 // Append this page to the existing data
+//                 window.analyzepdf_commercial_invoice_datas.push(
+//                     ...commercialData
+//                 );
+
+//                 window.analyzepdf_sales_invoice_datas.push(
+//                     ...salesData
+//                 );
+
+//                 // Reload using ALL accumulated data
+//                 reloadAnalyzedPdfSearch({
+
+//                     analyzepdf_commercial_invoice_datas:
+//                         window.analyzepdf_commercial_invoice_datas,
+
+//                     analyzepdf_sales_invoice_datas:
+//                         window.analyzepdf_sales_invoice_datas
+
+//                 });
+//               }
+
+//               isLoading = false;
+
+//               if (currentPage < lastPage) {
+
+//                   currentPage++;
+
+//                   setTimeout(function () {
+//                       loadAnalyzePdfSearchData();
+//                   }, 100);                  
+//               }
+
+//               $(".card.analyzepdfsearch .sk-bounce").hide();
+//               $(".card.analyzepdfsearch .card-header").show();     
+//           },
+//           */
+//           success: function(result) {
+
+//               if (result.vatregmains) {
+//                   window.vatregmains = result.vatregmains;
+//               }
+
+//               result.vatregmains = window.vatregmains;
+
+//               lastPage = result.last_page;
+
+//               let pageData = result.data;
+
+//               result.analyzepdfs = pageData;
+
+//               let analyzepdfsearch_datas =
+//                   drawDtTable(result, 'analyzepdf_search');
+
+//               if (analyzepdfsearch_datas) {
+
+//                   const commercialData =
+//                       analyzepdfsearch_datas
+//                           .analyzepdf_commercial_invoice_datas || [];
+
+//                   const salesData =
+//                       analyzepdfsearch_datas
+//                           .analyzepdf_sales_invoice_datas || [];
+
+
+//                   // ==========================================
+//                   // APPEND ONLY UNIQUE COMMERCIAL INVOICES
+//                   // ==========================================
+//                   appendUniqueData(
+//                       window.analyzepdf_commercial_invoice_datas,
+//                       commercialData
+//                   );
+
+
+//                   // ==========================================
+//                   // APPEND ONLY UNIQUE SALES INVOICES
+//                   // ==========================================
+//                   appendUniqueData(
+//                       window.analyzepdf_sales_invoice_datas,
+//                       salesData
+//                   );
+
+
+//                   // ==========================================
+//                   // UPDATE DATATABLES
+//                   // ==========================================
+//                   reloadAnalyzedPdfSearch({
+
+//                       analyzepdf_commercial_invoice_datas:
+//                           window.analyzepdf_commercial_invoice_datas,
+
+//                       analyzepdf_sales_invoice_datas:
+//                           window.analyzepdf_sales_invoice_datas
+
+//                   });
+//               }
+
+//               isLoading = false;
+
+//               if (currentPage < lastPage) {
+
+//                   currentPage++;
+
+//                   setTimeout(function () {
+//                       loadAnalyzePdfSearchData();
+//                   }, 100);
+//               }
+//               else {
+//                   // All data loaded
+//                   buildClientIndexes();
+
+//                   $(".btn-search-client").removeAttr('disabled');
+//               }
+
+//               $(".card.analyzepdfsearch .sk-bounce").hide();
+//               $(".card.analyzepdfsearch .card-header").show();
+//           },
+//           error: function(xhr) {
+//               isLoading = false;
+              
+//               console.error(xhr);
+
+//               $(".btn-search-client").removeAttr('disabled');
+
+//               $(".card.analyzepdfsearch .sk-bounce").hide();
+//               $(".card.analyzepdfsearch .card-header").show();
+//           }
+//       });
+//   }
+
+//   // START LOADING
+//   loadAnalyzePdfSearchData();
+
+  function loadAnalyzePdfSearchData(clientName) {    
+      if (currentAnalyzeSearchClient !== clientName) {
+          analyzepdf_commercial_invoice_datas = [];
+          analyzepdf_sales_invoice_datas = [];
+          
+          currentAnalyzeSearchClient = clientName;          
+      }
+
+      //$(".card.analyzepdfsearch .sk-bounce").show();
+      $('#ocr-search-loading-overlay').removeClass('d-none');
+
+      $.ajax({
+          url: `${analyzePdfSearchUrl}data`,
           type: "GET",
           data: {
-              page: currentPage
+              client_name: clientName
           },
           success: function(result) {
 
-              // append vatregmains only when returned
-              if (result.vatregmains) {
-                  window.vatregmains = result.vatregmains;
-              }
-
-              // attach it back to result for existing functions
-              result.vatregmains = window.vatregmains;
-
-              lastPage = result.last_page;
-
-              let pageData = result.data;
-
-              // $.each(pageData, function(index, item) {
-
-              //     if (item.invoice_type === 'com') {
-              //         window.analyzepdf_commercial_invoice_datas.push(item);
-              //     }
-              //     else if (item.invoice_type !== 'com') {
-              //         window.analyzepdf_sales_invoice_datas.push(item);
-              //     }
-              //     // else if (item.status === 'declaration') {
-              //     //     window.analyzepdf_declaration_datas.push(item);
-              //     // }                  
-
-              // });
-
-              // result.analyzepdfs = [
-              //     ...window.analyzepdf_commercial_invoice_datas,
-              //     ...window.analyzepdf_sales_invoice_datas                  
-              // ];
-
-              result.analyzepdfs = pageData;
-
-              let analyzepdfsearch_datas = drawDtTable(result, 'analyzepdf_search');
+              const analyzepdfsearch_datas =
+                  drawDtTable(result, 'analyzepdf_search');
 
               if (analyzepdfsearch_datas) {
-                  reloadAnalyzedPdfSearch(analyzepdfsearch_datas);
+
+                  reloadAnalyzedPdfSearch({
+                      analyzepdf_commercial_invoice_datas:
+                          analyzepdfsearch_datas
+                              .analyzepdf_commercial_invoice_datas || [],
+
+                      analyzepdf_sales_invoice_datas:
+                          analyzepdfsearch_datas
+                              .analyzepdf_sales_invoice_datas || []
+                  });
+                 
               }
 
-              isLoading = false;
-
-              if (currentPage < lastPage) {
-
-                  currentPage++;
-
-                  setTimeout(function () {
-                      loadAnalyzePdfSearchData();
-                  }, 100);                  
-              }
-
-              $(".card.analyzepdfsearch .sk-bounce").hide();
-              $(".card.analyzepdfsearch .card-header").show();     
+              // $(".card.analyzepdfsearch .sk-bounce").hide();
+              // $(".card.analyzepdfsearch .card-header").show();
+              $('#ocr-search-loading-overlay').addClass('d-none');
           },
           error: function(xhr) {
-              isLoading = false;
-              
               console.error(xhr);
-
-              $(".card.analyzepdfsearch .sk-bounce").hide();
-              $(".card.analyzepdfsearch .card-header").show();
+              // $(".card.analyzepdfsearch .sk-bounce").hide();
+              // $(".card.analyzepdfsearch .card-header").show();
+              $('#ocr-search-loading-overlay').addClass('d-none');
           }
       });
   }
-
-  // START LOADING
-  loadAnalyzePdfSearchData();
 
   var dt_analyzepdfsearch_tables = $('.datatables-analyzepdfsearch');
 
@@ -655,7 +647,8 @@ console.log(analyzepdfsearch_name);
       let actiontargets = 9;
 
       let invoiceDateIndex = -1;
-      let netAmountIndex = -1;
+      //let netAmountIndex = -1;
+      let euroIndexes = [];
       let relatedInvoiceIndex = -1;
       let fetchDateIndex = -1;
 
@@ -679,7 +672,8 @@ console.log(analyzepdfsearch_name);
 
         actiontargets = 9;
         invoiceDateIndex = 4;
-        netAmountIndex = 6;
+        //netAmountIndex = 6;
+        euroIndexes = [6];
         relatedInvoiceIndex = 7;
         fetchDateIndex = 8;
       }
@@ -688,7 +682,22 @@ console.log(analyzepdfsearch_name);
       else if (i === 1) {
        
         columns = [
-          { data: 'fake_id', width: '100px' },
+          //{ data: 'fake_id', width: '100px' },
+          {
+              data: null,
+              width: '100px',
+              render: function (data, type, row) {
+                if (row.source === 'sftp') {
+                    return `
+                        <div>
+                            <div>${row.id}</div>
+                            <span class="badge bg-label-primary">FTP</span>                            
+                        </div>
+                    `;
+                }
+                return row.id;
+              }
+          },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },
           { data: 'invoice_no', width: '200px' },
@@ -711,7 +720,8 @@ console.log(analyzepdfsearch_name);
 
         actiontargets = 16;
         invoiceDateIndex = 4;
-        netAmountIndex = 7;
+        //netAmountIndex = 7;
+        euroIndexes = [7, 8, 10, 11, 12, 13, 14];
         fetchDateIndex = 15;
       }
 
@@ -747,7 +757,8 @@ console.log(analyzepdfsearch_name);
 
         data: analyzepdfsearch_datas,
         rowId: function (data) {
-            return 'invoice_' + data.id;
+            //return 'invoice_' + data.id;
+          return data.source + '_invoice_' + data.id;
         },
         scrollCollapse: true,
         scrollX: true,
@@ -757,14 +768,19 @@ console.log(analyzepdfsearch_name);
         pageLength: 100,
 
         columns: columns,
-        createdRow: function (row, data) {
-          // if(data.invoice_no == "CH202601463")
-          //   console.log(data);
+        createdRow: function (row, data) {          
           if (data.sync_status == 1) {
               $(row).css('background-color', '#d4edda'); // Green
           } else {
               $(row).css('background-color', '#f8d7da'); // Red
           }
+
+          // // Change only first TD based on source
+          // if (data.source === 'sftp') {
+          //     $('td:eq(0)', row).css('background-color', '#7fbf8f'); // Blue
+          // } else {
+          //     $('td:eq(0)', row).css('background-color', '#e08089'); // Gray / OCR
+          // }
         },
         columnDefs: [
 
@@ -789,40 +805,36 @@ console.log(analyzepdfsearch_name);
             }
           },
 
+          // // ================= NUMBER SORT FIX =================
+          // {
+          //   targets: netAmountIndex,
+          //   className: 'text-end',
+          //   render: function (data, type) {
+          //     // if (type === 'sort' || type === 'type') {
+          //     //   return parseFloat(String(data).replace(/,/g, '')) || 0;
+          //     // }
+          //     // return data;          
+          //   }
+          // },
+
           // ================= NUMBER SORT FIX =================
           {
-            targets: netAmountIndex,
+            targets: euroIndexes,
             className: 'text-end',
-            render: function (data, type) {
+            render: function (data, type) {             
+              const numericValue = parseEuropeanNumber(data) || 0;
+
+              // Sorting / type detection
               if (type === 'sort' || type === 'type') {
-                return parseFloat(String(data).replace(/,/g, '')) || 0;
+                  return numericValue;
               }
-              return data;
+
+              // Display
+              return numericValue.toLocaleString('de-DE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
             }
-
-//             render: function (data, type) {
-
-//                 // For sorting/export/raw numeric handling
-//                 if (
-//                     type === 'sort' ||
-//                     type === 'type' ||
-//                     type === 'export'
-//                 ) {
-// console.log(parseFloat(
-//                         String(data)
-//                             .replace(/\./g, '') // remove thousand separator
-//                             .replace(',', '.')  // convert decimal separator
-//                     ) || 0);
-//                     return parseFloat(
-//                         String(data)
-//                             .replace(/\./g, '') // remove thousand separator
-//                             .replace(',', '.')  // convert decimal separator
-//                     ) || 0;
-//                 }
-
-//                 // Display
-//                 return data;
-//             }
           },
           // ================= FETCH DATE SORT FIX =================
           {
@@ -854,27 +866,7 @@ console.log(analyzepdfsearch_name);
             }
         },
 
-          // // ================= COMMERCIAL COLUMN 7 FIX =================
-          // {
-          //   targets: relatedInvoiceIndex,
-          //   render: function (data, type, full) {
-
-          //     let arr = full.related_sales_invoices || [];
-
-          //     if (type === 'sort' || type === 'type') {
-          //       return arr.length; // stable sorting
-          //     }
-
-          //     if (type === 'filter') {
-          //       return arr.join(' ');
-          //     }
-
-          //     if (arr.length === 1) return arr[0];
-          //     if (arr.length > 1) return arr[0] + " ...";
-          //     return '';
-          //   }
-          // },
-
+          // // ================= COMMERCIAL COLUMN 7 FIX =================          
           ...(relatedInvoiceIndex >= 0 ? [{
             targets: relatedInvoiceIndex,
             render: function (data, type, full) {
@@ -906,6 +898,11 @@ console.log(analyzepdfsearch_name);
             orderable: false,
             searchable: false,
             render: function (data, type, full, meta) { 
+
+              const isSftp = full.source === 'sftp';
+              const recordId = full.id || '';
+              const source = isSftp ? 'sftp' : 'ocr';
+
                 return `<div class="d-inline-block">
                           <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
                             <i class="bx bx-dots-vertical-rounded"></i>
@@ -917,13 +914,12 @@ console.log(analyzepdfsearch_name);
                                 class="dropdown-item btn-show-data" 
                                 id="show-analyzepdf-data"
                                 title="Show Data"
-
-                                data-analyzepdf_id="` + full['id'] + `"
-                                data-tab_name="` + analyzepdfsearch_name + `"
-                                data-invoice_no="` + (full['invoice_no'] || full['declaration_no'] || '') + `"
-
-                                >
-
+                                
+                                data-analyzepdf_id="${recordId}"
+                                data-source="${source}"
+                                data-tab_name="${analyzepdfsearch_name}"
+                                data-invoice_no="${full['invoice_no'] || full['declaration_no'] || ''}">
+                                
                                 <span>
                                   <i class="bx bx-show me-2"></i>Show Data
                                 </span>
@@ -948,7 +944,7 @@ console.log(analyzepdfsearch_name);
         dom:
           '<"row mx-0 '+ analyzepdfsearch_name +'-search-filter '+ analyzepdfsearch_filter_class +'"' +
           '<"col-sm-12 col-md-6 sub-btns text-start my-auto">' +
-          '<"col-sm-12 col-md-6"lfB>' +
+          '<"col-sm-12 col-md-6"plfB>' +
           '>r' +
           '<"row mx-0"<"col-sm-12 p-0"t>>' +
           '<"row mx-2"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
@@ -1026,142 +1022,9 @@ console.log(analyzepdfsearch_name);
         },        
 
         initComplete: function () {
-          /*
-//console.log(analyzepdfsearch_name);
-          //$("."+ analyzepdfsearch_name +"-search-filter").appendTo('.dt-search-filter');
-
-          const api = this.api();
-
-          // api
-          //   .columns(2)
-          //   .every(function () {
-          //     var column = this;
-          //     var select = $(
-          //       '<select id="FilterClientName" class="form-select w-px-200 text-capitalize"><option value=""> Select Client Name </option></select>'
-          //     )
-          //       .appendTo('.client_name')
-          //       .on('change', function () {                
-          //         var val = $(this).val().replace(/-/g, " ");
-          //         column.search(val ? val : '', true, false).draw();
-          //       });
-
-          //     column
-          //       .data()
-          //       .unique()
-          //       .sort()
-          //       .each(function (d, j) {
-          //         var selected = (j === 0) ? 'selected' : '';
-          //         if(d)
-          //           select.append('<option value="' + d + '" ' + selected + '>' + d.replace(/-/g, " ") + '</option>');
-          //       });
-
-          //     // manually trigger filter
-          //     select.trigger('change');  
-          //   });
-
-          // if(analyzepdfsearch_name === 'commercial-invoice')  
-          //   $(".dt-dropdown-filter").prependTo('.dt-search-filter .'+ analyzepdfsearch_name +'-search-filter #DataTables_Table_0_filter');   
-          // else if(analyzepdfsearch_name === 'sales-invoice')  
-          //   $(".dt-dropdown-filter").prependTo('.dt-search-filter .'+ analyzepdfsearch_name +'-search-filter #DataTables_Table_1_filter');   
-
-
-          // // IMPORTANT: fix hidden tab column width issue
-          // setTimeout(function () {
-          //   api.columns.adjust();
-          //   api.tables().columns.adjust();
-          //   api.responsive && api.responsive.recalc();
-          // }, 150);
-
-          function fixLayout() {
-            api.columns.adjust();
-            api.columns.adjust();
-
-            // IMPORTANT: force header/body sync in scrollX mode
-            $(api.table().node())
-              .css('width', '100%');
-
-            $(api.table().container())
-              .find('table')
-              .css('width', '100%');
-          }
-
-          requestAnimationFrame(fixLayout);
-
-          setTimeout(fixLayout, 50);
-          setTimeout(fixLayout, 150);
-          setTimeout(fixLayout, 400);
-
-          const $tableWrapper = $(api.table().container()).find('.dataTables_scroll');
-          const $scrollBody   = $tableWrapper.find('.dataTables_scrollBody');
-          const $topScroll    = $('#top-scroll-navs-analyzepdfsearch-' + analyzepdfsearch_name);
-          const $topInner     = $topScroll.find('.dt-top-scroll-inner');
-
-          let isSyncing = false;
-
-          function syncWidth() {
-              if ($scrollBody.length) {
-
-                  let scrollBodyEl = $scrollBody.get(0);
-
-                  // FORCE DataTables layout recalculation first
-                  api.columns.adjust();
-
-                  setTimeout(function () {
-                      $topInner.width(scrollBodyEl.scrollWidth);
-                  }, 50);
-              }
-          }
-
-          // Remove previous handlers to avoid duplicates
-          $scrollBody.off('scroll.dtTop');
-          $topScroll.off('scroll.dtTop');
-
-          // Sync scrolling
-          $scrollBody.on('scroll.dtTop', function () {
-              if (isSyncing) return;
-              isSyncing = true;
-              $topScroll.scrollLeft(this.scrollLeft);
-              isSyncing = false;
-          });
-
-          $topScroll.on('scroll.dtTop', function () {
-              if (isSyncing) return;
-              isSyncing = true;
-              $scrollBody.scrollLeft(this.scrollLeft);
-              isSyncing = false;
-          });
-
-          // Initial sync
-          syncWidth();
-
-          // Re-sync on redraw
-          api.on('draw.dtTop', syncWidth);
-
-          // Re-sync on resize
-          $(window).off('resize.dtTop').on('resize.dtTop', syncWidth);
-
-          // Re-sync on tab show
-          $('a[data-bs-toggle="tab"]').off('shown.bs.tab.dtTop')
-              .on('shown.bs.tab.dtTop', syncWidth);
-
-          $("." + analyzepdfsearch_name + "-search-filter")
-            .appendTo('.dt-search-filter');
-
-          var sliderfilter =  '<label class="mx-3 cursor-pointer" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAnalyzePdfFilter" aria-controls="offcanvasAnalyzePdfFilter">' +
-                                '<i class="bx bx-slider"></i>' +
-                              '</label>';
-          $(sliderfilter).appendTo('.'+ analyzepdfsearch_name +'-search-filter .dataTables_filter');
          
-          $("."+ analyzepdfsearch_name +"-search-filter .dt-buttons.btn-group.flex-wrap").appendTo('.dt-analyzepdfsearch-export .'+ analyzepdfsearch_name +'-analyzepdfsearch-export');
-
-
-          var analyzepdfsearch_total = api.data().length;
-
-          $("#btn-analyzepdfsearch-" + analyzepdfsearch_name + " span")
-            .html(analyzepdfsearch_total);
-*/
-          $(".card.analyzepdfsearch .sk-bounce").show();
-          $(".card.analyzepdfsearch .card-datatable").hide();
+          // $(".card.analyzepdfsearch .sk-bounce").show();
+          // $(".card.analyzepdfsearch .card-datatable").hide();
 
           var table = this.api();
 
@@ -1182,7 +1045,7 @@ console.log(analyzepdfsearch_name);
 
   $(document).on('shown.bs.tab', 'button[data-bs-toggle="tab"]', function (e) {  
     var id = $(e.target).attr("id") // activated tab
-   console.log(id);
+   //console.log(id);
     if(id == 'btn-analyzepdfsearch-commercial-invoice')
     {            
       $(".dt-analyzepdfsearch-export .commercial-invoice-analyzepdfsearch-export").removeClass('d-none');  
@@ -1213,20 +1076,6 @@ console.log(analyzepdfsearch_name);
       $(".dt-search-filter .sales-invoice-search-filter").addClass('d-none');    
       $(".dt-search-filter .declaration-search-filter").removeClass('d-none');      
     }  
-
-    // setTimeout(function () {
-    //   $('.datatables-analyzepdfsearch').each(function () {
-    //     const table = $(this).DataTable();
-
-    //     table.columns.adjust();
-    //     table.draw(false);
-
-    //     if (table.responsive) {
-    //       table.responsive.recalc();
-    //     }
-    //   });
-    // }, 150);  
-
   });    
 
   $('[data-bs-toggle="tab"]').off('shown.bs.tab.dtFix').on('shown.bs.tab.dtFix', function (e) {
@@ -1250,115 +1099,404 @@ console.log(analyzepdfsearch_name);
       }, 400);
     }
   });
+  
+  window.reloadAnalyzedPdfSearchFilterData = function (
+      commercialData = [],
+      salesData = []
+  ) {
+      var dt_analyzepdfsearch_tables =
+          $('.datatables-analyzepdfsearch');
+
+      for (var i = 0; i < dt_analyzepdfsearch_tables.length; i++) {
+
+          var analyzepdfsearch_name = '';
+
+          if (i === 0) {
+              analyzepdfsearch_name = 'commercial-invoice';
+          }
+          else if (i === 1) {
+              analyzepdfsearch_name = 'sales-invoice';
+          }
+
+          var tableSelector =
+              ".datatables-" +
+              analyzepdfsearch_name +
+              "-analyzepdfsearch";
+
+          if ($(tableSelector).length === 0) {
+              continue;
+          }
+
+          if (!$.fn.DataTable.isDataTable(tableSelector)) {
+              continue;
+          }
+
+          var dt_analyzepdfsearch =
+              $(tableSelector).DataTable();
+
+          var rowsData = [];
+
+          if (i === 0) {
+              rowsData = commercialData;
+          }
+          else if (i === 1) {
+              rowsData = salesData;
+          }
+
+          dt_analyzepdfsearch
+              .clear()
+              .rows
+              .add(rowsData)
+              .draw();
+
+          $("#btn-analyzepdfsearch-" +
+              analyzepdfsearch_name +
+              " span"
+          ).html(rowsData.length);
+      }
+  };
+
+  function applySearchFilter(selectedClientName = '') {
+console.log("filter started");
+      const clientNo =
+          $('#filter_client_no').val().trim().toLowerCase();
+     
+      const clientName =
+          selectedClientName?.trim().toLowerCase() ||
+          $('#filter_client_name').val().trim().toLowerCase();
+
+      const invoiceDate =
+          $('#filter_invoice_date').val();
+
+      const invoiceNo =
+          $('#filter_invoice_no').val().trim().toLowerCase();
+
+      const currency =
+          $('#filter_currency').val();
+
+      const creditNote =
+          $('#filter_credit_note').is(':checked');
+
+      const netAmount =
+          $('#filter_net_amount').val().trim();
+
+      const vatAmount =
+          $('#filter_vat_amount').val().trim();
+
+      const totalAmount =
+          $('#filter_total_amount').val().trim();
+
+
+      function filterData(data, isSales = false) {
+
+          return data.filter(function (item) {
+
+              if (
+                  clientNo &&
+                  !String(item.client_no || '')
+                      .toLowerCase()
+                      .includes(clientNo)
+              ) {
+                  return false;
+              }
+
+              if (
+                  clientName &&
+                  !String(item.client_name || '')
+                      .toLowerCase()
+                      .includes(clientName)
+              ) {
+                  return false;
+              }
+
+              if (invoiceDate) {
+
+                  const itemDate =
+                      String(item.invoice_date || '')
+                          .substring(0, 10);
+
+                  if (itemDate !== invoiceDate) {
+                      return false;
+                  }
+              }
+
+              if (
+                  invoiceNo &&
+                  !String(item.invoice_no || '')
+                      .toLowerCase()
+                      .includes(invoiceNo)
+              ) {
+                  return false;
+              }
+
+              if (
+                  currency &&
+                  String(item.currency || '').toUpperCase() !==
+                  currency.toUpperCase()
+              ) {
+                  return false;
+              }
+
+              if (isSales && creditNote) {
+
+                  const isCreditNote =
+                      item.credit_note === true ||
+                      item.credit_note === 1 ||
+                      item.credit_note === '1';
+
+                  if (!isCreditNote) {
+                      return false;
+                  }
+              }
+
+              if (netAmount) {
+
+                  const itemValue = parseFloat(
+                      String(item.net_amount || '')
+                          .replace(/,/g, '')
+                  );
+
+                  const filterValue = parseFloat(
+                      netAmount.replace(/,/g, '')
+                  );
+
+                  if (itemValue !== filterValue) {
+                      return false;
+                  }
+              }
+
+              if (vatAmount) {
+
+                  const itemValue = parseFloat(
+                      String(item.vat_amount || '')
+                          .replace(/,/g, '')
+                  );
+
+                  const filterValue = parseFloat(
+                      vatAmount.replace(/,/g, '')
+                  );
+
+                  if (itemValue !== filterValue) {
+                      return false;
+                  }
+              }
+
+              if (totalAmount) {
+
+                  const itemValue = parseFloat(
+                      String(item.total_amount || '')
+                          .replace(/,/g, '')
+                  );
+
+                  const filterValue = parseFloat(
+                      totalAmount.replace(/,/g, '')
+                  );
+
+                  if (itemValue !== filterValue) {
+                      return false;
+                  }
+              }
+
+              return true;
+          });
+      }
+
+      // Filter the ORIGINAL stored data
+      const filteredCommercial =
+          filterData(
+              window.analyzepdf_commercial_invoice_datas || [],
+              false
+          );
+
+      const filteredSales =
+          filterData(
+              window.analyzepdf_sales_invoice_datas || [],
+              true
+          );
+
+      // Only update existing DataTables
+      reloadAnalyzedPdfSearchFilterData(
+          filteredCommercial,
+          filteredSales
+      );
 
 /*
-  function exportToExcel(dt, which_tab) 
-  {  
-      let workbook = XLSX.utils.book_new();
-      let sheetData = [];
+      // IMPORTANT:
+    // Use the client index instead of scanning 10k+ records.
+    const commercialSource =
+        clientName
+            ? (
+                window.analyzepdf_commercial_client_index
+                    .get(clientName) || []
+              )
+            : (
+                window.analyzepdf_commercial_invoice_datas || []
+              );
 
-      // Define headers     
-      let headers = [];
-      let visibleColumnIndexes = [];              
+    const salesSource =
+        clientName
+            ? (
+                window.analyzepdf_sales_client_index
+                    .get(clientName) || []
+              )
+            : (
+                window.analyzepdf_sales_invoice_datas || []
+              );
 
-      dt.columns().every(function(index) {        
-          if (this.visible()) {             
-              let columnData = this.dataSrc(); // Get the data property name       
-              if(columnData != 'id')
-              {
-                if(columnData == 'fake_id')
-                  headers.push('No.'); // Get header text       
-                else
-                  headers.push(this.header().innerText); // Get header text       
 
-                visibleColumnIndexes.push(columnData); // Store the data property name
-              }
+    const filteredCommercial =
+        filterData(commercialSource, false);
+
+    const filteredSales =
+        filterData(salesSource, true);
+
+console.log("reload started");
+    reloadAnalyzedPdfSearchFilterData(
+        filteredCommercial,
+        filteredSales
+    );
+console.log("reload ended"); 
+*/     
+  }
+
+  /*
+  $(document).on('click', '.search-client-option', function (e) {
+      e.preventDefault();
+
+      const clientName =
+          $(this).data('client-name') || '';
+
+      // Update button text
+      $('.btn-search-client').text(
+          clientName || 'Select Client'
+      );
+
+      // Store selected client
+      $('.btn-search-client')
+          .attr('data-selected-client', clientName);
+console.log("selection started");
+      
+      const dropdownButton = $('.btn-search-client')[0];
+      
+      if (dropdownButton) {
+          const $button = $(dropdownButton);
+
+          const dropdown = bootstrap.Dropdown.getInstance(dropdownButton);
+
+          if (dropdown) {
+              dropdown.hide();
+          }
+
+          requestAnimationFrame(function () {
+
+              $button.css('opacity', '0.6');
+
+              // Give browser a chance to repaint
+              requestAnimationFrame(function () {
+
+                  applySearchFilter(clientName);
+
+                  $button.css('opacity', '1');
+              });
+          });
+      }
+  }); 
+  */
+
+  // $(document).on('click', '.ocr-search-client-option', function(e) {
+  //     e.preventDefault();
+
+  //     const clientName =
+  //         $(this).data('client-name') || '';
+
+  //     $('.btn-ocr-search-client').text(
+  //         clientName || 'Select Client'
+  //     );
+
+  //     $('.btn-ocr-search-client')
+  //         .attr('data-selected-client', clientName);
+
+  //     loadAnalyzePdfSearchData(clientName);
+  // });
+
+  const $clientSelectSearch = $('#select2OcrSearchClient');
+
+  if ($clientSelectSearch.length) {
+
+//       $(document).on('click', '#select2-select2OcrCaptureClient-container', function() {
+// // console.log("on click");
+// // console.log($('.select2-container--open .select2-search__field'));
+// // console.log($('.select2-container--open .select2-search__field').length);
+//         $('.select2-container--open .select2-search__field').focus();
+//       });
+
+      $clientSelectSearch.on('change', function () {
+          const clientName = $(this).val() || '';          
+
+          if (clientName) {
+              //loadAnalyzePdfSearchData(clientName);
+            loadAnalyzePdfSearchDataAll(clientName);
           }
       });
 
-      // Loop through the main DataTable
-      let allData = [];
-      dt.rows().every(function(rowIdx) {
-          var rowData = this.data();
-         
-          let rowInfo = [];
-          var currency_code = '';
-          const MAX_CELL_LENGTH = 32767;
+      const clientName = $clientSelectSearch.val() || '';
 
-          visibleColumnIndexes.forEach(function(colName) {                        
-              if(colName == 'pdf')
-                rowInfo.push('-'); // Push the value into the row array
-              else
-              {    
-                currency_code = 'NOK';            
-                // if(colName == 'currency_code')
-                // {
-                //   currency_code = rowData[colName];
-                //   rowInfo.push(currency_code); // Push the value into the row array
-                // }
-                // else 
-                if(colName == 'original_net_amount' || colName == 'net_amount' || colName == 'vat_amount' || colName == 'variance_amount'
-                   || colName == 'freight_amount' || colName == 'discount_amount' || colName == 'total_amount')
-                {
-                  let value = rowData[colName];
-                  if (typeof value === "number") 
-                    rowInfo.push(value); // Directly push the number
-                  else {
-                    
-                    let parsed_value =  parseAmountValue(value, currency_code);
-                    rowInfo.push(parsed_value); // Push the number or an empty string
-                  }                  
-                }
-                //else
-                //  rowInfo.push(rowData[colName]); // Push the value into the row array  
-                else
-                {
-                    let value = rowData[colName];
-
-                    if (String(value).length > MAX_CELL_LENGTH) {
-                        console.error(
-                            `Row ${rowIdx + 1}, Field "${colName}" exceeds limit: ${String(value).length} characters`
-                        );
-                        value = String(value).substring(0, MAX_CELL_LENGTH);
-                    }
-                    // Handle arrays
-                    if (Array.isArray(value)) {
-                        rowInfo.push(value.join(', '));
-                    }
-
-                    // Handle null/undefined
-                    else if (value == null) {
-                        rowInfo.push('');
-                    }
-
-                    // Handle objects if needed
-                    else if (typeof value === 'object') {
-                        rowInfo.push(JSON.stringify(value));
-                    }
-
-                    // Normal values
-                    else {
-                        rowInfo.push(value);
-                    }
-                }
-              }
-          });
-          
-          // Push main row data         
-          allData.push(rowInfo); // Push the rowInfo object to the array   
-      });
-      
-      // Include the headers      
-      allData.unshift(headers); // Add headers as the first row
-
-      // Create the worksheet      
-      let worksheet = XLSX.utils.aoa_to_sheet(allData);
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, "OCR");
-
-      // Export the workbook
-      XLSX.writeFile(workbook, 'OCR-'+ which_tab +'.xlsx');
+      if (clientName) {
+          //loadAnalyzePdfSearchData(clientName);
+        loadAnalyzePdfSearchDataAll(clientName);
+      }
   }
-  */
-   
+
+  // =========================
+  // CLEAR FILTER
+  // =========================
+  $('.btn-analyzepdf-clear-filter').on('click', function () {
+      clearFilter();
+  });
+
+  function clearFilter()
+  {
+    // Clear all filter inputs
+    $('.form-analyzepdf-filter')[0].reset();
+
+    // Explicitly clear fields if needed
+    $('#filter_client_no').val('');
+    $('#filter_client_name').val('');
+    $('#filter_invoice_date').val('');
+    $('#filter_invoice_no').val('');
+    $('#filter_currency').val('');
+    $('#filter_credit_note').prop('checked', false);
+    $('#filter_net_amount').val('');
+    $('#filter_vat_amount').val('');
+    $('#filter_total_amount').val('');
+    
+    $clientSelectSearch.trigger('change');
+
+    const filteredCommercial = [];
+
+    const filteredSales = [];
+
+    reloadAnalyzedPdfSearchFilterData(
+        filteredCommercial,
+        filteredSales
+    );
+
+    // Close filter panel
+    $('#offcanvasAnalyzePdfFilter').offcanvas('hide');
+  }
+
+  // =========================
+  // CANCEL
+  // =========================
+  $('.form-analyzepdf-filter').on(
+      'click',
+      '[data-bs-dismiss="offcanvas"]',
+      function () {
+
+          // Do NOT change DataTable data.
+          // Just close the offcanvas.
+
+          $('#offcanvasAnalyzePdfFilter').offcanvas('hide');
+      }
+  );
 });

@@ -1,0 +1,330 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Services\OcrProcessingService;
+use Illuminate\Console\Command;
+
+use \App\Classes\CommonClass;
+
+class OcrImportReconciliationProcess extends Command
+{
+    protected $signature = 'ocrautorefreshir:process';
+
+    protected $description = 'Check and store new com. and sale invoices hourly from OCR';
+
+    public function handle(OcrProcessingService $autoRefreshIRService): int
+    {
+        $this->info('Starting Auto refresh IR from OCR processing...');
+
+        try {
+            $commonClass =  new CommonClass();           
+            $authUser = $commonClass->getAuthUser(1); 
+
+            $result = $autoRefreshIRService->autoRefreshNewDeclaration($authUser);
+
+            $this->info(
+                "Queued {$result['totalSync']} Auto refresh OCR sync datas into IR syncing."
+            );
+
+            return self::SUCCESS;
+
+        } catch (\Throwable $e) {
+
+            $this->error(
+                'Auto refresh IR sync from OCR processing failed: ' . $e->getMessage()
+            );
+
+            report($e);
+
+            return self::FAILURE;
+        }
+    }
+
+    // public function handle(OcrProcessingService $irService): int
+    // {
+    //     $this->info('Starting IR sync from OCR processing...');
+
+    //     try {
+    //         $commonClass =  new CommonClass();           
+    //         $authUser = $commonClass->getAuthUser(1); 
+
+    //         $result = $irService->irFromOcr($authUser);
+
+    //         $this->info(
+    //             "Queued {$result['totalSync']} OCR sync datas into IR syncing."
+    //         );
+
+    //         return self::SUCCESS;
+
+    //     } catch (\Throwable $e) {
+
+    //         $this->error(
+    //             'IR sync from OCR processing failed: ' . $e->getMessage()
+    //         );
+
+    //         report($e);
+
+    //         return self::FAILURE;
+    //     }
+    // }
+
+    // public function handle()
+    // {
+    //     try {
+
+    //         $commonClass = new CommonClass();
+
+    //         $authUser = $commonClass->getAuthUser(1);
+
+    //         /*
+    //          * Current application environment.
+    //          */
+    //         $environment = EnvironmentHelper::getEnvironment();
+
+    //         /*
+    //          * Get VAT registrations which are enabled for OCR sync.
+    //          *
+    //          * We start from VATRegistration instead of OcrPdf.
+    //          * This allows us to determine the correct service period
+    //          * before looking for pending OCR records.
+    //          */
+    //         $vatregs = VATRegistration::query()
+    //             ->with([
+    //                 'vatregmain' => function ($query) {
+    //                     $query->select([
+    //                         'id',
+    //                         'org_no',
+    //                         'vat_no',
+    //                         'country',
+    //                         'ocr_sync',
+    //                         'product_type',
+    //                     ]);
+    //                 },
+    //             ])
+    //             ->whereHas('vatregmain', function ($query) {
+    //                 $query
+    //                     ->where('ocr_sync', 1)
+    //                     ->whereIn('product_type', [2, 3, 5]);
+    //             })
+    //             ->get();
+
+    //         $totalSync = 0;
+
+    //         foreach ($vatregs as $vatReg) {
+
+    //             $vatRegMain = $vatReg->vatregmain;
+
+    //             if (!$vatRegMain) {
+    //                 continue;
+    //             }
+
+    //             /*
+    //              * ---------------------------------------------------------
+    //              * Determine OCR client number.
+    //              * ---------------------------------------------------------
+    //              *
+    //              * CH -> org_no
+    //              * Other countries -> vat_no
+    //              */
+    //             $clientNo = $vatRegMain->country === 'CH'
+    //                 ? $vatRegMain->org_no
+    //                 : $vatRegMain->vat_no;
+
+    //             $clientNo = preg_replace(
+    //                 '/\D+/',
+    //                 '',
+    //                 (string) $clientNo
+    //             );
+
+    //             if ($clientNo === '') {
+    //                 Log::warning('IR OCR Sync - Client number missing', [
+    //                     'vat_reg_id' => $vatReg->id,
+    //                     'vat_reg_main_id' => $vatRegMain->id,
+    //                 ]);
+
+    //                 continue;
+    //             }
+
+    //             /*
+    //              * ---------------------------------------------------------
+    //              * Calculate VAT registration service period.
+    //              * ---------------------------------------------------------
+    //              */
+    //             if (!$vatReg->service_start) {
+    //                 continue;
+    //             }
+
+    //             $frequency = $commonClass->getFrequency(
+    //                 $vatReg->general_periods
+    //             );
+
+    //             $serviceStart = Carbon::parse(
+    //                 $vatReg->service_start
+    //             )->subMonth();
+
+    //             $serviceEnd = $serviceStart
+    //                 ->copy()
+    //                 ->addMonths($frequency - 1)
+    //                 ->endOfMonth();
+
+    //             // /*
+    //             //  * ---------------------------------------------------------
+    //             //  * Only process registrations which overlap
+    //             //  * the last 90 days.
+    //             //  * ---------------------------------------------------------
+    //             //  */
+    //             // $currentDate = Carbon::now();
+    //             // $ninetyDaysAgo = $currentDate->copy()->subDays(90);
+
+    //             // if (
+    //             //     !(
+    //             //         ($serviceStart->lt($currentDate) &&
+    //             //             $serviceEnd->gte($ninetyDaysAgo))
+    //             //         ||
+    //             //         ($serviceStart->lte($ninetyDaysAgo) &&
+    //             //             $serviceEnd->gte($ninetyDaysAgo))
+    //             //     )
+    //             // ) {
+    //             //     continue;
+    //             // }
+
+    //             /*
+    //              * ---------------------------------------------------------
+    //              * Only process registrations which overlap the last 90 days.
+    //              *
+    //              * OCR sync cannot go earlier than:
+    //              *
+    //              * CH -> 2026-04-01
+    //              * NO -> 2026-06-01
+    //              * ---------------------------------------------------------
+    //              */
+    //             $currentDate = Carbon::now();
+
+    //             $ninetyDaysAgo = $currentDate
+    //                 ->copy()
+    //                 ->subDays(90);
+
+    //             $ocrStartDate = match ($vatRegMain->country) {
+    //                 'CH' => Carbon::parse('2026-04-01'),
+    //                 'NO' => Carbon::parse('2026-06-01'),
+    //                 default => null,
+    //             };
+
+    //             if (!$ocrStartDate) {
+    //                 continue;
+    //             }
+
+    //             /*
+    //              * The effective cutoff is the later date:
+    //              *
+    //              * max(90 days ago, OCR start date)
+    //              */
+    //             $effectiveStartDate = $ninetyDaysAgo->max(
+    //                 $ocrStartDate
+    //             );
+
+    //             /*
+    //              * Registration period must overlap:
+    //              *
+    //              * effectiveStartDate -> currentDate
+    //              */
+    //             if (
+    //                 $serviceStart->gt($currentDate) ||
+    //                 $serviceEnd->lt($effectiveStartDate)
+    //             ) {
+    //                 continue;
+    //             }
+
+
+    //             /*
+    //              * ---------------------------------------------------------
+    //              * Find OCR PDFs which are still pending.
+    //              * ---------------------------------------------------------
+    //              *
+    //              * We now start from the VAT registration and search
+    //              * for OCR records belonging to its client and period.
+    //              */
+    //             $pdfIds = OcrPdf::query()
+    //                 ->select('dv_ocr_pdfs.id')
+    //                 ->join(
+    //                     'ocr_pdf_sync_db',
+    //                     'ocr_pdf_sync_db.ocr_pdf_id',
+    //                     '=',
+    //                     'dv_ocr_pdfs.id'
+    //                 )
+    //                 ->join(
+    //                     'ocr_sync_status',
+    //                     function ($join) use ($environment) {
+    //                         $join->on(
+    //                             'ocr_sync_status.ocr_pdf_id',
+    //                             '=',
+    //                             'dv_ocr_pdfs.id'
+    //                         )
+    //                         ->where(
+    //                             'ocr_sync_status.environment',
+    //                             '=',
+    //                             $environment
+    //                         );
+    //                     }
+    //                 )
+    //                 ->whereRaw(
+    //                     "REGEXP_REPLACE(ocr_pdf_sync_db.client_no, '[^0-9]', '') = ?",
+    //                     [$clientNo]
+    //                 )
+    //                 ->whereBetween(
+    //                     'ocr_pdf_sync_db.invoice_date',
+    //                     [
+    //                         $serviceStart->format('Y-m-d'),
+    //                         $serviceEnd->format('Y-m-d'),
+    //                     ]
+    //                 )
+    //                 ->where('ocr_sync_status.sync_status', 0)
+    //                 ->where('ocr_sync_status.is_locked', 0)
+    //                 ->orderBy('dv_ocr_pdfs.id')
+    //                 ->pluck('dv_ocr_pdfs.id');
+
+    //             if ($pdfIds->isEmpty()) {
+    //                 continue;
+    //             }
+
+    //             /*
+    //              * ---------------------------------------------------------
+    //              * Dispatch in chunks.
+    //              * ---------------------------------------------------------
+    //              */
+    //             foreach ($pdfIds->chunk(500) as $chunk) {
+
+    //                 OcrIrSyncJob::dispatch(
+    //                     $chunk->values()->all(),
+    //                     $vatReg->id,
+    //                     $authUser
+    //                 );
+
+    //                 $totalSync += $chunk->count();
+    //             }
+    //         }
+
+    //         $this->info(
+    //             "OCR IR sync jobs dispatched successfully. Total PDFs: {$totalSync}"
+    //         );
+
+    //         Log::info('OCR IR sync jobs dispatched successfully.', [
+    //             'total_sync' => $totalSync,
+    //         ]);
+
+    //         return Command::SUCCESS;
+
+    //     } catch (\Throwable $e) {
+
+    //         Log::error('irocr:task - ' . $e->getMessage(), [
+    //             'trace' => $e->getTraceAsString(),
+    //         ]);
+
+    //         $this->error($e->getMessage());
+
+    //         return Command::FAILURE;
+    //     }
+    // }
+
+}

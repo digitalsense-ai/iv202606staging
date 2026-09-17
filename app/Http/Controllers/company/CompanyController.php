@@ -28,6 +28,8 @@ use App\Classes\CommonClass;
 use App\Classes\ApiClass;
 use App\Classes\CVRApiClass;
 
+use App\Helpers\EnvironmentHelper;
+
 class CompanyController extends Controller
 {    
     public $authUser;
@@ -37,6 +39,8 @@ class CompanyController extends Controller
     public $apiClass;
     public $cvrApiClass;
    
+    public $environment;
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -54,6 +58,8 @@ class CompanyController extends Controller
            
             $this->apiClass = new ApiClass(); 
             $this->cvrApiClass = new CVRApiClass();            
+
+            $this->environment = EnvironmentHelper::getEnvironment();
 
             return $next($request);
         });                   
@@ -91,7 +97,7 @@ class CompanyController extends Controller
             
         $this->commonClass->addLog($this->authUser, 'client-list');
 
-        return view('content.company.index', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'companies' => $companies, 'other_companies' => $other_companies]);
+        return view('content.company.index', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'companies' => $companies, 'other_companies' => $other_companies, 'environment' => $this->environment]);
     }  
 
     /**
@@ -105,7 +111,7 @@ class CompanyController extends Controller
        
         $this->commonClass->addLog($this->authUser, 'client-create');
 
-        return view('content.company.create', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'client' => null, 'title' => 'Creation']);
+        return view('content.company.create', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'client' => null, 'title' => 'Creation', 'environment' => $this->environment]);
     }
 
     //GET cvr-details/{vat_no}
@@ -381,7 +387,7 @@ class CompanyController extends Controller
           ]
         );
 
-        return view('content.company.create', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'client' => $client, 'title' => 'Edit']);
+        return view('content.company.create', ['pageConfigs' => $pageConfigs, 'authUser' => $this->authUser, 'client' => $client, 'title' => 'Edit', 'environment' => $this->environment]);
     }
 
     /**
@@ -920,7 +926,9 @@ class CompanyController extends Controller
                 'result' => $result,
                 'excel_columns' => $excel_columns,
                 //'excel_column_templates' => $excel_column_templates,
-                'anyexcel_templates' => $anyexcel_templates
+                'anyexcel_templates' => $anyexcel_templates,
+
+                'environment' => $this->environment
               ]
             );
         } 

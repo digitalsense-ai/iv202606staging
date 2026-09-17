@@ -48,16 +48,22 @@
       "url": "users"
     },
     {
-      "name": "Analyze PDF",
-      "slug": ["analyze.pdf.index", "analyze.pdf.search", "analyze.pdf.manual-input", "analyze.pdf.synced"],
+      "name": "Document Flow",
+      "slug": ["analyze.pdf.index", "analyze.pdf.bulk.upload.index", "analyze.pdf.search", "analyze.pdf.manual-input", "analyze.pdf.synced", "analyze.pdf.sftp.oio"],
       "roles": ["super-admin","team-user"],
       "submenu": [   
         {
-          "name": "Capture",
+          "name": "Mail Inbox",
           "slug": "analyze.pdf.index",
           "roles": ["super-admin","team-user"],
           "url": "analyzepdf"          
-        },     
+        },   
+        {
+          "name": "Bulk Upload",
+          "slug": "analyze.pdf.bulk.upload.index",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf/bulk-upload"        
+        },  
         {
           "name": "Search",
           "slug": "analyze.pdf.search",
@@ -75,6 +81,12 @@
           "slug": "analyze.pdf.synced",
           "roles": ["super-admin","team-user"],
           "url": "analyzepdf/synceddb"          
+        },
+        {
+          "name": "SFTP/OIO",
+          "slug": "analyze.pdf.sftp.oio",
+          "roles": ["super-admin","team-user"],
+          "url": "analyzepdf/sftp"          
         }
       ]
     },

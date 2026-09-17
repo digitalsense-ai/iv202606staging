@@ -13,7 +13,7 @@ use App\Helpers\EnvironmentHelper;
 
 class ValidateOcrInvoiceUpdateService
 {
-    public function apply($invoice, array $mapped, bool $manual = false, bool $searchSave = false)
+    public function apply(string $ocrProgressKey, $invoice, array $mapped, bool $manual = false, bool $searchSave = false)
     {    
         $current = $invoice->extracted_data ?? [];
 
@@ -56,10 +56,15 @@ class ValidateOcrInvoiceUpdateService
 
         $save_invoice = OcrPdf::query()->find($invoice->id);
 
-        
+        if ($ocrProgressKey) {
+            Cache::increment(
+                "{$ocrProgressKey}:completed"
+            );
+        }
+
         if($changed)
         {                   
-            Cache::increment('inbox_completed', 1);
+            //Cache::increment('inbox_completed', 1);
                  
             //if($invoice->validation_status == 'not_yet_validated')
             //    $invoice->og_extracted_data = $invoice->extracted_data ?? [];      

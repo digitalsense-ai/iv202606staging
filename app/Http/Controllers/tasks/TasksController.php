@@ -21,6 +21,8 @@ use \NumberFormatter;
 use App\Events\VATReturnNotesEvent;
 use App\Events\ImportReconciliationNotesEvent;
 
+use App\Helpers\EnvironmentHelper;
+
 class TasksController extends Controller
 {
     public $authUser;
@@ -32,6 +34,8 @@ class TasksController extends Controller
 
     public $pageSize;
     
+    public $environment;
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -44,6 +48,8 @@ class TasksController extends Controller
               $this->clientIds = $this->commonClass->getClientIdsForClientUser($this->authUser);  
                      
             $this->pageSize = 250;
+
+            $this->environment = EnvironmentHelper::getEnvironment();
 
             return $next($request);
         });
@@ -122,7 +128,8 @@ class TasksController extends Controller
                     'result' => $result,
                     'systemtaskdates' => $systemtaskdates,
                     'excel_columns' => $excel_columns,                  
-                    'anyexcel_templates' => $anyexcel_templates
+                    'anyexcel_templates' => $anyexcel_templates,
+                    'environment' => $this->environment
                 ]         
             );
             /* --end RETURN VIEW -- */
@@ -188,7 +195,8 @@ class TasksController extends Controller
                     'result' => $result,
                     'systemtaskdates' => $systemtaskdates,
                     'excel_columns' => $excel_columns,                   
-                    'anyexcel_templates' => $anyexcel_templates
+                    'anyexcel_templates' => $anyexcel_templates,
+                    'environment' => $this->environment
                 ]         
             );
             /* --end RETURN VIEW -- */
@@ -254,7 +262,8 @@ class TasksController extends Controller
                     'result' => $result,
                     'systemtaskdates' => $systemtaskdates,
                     'excel_columns' => $excel_columns,                  
-                    'anyexcel_templates' => $anyexcel_templates
+                    'anyexcel_templates' => $anyexcel_templates,
+                    'environment' => $this->environment
                 ]         
             );
             /* --end RETURN VIEW -- */      

@@ -59,4 +59,4 @@
     </div>
   </div>
 </div>
-<!--/ Onboarding slider modals
+<!--/ Onboarding slider modals -->

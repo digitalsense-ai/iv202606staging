@@ -16,12 +16,13 @@ class SearchSaveUpdateJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
+        public string $ocrProgressKey, 
         public int $invoiceId,
         public array $payload,
         public bool $forceSubmitted = false,
         public ?int $userId = null
     ) {
-        //$this->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
+        
     }
 
     public function handle(OcrInvoiceCorrectionService $correctionService): void
@@ -55,9 +56,7 @@ class SearchSaveUpdateJob implements ShouldQueue
                 $invoice->update([
                     'search_save_status' => 'validated',
                 ]);
-                // ValidateOcrInvoicesJob::dispatch(null, [$invoice->id], true)
-                //     ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
-
+                
                 return;
             }
 

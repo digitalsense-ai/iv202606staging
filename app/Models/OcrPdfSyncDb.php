@@ -29,4 +29,9 @@ class OcrPdfSyncDb extends Model
     {
         return config('database.ocr_connection', 'ocr');
     }    
+
+    public function ocrPdf()
+    {
+        return $this->belongsTo(OcrPdf::class, 'ocr_pdf_id', 'id');
+    }
 }

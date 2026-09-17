@@ -19,6 +19,7 @@ class SplitPdfJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable;
 
     public function __construct(
+        public string $ocrProgressKey, 
         public array $clients,
         public string $fullPath,
         public string $originalName,
@@ -33,6 +34,18 @@ class SplitPdfJob implements ShouldQueue
 
     public function handle()
     {
+        $data_from = null;
+        if (str_starts_with($this->ocrProgressKey, 'ocr_progress:inbox:'))
+            $data_from = 'inbox';
+        else if (str_starts_with($this->ocrProgressKey, 'ocr_progress:recapture:')) 
+            $data_from = 'recapture';
+        else if (str_starts_with($this->ocrProgressKey, 'ocr_progress:split:')) 
+            $data_from = 'split';
+        else if (str_starts_with($this->ocrProgressKey, 'ocr_progress:bulkupload:')) 
+            $data_from = 'bulkupload';
+        else if (str_starts_with($this->ocrProgressKey, 'ocr_progress:sftp:')) 
+            $data_from = 'sftp';
+
         // Step 0: Optional file size check
         $maxSizeMB = 50; // Set max allowed PDF size
         $fileSizeMB = filesize($this->fullPath) / (1024 * 1024);
@@ -51,6 +64,19 @@ class SplitPdfJob implements ShouldQueue
                 $ocrpdf->error = "File too large ({$fileSizeMB}MB) for PDF processing";
                 $ocrpdf->updated_at = now();
 
+                if ($ocrpdf && $data_from) {
+                    $sources = collect([
+                        $ocrpdf->data_from,
+                        $data_from,
+                    ])
+                    ->flatMap(fn ($value) => $value ? explode(' - ', $value) : [])
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                    $ocrpdf->data_from = $sources->implode(' - ');                   
+                }
+
                 $ocrpdf->save();
             }
             else    
@@ -65,7 +91,8 @@ class SplitPdfJob implements ShouldQueue
                     'no_of_attempts' => 1,
                     'error' => "File too large ({$fileSizeMB}MB) for PDF processing",
                     'created_at' => now(),
-                    'source_environment' => config('database.ocr_source_environment')
+                    'source_environment' => config('database.ocr_source_environment'),
+                    'data_from' => $data_from ?? null
                 ]);
 
             if (file_exists($this->fullPath)) unlink($this->fullPath);
@@ -90,7 +117,8 @@ class SplitPdfJob implements ShouldQueue
                     'status'      => 'queued',
                     'no_of_attempts' => 1,
                     'created_at'  => now(),
-                    'source_environment' => config('database.ocr_source_environment')
+                    'source_environment' => config('database.ocr_source_environment'),
+                    'data_from' => $data_from ?? null
                 ]);
                 $docId = $ocrPdfId->id;
             }
@@ -113,6 +141,20 @@ class SplitPdfJob implements ShouldQueue
                 $ocrpdf->status = 'queued';
                 $ocrpdf->updated_at = now();
             }
+
+            if ($ocrpdf && $data_from) {
+                $sources = collect([
+                    $ocrpdf->data_from,
+                    $data_from,
+                ])
+                ->flatMap(fn ($value) => $value ? explode(' - ', $value) : [])
+                ->filter()
+                ->unique()
+                ->values();
+
+                $ocrpdf->data_from = $sources->implode(' - ');                   
+            }
+
             $ocrpdf->save();
 
             // Delete local file
@@ -122,6 +164,7 @@ class SplitPdfJob implements ShouldQueue
             //Store in azure storage blob
 
             SubmitAnalyzeJob::dispatch(
+                $this->ocrProgressKey, 
                 $this->clients,
                 $docId,
                 $this->fullPath,
@@ -165,9 +208,24 @@ class SplitPdfJob implements ShouldQueue
                         $ocrpdf->status = 'queued';
                         $ocrpdf->updated_at = now();
                     }
+
+                    if ($ocrpdf && $data_from) {
+                        $sources = collect([
+                            $ocrpdf->data_from,
+                            $data_from,
+                        ])
+                        ->flatMap(fn ($value) => $value ? explode(' - ', $value) : [])
+                        ->filter()
+                        ->unique()
+                        ->values();
+
+                        $ocrpdf->data_from = $sources->implode(' - ');                   
+                    }
+                    
                     $ocrpdf->save();
 
                     SubmitAnalyzeJob::dispatch(
+                        $this->ocrProgressKey, 
                         $this->clients,
                         $docId,
                         $this->fullPath,
@@ -195,6 +253,7 @@ class SplitPdfJob implements ShouldQueue
                     ]);
 
                     self::dispatch(
+                        $this->ocrProgressKey,
                         $this->clients,
                         $this->fullPath,                        
                         $this->originalName,
@@ -312,7 +371,8 @@ class SplitPdfJob implements ShouldQueue
                         ->toArray(),
                 ]),
                 'created_at' => now(),
-                'source_environment' => config('database.ocr_source_environment')
+                'source_environment' => config('database.ocr_source_environment'),
+                'data_from' => $data_from ?? null
             ]);
             $docId = $ocrPdfId->id;
 
@@ -333,6 +393,7 @@ class SplitPdfJob implements ShouldQueue
             //Store in azure storage blob
 
             SubmitAnalyzeJob::dispatch(
+                $this->ocrProgressKey, 
                 $this->clients,
                 $docId,
                 $splitPath,
@@ -436,6 +497,10 @@ class SplitPdfJob implements ShouldQueue
                     $invoiceByPage[$pageNo] = $m[1];                   
                 }
             } 
+            // 1-1 If page contains "NO-Faktura nr."
+            elseif (preg_match('/NO-Faktura\s*nr\.?\s*([A-Za-z0-9-]+)/i', $text, $m)) {
+                $invoiceByPage[$pageNo] = $m[1];
+            }
             // 2️ Check "Invoice No."
             //elseif (preg_match('/Invoice No\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
             elseif (preg_match('/Invoice\s*No[^A-Za-z0-9]+([A-Za-z0-9-]+)/i', $text, $m)) {

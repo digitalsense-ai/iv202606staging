@@ -24,7 +24,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
     
-    public function __construct(public array $clients, public int $invoiceId, public bool $manual = false, public bool $searchSave = false) {}
+    public function __construct(public string $ocrProgressKey, public array $clients, public int $invoiceId, public bool $manual = false, public bool $searchSave = false) {}
 
     public function handle()
     {
@@ -177,7 +177,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
                     // $fullPath = storage_path('app/' . $path); // this will exist
                 
                     
-                    $ocrAnalyzeService->analyze($this->clients, [$fullPath], $folder, $batchId, null, $prevCaptures);
+                    $ocrAnalyzeService->analyze($this->crProgressKey, $this->clients, [$fullPath], $folder, $batchId, null, $prevCaptures);
 
                     return;
                 }
@@ -244,7 +244,7 @@ class ValidateOcrSalesInvoiceJob implements ShouldQueue
 // ]);
         }
 
-        app(ValidateOcrInvoiceUpdateService::class)->apply($invoice, $mapped, $this->manual, $this->searchSave);
+        app(ValidateOcrInvoiceUpdateService::class)->apply($this->ocrProgressKey, $invoice, $mapped, $this->manual, $this->searchSave);
 
         $invoice->refresh();
 

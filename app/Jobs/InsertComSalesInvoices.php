@@ -435,7 +435,8 @@ class InsertComSalesInvoices implements ShouldQueue
                   if($invoice_no)
                   {
                     $check_already_exist_salesinvoice = ImportReconciliationSalesInvoices::where('vat_reg_id', $matched_vatregid)
-                                                        ->where('invoice_no', $invoice_no)         
+                                                        ->where('invoice_no', $invoice_no)
+                                                        ->whereNull('ocr_pdf_id')         
                                                         ->first();
 
                     if($check_already_exist_salesinvoice)
@@ -462,6 +463,7 @@ class InsertComSalesInvoices implements ShouldQueue
                             'vat_reg_id' => $matched_vatregid,
                             'invoice_no' => $invoice_no,
                             'com_invoice_id' => $insert_cominvoice->id,
+                            'ocr_pdf_id' => NULL,
                           ],
                           [                
                             'com_invoice_id' => $insert_cominvoice->id,
@@ -488,7 +490,8 @@ class InsertComSalesInvoices implements ShouldQueue
                     else
                     {   
                       $again_check_already_exist_salesinvoice = ImportReconciliationSalesInvoices::where('com_invoice_id', $insert_cominvoice->id)
-                                                        ->where('invoice_no', $invoice_no)         
+                                                        ->where('invoice_no', $invoice_no)  
+                                                        ->whereNull('ocr_pdf_id')       
                                                         ->first();
 
                       if($again_check_already_exist_salesinvoice)
@@ -508,7 +511,8 @@ class InsertComSalesInvoices implements ShouldQueue
                         $insert_salesinvoice = ImportReconciliationSalesInvoices::updateOrCreate(
                           [
                             'vat_reg_id' => $matched_vatregid,
-                            'invoice_no' => $invoice_no                          
+                            'invoice_no' => $invoice_no,
+                            'ocr_pdf_id' => NULL,                          
                           ],
                           [                
                             'com_invoice_id' => $insert_cominvoice->id,

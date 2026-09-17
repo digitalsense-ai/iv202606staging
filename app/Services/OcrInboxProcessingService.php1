@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Services;
+
+use App\Jobs\ProcessEmailJob;
+use App\Repositories\ClientRepository;
+use App\Services\MicrosoftMailService;
+//use Illuminate\Support\Facades\Cache;
+
+class OcrInboxProcessingService
+{
+    public function __construct(
+        protected MicrosoftMailService $mailService,
+        protected ClientRepository $clientRepository
+    ) {
+    }
+
+    public function fetchAndQueueInbox(): array
+    {
+        // Fetch all unread emails with attachments
+        $emails = $this->mailService->getAllInboxEmails();
+
+        // Cache::forget('inbox_completed');
+        // Cache::forget('inbox_total');
+
+        $clients = $this->clientRepository->all();
+
+        $queuedEmails = [];
+
+        foreach ($emails as &$email) {
+
+            $senderEmail =
+                $email['sender']['emailAddress']['address'] ?? '';
+
+            $subject =
+                $email['subject'] ?? '';
+
+            // Duplicate email
+            if (
+                stripos($subject, 'second female') !== false &&
+                in_array(
+                    $senderEmail,
+                    config('app.omit_email_list')
+                )
+            ) {
+                $email['remove'] = true;
+
+                $this->mailService->markEmailAsRead($email['id']);
+
+                $this->mailService->moveEmailToFolder(
+                    $email['id'],
+                    'Duplicate'
+                );
+
+                continue;
+            }
+
+            // Queue email processing
+            ProcessEmailJob::dispatch(
+                $clients,
+                $email['id'],
+                $subject,
+                $email['replyAttachments'] ?? []
+            )->onQueue(
+                config('queue.ocr.inbox', 'ocrpdfinvoices')
+            );
+
+            // Mark as queued
+            $email['attachments'] = [
+                'status' => 'queued'
+            ];
+
+            $queuedEmails[] = $email;
+        }
+
+        return [
+            'total' => count($queuedEmails),
+            'queued_emails' => $queuedEmails,
+        ];
+    }
+}

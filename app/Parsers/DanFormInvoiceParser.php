@@ -23,9 +23,20 @@ class DanFormInvoiceParser implements ClientInvoiceParserInterface
         $salesInvoices = $this->extractReferences($doc['Related Sales Invoices']['valueString'] ?? $doc['Related Sales Invoices']['content'] ?? null);
         $shipmentNos = $this->extractReferences($doc['Related Shipment Numbers']['valueString'] ?? $doc['Related Shipment Numbers']['content'] ?? null);
 
-        if ($this->shouldMergeOrdersIntoInvoices($salesOrders, $salesInvoices)) {
-            $salesInvoices = array_values(array_unique(array_merge($salesInvoices, $salesOrders)));
+        // if ($this->shouldMergeOrdersIntoInvoices($salesOrders, $salesInvoices)) {
+        //     $salesInvoices = array_values(array_unique(array_merge($salesInvoices, $salesOrders)));
+        //     $salesOrders = [];
+        // }
+
+        if ($this->shouldMergeReferences($salesOrders, $salesInvoices, $shipmentNos)) {
+            $salesInvoices = array_values(array_unique(array_merge(
+                $salesInvoices,
+                $salesOrders,
+                $shipmentNos
+            )));
+
             $salesOrders = [];
+            $shipmentNos = [];
         }
 
         return [
@@ -35,27 +46,62 @@ class DanFormInvoiceParser implements ClientInvoiceParserInterface
         ];
     }
 
-    private function shouldMergeOrdersIntoInvoices(array $salesOrders, array $salesInvoices): bool
-    {
-        if (!$salesOrders || !$salesInvoices) {
+    // private function shouldMergeOrdersIntoInvoices(array $salesOrders, array $salesInvoices): bool
+    // {
+    //     if (!$salesOrders || !$salesInvoices) {
+    //         return false;
+    //     }
+
+    //     $invoiceLengths = array_unique(array_map('strlen', $salesInvoices));
+
+    //     if (count($invoiceLengths) !== 1) {
+    //         return false;
+    //     }
+
+    //     $invoiceLength = (int) $invoiceLengths[0];
+
+    //     foreach ($salesOrders as $salesOrder) {
+    //         if (!preg_match('/^\d+$/', $salesOrder) || strlen($salesOrder) !== $invoiceLength) {
+    //             return false;
+    //         }
+    //     }
+
+    //     return true;
+    // }
+
+    private function shouldMergeReferences(
+        array $salesOrders,
+        array $salesInvoices,
+        array $shipmentNos
+    ): bool {
+        $groups = array_filter([
+            $salesOrders,
+            $salesInvoices,
+            $shipmentNos,
+        ]);
+
+        // Nothing to merge, or only one field contains values.
+        if (count($groups) < 2) {
             return false;
         }
 
-        $invoiceLengths = array_unique(array_map('strlen', $salesInvoices));
+        $references = array_merge(...$groups);
 
-        if (count($invoiceLengths) !== 1) {
+        if (!$references) {
             return false;
         }
 
-        $invoiceLength = (int) $invoiceLengths[0];
-
-        foreach ($salesOrders as $salesOrder) {
-            if (!preg_match('/^\d+$/', $salesOrder) || strlen($salesOrder) !== $invoiceLength) {
+        // All references must be numeric.
+        foreach ($references as $reference) {
+            if (!preg_match('/^\d+$/', $reference)) {
                 return false;
             }
         }
 
-        return true;
+        // All references must have the same length.
+        $lengths = array_unique(array_map('strlen', $references));
+
+        return count($lengths) === 1;
     }
 
     private function extractReferences(array|string|null $value): array

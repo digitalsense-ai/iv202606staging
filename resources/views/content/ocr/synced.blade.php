@@ -3,6 +3,8 @@
 @section('title', 'Synced PDF')
 
 @section('vendor-style')
+<link rel="stylesheet" href="{{asset('assets/vendor/libs/select2/select2.css')}}" />
+
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-bs5/datatables.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
 <link rel="stylesheet" href="{{asset('assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
@@ -21,6 +23,8 @@
 @endsection
 
 @section('vendor-script')
+<script src="{{asset('assets/vendor/libs/select2/select2.js')}}"></script>
+
 <script src="{{asset('assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
 <script src="{{asset('assets/vendor/libs/sweetalert2/sweetalert2.js')}}"></script>
 <!-- Flat Picker -->
@@ -33,9 +37,8 @@
 @endsection
 
 @section('page-script')
-<script type="text/javascript">
-  $(".card.analyzepdfsynced .sk-bounce").show();
-  
+<script src="{{asset('assets/js/forms-selects.js')}}"></script>
+<script type="text/javascript">  
     window.EchoConfig = {
         pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
         pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'
@@ -48,10 +51,47 @@
 
 @section('content')		
 
-<h4 class="py-3 breadcrumb-wrapper mb-4">
-  <span class="text-muted fw-light"><a href="{{ route('analyze.pdf.index')}}">{{ __('OCR Capture') }}</a>/{{ __('Synced DB') }}</span>
+<h4 class="py-3 breadcrumb-wrapper mb-4 d-flex align-items-center gap-2">
+    <span class="text-muted fw-light">
+        <a href="{{ route('analyze.pdf.index') }}">
+            {{ __('Document Flow') }}
+        </a>
+        /{{ __('Synced DB') }}
+    </span>
+{{--
+    <div class="dropdown ms-auto">
+        
+        <button
+            class="btn btn-outline-primary btn-syncdb-client dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Select Client
+        </button>
 
-  <a class="btn btn-primary btn-sync-db float-end" href="javascript:;">Sync DB</a>
+        <ul class="dropdown-menu dropdown-menu-end client-dropdown-menu">
+            <li>
+                <a class="dropdown-item syncdb-client-option" href="#" data-client-name="">
+                    Select Client
+                </a>
+            </li>
+
+            @foreach($synceddbclients as $clientName)
+                <li>
+                    <a
+                        class="dropdown-item syncdb-client-option"
+                        href="#"
+                        data-client-name="{{ $clientName }}">
+                        {{ $clientName }}
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+    </div>
+--}}
+    <a class="btn btn-primary btn-sync-db ms-auto" href="javascript:;">
+        Sync DB
+    </a>
 </h4>
 
 @php
@@ -60,23 +100,40 @@
     {{-- Synced Data's --}}
     
     <!-- Ajax Sourced Server-side -->
-    <div class="card analyzepdfsynced mt-4">
-
-      <!-- Bounce -->
-      <div class="sk-bounce sk-primary sk-center">
-        <div class="sk-bounce-dot"></div>
-        <div class="sk-bounce-dot"></div>
-      </div>
+    <div class="card analyzepdfsynced mt-4">      
 
       <!-- <h5 class="m-0 p-3">Synced Data's</h5> -->
       <div class="d-flex align-items-center gap-2 p-3">
         <h5 class="m-0">Synced Data's</h5>
         <span class="text-danger fs-6">
           <i class="bx bx-filter-alt me-1"></i>
-          Use Filter to check data
+          Select Client and Use Filter to check data
         </span>
-      </div>
 
+        <div class="dropdown ms-auto w-px-300">
+            <select
+                id="select2OcrSyncDbClient"
+                class="select2 form-select form-select-lg"
+                data-allow-clear="true"
+                data-placeholder="Select Client">
+
+                <option value="">Select Client</option>
+
+                @foreach($synceddbclients as $index => $clientName)
+                    <option
+                        value="{{ $clientName }}">
+                        {{ $clientName }}
+                    </option>
+                @endforeach
+            </select>            
+          </div>
+      </div>  
+
+      <!-- Bounce -->
+      <!-- <div class="sk-bounce sk-primary sk-center" style="display: none;">
+        <div class="sk-bounce-dot"></div>
+        <div class="sk-bounce-dot"></div>
+      </div> -->
 
       <div class="card-header p-0">    
         <div class="d-flex justify-content-between align-items-center row gap-3 gap-md-0 m-0 border-bottom">         
@@ -138,9 +195,9 @@
             
             <div class="card-header border-bottom p-2">        
               <div class="dt-synced-filter text-end align-middle">
-                <div class="dt-dropdown-filter w-auto d-inline-block">
+                <!-- <div class="dt-dropdown-filter w-auto d-inline-block">
                     <div class="w-auto d-inline-block me-1 client_name"></div>                    
-                </div>
+                </div> -->
               </div>
             </div>
 
@@ -204,6 +261,14 @@
           </div>
         </div>
       </div>
+
+    <!-- Loading overlay -->
+    <div id="ocr-sync-loading-overlay" class="ocr-loading-overlay d-none">
+        <div class="ocr-loading-message">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span class="ms-2">Loading...</span>
+        </div>
+    </div>
 
     </div>
 

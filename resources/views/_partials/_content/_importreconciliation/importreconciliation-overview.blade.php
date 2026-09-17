@@ -142,7 +142,15 @@
 
 						        if(count($filtered_importreconciliationsalesinvoices) > 0)
 						        {
-							        $month_year = \Carbon\Carbon::parse($filtered_importreconciliationsalesinvoices->first()->invoice_date)->format('m-Y');
+							        //$month_year = \Carbon\Carbon::parse($filtered_importreconciliationsalesinvoices->first()->invoice_date)->format('m-Y');
+
+							        if(\Carbon\Carbon::parse($filtered_importreconciliationsalesinvoices->first()->invoice_date)->format('Ym') < \Carbon\Carbon::parse('01-' . $month_year)->format('Ym'))
+						        	{
+						        		$new_month_year = \Carbon\Carbon::parse('01-' . $month_year)->addMonth(1)->format('m-Y');
+						        		if($new_month_year != $month_year)
+			      							$month_year = $new_month_year;
+						        	}
+						        	
 									$sales_invoice_vat_amount = $filtered_importreconciliationsalesinvoices->sum('vat_amount');
 								}
 															

@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 
@@ -29,8 +30,8 @@ class ValidateOcrInvoicesJob implements ShouldQueue
     protected bool $manual;
     protected bool $searchSave;
 
-    public function __construct(public ?string $batchId = null, array $invoiceIds = [], bool $manual = false, bool $searchSave = false)
-    {
+    public function __construct(public string $ocrProgressKey, public ?string $batchId = null, array $invoiceIds = [], bool $manual = false, bool $searchSave = false)
+    {        
         $this->invoiceIds = $invoiceIds;
         $this->manual = $manual;
         $this->searchSave = $searchSave;
@@ -113,6 +114,350 @@ class ValidateOcrInvoicesJob implements ShouldQueue
             ->groupBy('invoice_group', 'duplicate_hash')
             ->havingRaw('COUNT(*) > 1')
             ->get();
+
+        if ($duplicates->isEmpty() && !empty($this->invoiceIds)) {
+
+            $invoiceIds = array_map('intval', $this->invoiceIds);
+
+            $placeholders = implode(',', array_fill(0, count($invoiceIds), '?'));
+
+            $myquery = <<<SQL
+
+                SELECT
+                    CASE
+                        WHEN p.invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                        ELSE p.invoice_type
+                    END AS invoice_type,
+
+                    JSON_UNQUOTE(
+                        JSON_EXTRACT(
+                            p.extracted_data,
+                            '$.invoice_number'
+                        )
+                    ) AS invoice_no,
+
+                    CASE
+                        WHEN p.invoice_type = 'com' THEN
+                            REGEXP_REPLACE(
+                                JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.recipient.org_number'
+                                    )
+                                ),
+                                '[^0-9]',
+                                ''
+                            )
+                        ELSE
+                            REGEXP_REPLACE(
+                                COALESCE(
+                                    NULLIF(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                p.extracted_data,
+                                                '$.supplier.org_number'
+                                            )
+                                        ),
+                                        ''
+                                    ),
+                                    NULLIF(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                p.extracted_data,
+                                                '$.supplier.cvr_number'
+                                            )
+                                        ),
+                                        ''
+                                    )
+                                ),
+                                '[^0-9]',
+                                ''
+                            )
+                    END AS client_no,
+
+                    LOWER(TRIM(
+                        JSON_UNQUOTE(
+                            JSON_EXTRACT(
+                                p.extracted_data,
+                                '$.currency'
+                            )
+                        )
+                    )) AS currency,
+
+                    COUNT(*) AS duplicate_count,
+
+                    GROUP_CONCAT(
+                        p.id
+                        ORDER BY p.id
+                    ) AS invoice_ids
+
+                FROM dv_ocr_pdfs p
+
+                WHERE p.status = 'completed'
+                  AND p.is_deleted = 0
+
+                  AND EXISTS (
+
+                      SELECT 1
+                      FROM dv_ocr_pdfs target
+
+                      WHERE target.id IN ($placeholders)
+
+                        /* Same invoice type/group */
+                        AND (
+                            CASE
+                                WHEN target.invoice_type IN ('sales', 'multi-invoices')
+                                    THEN 'sales'
+                                ELSE target.invoice_type
+                            END
+                        ) = (
+                            CASE
+                                WHEN p.invoice_type IN ('sales', 'multi-invoices')
+                                    THEN 'sales'
+                                ELSE p.invoice_type
+                            END
+                        )
+
+                        /* Same invoice number */
+                        AND JSON_UNQUOTE(
+                            JSON_EXTRACT(
+                                target.extracted_data,
+                                '$.invoice_number'
+                            )
+                        ) = JSON_UNQUOTE(
+                            JSON_EXTRACT(
+                                p.extracted_data,
+                                '$.invoice_number'
+                            )
+                        )
+
+                        /* Same client number */
+                        AND (
+                            CASE
+                                WHEN target.invoice_type = 'com' THEN
+                                    REGEXP_REPLACE(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                target.extracted_data,
+                                                '$.recipient.org_number'
+                                            )
+                                        ),
+                                        '[^0-9]',
+                                        ''
+                                    )
+                                ELSE
+                                    REGEXP_REPLACE(
+                                        COALESCE(
+                                            NULLIF(
+                                                JSON_UNQUOTE(
+                                                    JSON_EXTRACT(
+                                                        target.extracted_data,
+                                                        '$.supplier.org_number'
+                                                    )
+                                                ),
+                                                ''
+                                            ),
+                                            NULLIF(
+                                                JSON_UNQUOTE(
+                                                    JSON_EXTRACT(
+                                                        target.extracted_data,
+                                                        '$.supplier.cvr_number'
+                                                    )
+                                                ),
+                                                ''
+                                            )
+                                        ),
+                                        '[^0-9]',
+                                        ''
+                                    )
+                            END
+                        ) = (
+                            CASE
+                                WHEN p.invoice_type = 'com' THEN
+                                    REGEXP_REPLACE(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                p.extracted_data,
+                                                '$.recipient.org_number'
+                                            )
+                                        ),
+                                        '[^0-9]',
+                                        ''
+                                    )
+                                ELSE
+                                    REGEXP_REPLACE(
+                                        COALESCE(
+                                            NULLIF(
+                                                JSON_UNQUOTE(
+                                                    JSON_EXTRACT(
+                                                        p.extracted_data,
+                                                        '$.supplier.org_number'
+                                                    )
+                                                ),
+                                                ''
+                                            ),
+                                            NULLIF(
+                                                JSON_UNQUOTE(
+                                                    JSON_EXTRACT(
+                                                        p.extracted_data,
+                                                        '$.supplier.cvr_number'
+                                                    )
+                                                ),
+                                                ''
+                                            )
+                                        ),
+                                        '[^0-9]',
+                                        ''
+                                    )
+                            END
+                        )
+
+                        /* Same currency */
+                        AND LOWER(TRIM(
+                            JSON_UNQUOTE(
+                                JSON_EXTRACT(
+                                    target.extracted_data,
+                                    '$.currency'
+                                )
+                            )
+                        )) = LOWER(TRIM(
+                            JSON_UNQUOTE(
+                                JSON_EXTRACT(
+                                    p.extracted_data,
+                                    '$.currency'
+                                )
+                            )
+                        ))
+                  )
+
+                GROUP BY
+                    CASE
+                        WHEN p.invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                        ELSE p.invoice_type
+                    END,
+
+                    JSON_UNQUOTE(
+                        JSON_EXTRACT(
+                            p.extracted_data,
+                            '$.invoice_number'
+                        )
+                    ),
+
+                    CASE
+                        WHEN p.invoice_type = 'com' THEN
+                            REGEXP_REPLACE(
+                                JSON_UNQUOTE(
+                                    JSON_EXTRACT(
+                                        p.extracted_data,
+                                        '$.recipient.org_number'
+                                    )
+                                ),
+                                '[^0-9]',
+                                ''
+                            )
+                        ELSE
+                            REGEXP_REPLACE(
+                                COALESCE(
+                                    NULLIF(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                p.extracted_data,
+                                                '$.supplier.org_number'
+                                            )
+                                        ),
+                                        ''
+                                    ),
+                                    NULLIF(
+                                        JSON_UNQUOTE(
+                                            JSON_EXTRACT(
+                                                p.extracted_data,
+                                                '$.supplier.cvr_number'
+                                            )
+                                        ),
+                                        ''
+                                    )
+                                ),
+                                '[^0-9]',
+                                ''
+                            )
+                    END,
+
+                    LOWER(TRIM(
+                        JSON_UNQUOTE(
+                            JSON_EXTRACT(
+                                p.extracted_data,
+                                '$.currency'
+                            )
+                        )
+                    ))
+
+                HAVING COUNT(*) > 1
+
+                ORDER BY duplicate_count DESC
+
+            SQL;
+
+            $connection = DB::connection(
+                config('database.ocr_connection')
+            );
+
+            $rows = $connection->select($myquery, $invoiceIds);
+
+            $excludeIds = [55395, 55396, 55397];
+
+            $selected_analyze_ids = collect($rows)
+                ->pluck('invoice_ids')
+                ->filter()
+                ->flatMap(fn ($ids) => explode(',', $ids))
+                ->map(fn ($id) => (int) trim($id))
+                ->reject(fn ($id) => in_array($id, $excludeIds, true))
+                ->unique()
+                ->values()
+                ->toArray();
+
+            if (!empty($selected_analyze_ids)) {
+
+                OcrPdf::query()
+                    ->whereIn('id', $selected_analyze_ids)
+                    ->where('status', 'completed')
+                    ->chunkById(500, function ($invoices) use ($service) {
+
+                        foreach ($invoices as $invoice) {
+
+                            $data = $invoice->extracted_data ?? [];
+
+                            if (!$service->hasMinimumFingerprint(
+                                $data,
+                                $invoice->invoice_type
+                            )) {
+                                continue;
+                            }
+
+                            $invoice->duplicate_hash = $service->generateHash(
+                                $data,
+                                $invoice->invoice_type
+                            );
+
+                            $invoice->save();
+                        }
+                    });
+
+                $duplicates = OcrPdf::query()
+                    ->selectRaw("
+                        CASE
+                            WHEN invoice_type IN ('sales', 'multi-invoices') THEN 'sales'
+                            ELSE invoice_type
+                        END AS invoice_group,
+                        duplicate_hash
+                    ")
+                    ->where('status', 'completed')
+                    ->whereNotNull('duplicate_hash')
+                    ->whereIn('id', $selected_analyze_ids)
+                    ->groupBy('invoice_group', 'duplicate_hash')
+                    ->havingRaw('COUNT(*) > 1')
+                    ->get();
+            }
+        }
 
         foreach ($duplicates as $duplicate) {
 
@@ -237,8 +582,34 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                     ]);
                 }
                 
+                $originalProgressKey = $this->ocrProgressKey;
+
+                $this->ocrProgressKey = preg_replace(
+                    '/^ocr_progress:[^:]+:/',
+                    'ocr_progress:validate:',
+                    $this->ocrProgressKey
+                );
+
+                if ($this->ocrProgressKey !== $originalProgressKey) {
+
+                    $ttl = now()->addHour();
+
+                    Cache::put(
+                        "{$this->ocrProgressKey}:total",
+                        $total,
+                        $ttl
+                    );
+
+                    Cache::put(
+                        "{$this->ocrProgressKey}:completed",
+                        0,
+                        $ttl
+                    );
+                }
+
                 if ($invoice->invoice_type === 'com') {
                     dispatch((new ValidateOcrCommercialInvoiceJob(
+                        $this->ocrProgressKey,
                         $clients,
                         $invoice->id,
                         $this->manual,
@@ -248,6 +619,7 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 
                 if ($invoice->invoice_type === 'sales' || $invoice->invoice_type === 'multi-invoices') {                    
                     dispatch((new ValidateOcrSalesInvoiceJob(
+                        $this->ocrProgressKey,
                         $clients,
                         $invoice->id,
                         $this->manual,

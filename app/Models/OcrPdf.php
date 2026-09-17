@@ -108,4 +108,12 @@ class OcrPdf extends Model
     {
         return $this->syncStatus?->is_locked ?? false;
     }
+
+    /**
+     * OCR sync DB.
+     */
+    public function syncDb()
+    {
+        return $this->hasOne(OcrPdfSyncDb::class, 'ocr_pdf_id', 'id');
+    }
 }

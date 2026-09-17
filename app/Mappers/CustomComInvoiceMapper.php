@@ -108,7 +108,13 @@ class CustomComInvoiceMapper
         if($client_name && stripos($client_name, 'dfi-geisler') !== false)
             $invoiceNumber = !empty($invoiceNumber)
                                 ? $invoiceNumber
-                                : ($invoiceDate ? str_replace('-', '', $invoiceDate) : null);            
+                                : ($invoiceDate ? str_replace('-', '', $invoiceDate) : null);   
+
+        if($client_name && stripos($client_name, 'engel') !== false)
+        {            
+            $invoiceNumber = preg_replace('/\s*\.\.\s*ff\s*/i', '', $invoiceNumber);
+        }        
+
         // if($validate)
         // {
         //     $parser = app(ClientInvoiceParser::class);

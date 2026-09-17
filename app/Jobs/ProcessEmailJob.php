@@ -20,6 +20,7 @@ class ProcessEmailJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable;
 
     public function __construct(
+        public string $ocrProgressKey,
         public array $clients,
         public string $emailId,
         public string $subject = '',
@@ -46,7 +47,12 @@ class ProcessEmailJob implements ShouldQueue
             $mailService->markEmailAsRead($this->emailId);
             $mailService->moveEmailToFolder($this->emailId, "No Attachment");
 
-            Cache::increment('inbox_completed', 1);
+            //Cache::increment('inbox_completed', 1);
+            if ($this->ocrProgressKey) {
+                Cache::increment(
+                    "{$this->ocrProgressKey}:completed"
+                );
+            }
             
             return;
         }
@@ -67,7 +73,7 @@ class ProcessEmailJob implements ShouldQueue
                         $paths[] = $item['path'];
                         $prevCaptures[] = $item['prevCapture'];
                     }               
-                    $ocrAnalyzeService->analyze($this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
+                    $ocrAnalyzeService->analyze($this->ocrProgressKey, $this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
                 }
 
                 if($environment === 'local')

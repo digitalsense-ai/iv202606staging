@@ -241,6 +241,12 @@ class ApiClass
                       }
                     }
                   } // if EkspType
+                  else if($ex_key == 'EkspDato')
+                  {
+                    $expo_date = $Deklarasjon['Ekspedisjon']['EkspDato'];
+
+                    $expedition_list[$main_key]['expo_date'] = $expo_date;
+                  } // EkspDato
                   else if($ex_key == 'EkspedisjonsId')
                   {
                     $expo_no = '';
@@ -1875,6 +1881,7 @@ class ApiClass
                         $already_exists_cominvoice->data_from = 'ivf';
                         $already_exists_cominvoice->month_year = $month_year;
                         $already_exists_cominvoice->invoice_date = Carbon::parse($com_invoice_date)->format('Y-m-d');
+                        $already_exists_cominvoice->expo_date = isset($expedition['expo_date']) ? $expedition['expo_date'] : null;
                         $already_exists_cominvoice->expo_no = ($already_exists_cominvoice->expo_no == NULL) ? $expedition['expo_no'] : $already_exists_cominvoice->expo_no;
                         $already_exists_cominvoice->lope_no = ($already_exists_cominvoice->lope_no == NULL) ? $expedition['run_no'] : $already_exists_cominvoice->lope_no;
                         $already_exists_cominvoice->duties = $expedition['duties'];
@@ -1905,6 +1912,7 @@ class ApiClass
                           
                           'invoice_no' => $commercial_invoice_no,                                             
                           'invoice_date' => Carbon::parse('01-'.$month_year)->format('Y-m-d'),
+                          'expo_date' => isset($expedition['expo_date']) ? $expedition['expo_date'] : null,
                           'expo_no' => $expedition['expo_no'],
                           'lope_no' => $expedition['run_no'],
                           'duties' => $expedition['duties'],

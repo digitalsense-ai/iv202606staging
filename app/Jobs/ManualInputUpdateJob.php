@@ -10,12 +10,14 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ManualInputUpdateJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
+        public string $ocrProgressKey, 
         public int $invoiceId,
         public array $payload,
         public bool $forceSubmitted = false,
@@ -47,7 +49,33 @@ class ManualInputUpdateJob implements ShouldQueue
                     'manual_input_status' => 'validation_queued',
                 ]);
 
-                ValidateOcrInvoicesJob::dispatch(null, [$invoice->id], true)
+                $total = 1;
+                $originalProgressKey = $this->ocrProgressKey;
+
+                $this->ocrProgressKey = preg_replace(
+                    '/^ocr_progress:[^:]+:/',
+                    'ocr_progress:validate:',
+                    $this->ocrProgressKey
+                );
+
+                if ($this->ocrProgressKey !== $originalProgressKey) {
+
+                    $ttl = now()->addHour();
+
+                    Cache::put(
+                        "{$this->ocrProgressKey}:total",
+                        $total,
+                        $ttl
+                    );
+
+                    Cache::put(
+                        "{$this->ocrProgressKey}:completed",
+                        0,
+                        $ttl
+                    );
+                }
+
+                ValidateOcrInvoicesJob::dispatch($this->ocrProgressKey, null, [$invoice->id], true)
                     ->onQueue(config('queue.ocr.validate', 'ocrpdfvalidateinvoices'));
 
                 return;
