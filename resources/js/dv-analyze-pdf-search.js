@@ -185,14 +185,17 @@ $(function () {
       }
   }
 
-  function loadAnalyzePdfSearchDataAll(clientName) {
+  //function loadAnalyzePdfSearchDataAll(clientName) {
+  function loadAnalyzePdfSearchDataAll(clientNo) {
 
-    if (currentAnalyzeSearchClient !== clientName) {
+    //if (currentAnalyzeSearchClient !== clientName) {
+    if (currentAnalyzeSearchClientNo !== clientNo) {
 
         analyzepdf_commercial_invoice_datas = [];
         analyzepdf_sales_invoice_datas = [];
 
-        currentAnalyzeSearchClient = clientName;
+        //currentAnalyzeSearchClient = clientName;
+        currentAnalyzeSearchClientNo = clientNo;
     }
 
     $('#ocr-search-loading-overlay').removeClass('d-none');
@@ -202,7 +205,8 @@ $(function () {
         type: "GET",
 
         data: {
-            client_name: clientName,
+            //client_name: clientName,
+            client_no: clientNo,
             page: 1,
             per_page: 1000
         },
@@ -383,7 +387,8 @@ $(function () {
   }
   */
 
-  let currentAnalyzeSearchClient = '';
+  //let currentAnalyzeSearchClient = '';
+  let currentAnalyzeSearchClientNo = '';
 
   window.analyzepdf_commercial_invoice_datas = [];   
   window.analyzepdf_sales_invoice_datas = [];
@@ -567,12 +572,15 @@ $(function () {
 //   // START LOADING
 //   loadAnalyzePdfSearchData();
 
-  function loadAnalyzePdfSearchData(clientName) {    
-      if (currentAnalyzeSearchClient !== clientName) {
+  // function loadAnalyzePdfSearchData(clientName) {    
+  //     if (currentAnalyzeSearchClient !== clientName) {
+  function loadAnalyzePdfSearchData(clientNo) {
+      if (currentAnalyzeSearchClientNo !== clientNo) {  
           analyzepdf_commercial_invoice_datas = [];
           analyzepdf_sales_invoice_datas = [];
           
-          currentAnalyzeSearchClient = clientName;          
+          //currentAnalyzeSearchClient = clientName;          
+          currentAnalyzeSearchClientNo = clientNo;
       }
 
       //$(".card.analyzepdfsearch .sk-bounce").show();
@@ -582,7 +590,8 @@ $(function () {
           url: `${analyzePdfSearchUrl}data`,
           type: "GET",
           data: {
-              client_name: clientName
+              //client_name: clientName
+              client_no: clientNo
           },
           success: function(result) {
 
@@ -682,23 +691,23 @@ $(function () {
       else if (i === 1) {
        
         columns = [
-          { data: 'fake_id', width: '100px' },
+          //{ data: 'fake_id', width: '100px' },
           //Prem-staging
-          // {
-          //     data: null,
-          //     width: '100px',
-          //     render: function (data, type, row) {
-          //       if (row.source === 'sftp') {
-          //           return `
-          //               <div>
-          //                   <div>${row.id}</div>
-          //                   <span class="badge bg-label-primary">FTP</span>                            
-          //               </div>
-          //           `;
-          //       }
-          //       return row.id;
-          //     }
-          // },
+          {
+              data: null,
+              width: '100px',
+              render: function (data, type, row) {
+                if (row.source === 'sftp') {
+                    return `
+                        <div>
+                            <div>${row.id}</div>
+                            <span class="badge bg-label-primary">FTP</span>                            
+                        </div>
+                    `;
+                }
+                return row.id;
+              }
+          },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },
           { data: 'invoice_no', width: '200px' },
@@ -758,8 +767,8 @@ $(function () {
 
         data: analyzepdfsearch_datas,
         rowId: function (data) {
-            return 'invoice_' + data.id;
-          //return data.source + '_invoice_' + data.id;//Prem-staging
+          //return 'invoice_' + data.id;
+          return data.source + '_invoice_' + data.id;//Prem-staging
         },
         scrollCollapse: true,
         scrollX: true,
@@ -908,7 +917,7 @@ $(function () {
             orderable: false,
             searchable: false,
             render: function (data, type, full, meta) { 
-              /*Prem-staging
+              //Prem-staging
               const isSftp = full.source === 'sftp';
               const recordId = full.id || '';
               const source = isSftp ? 'sftp' : 'ocr';
@@ -938,8 +947,8 @@ $(function () {
 
                           </ul>
                         </div>`;
-                        */
-                return `<div class="d-inline-block">
+                        
+                /*return `<div class="d-inline-block">
                           <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
                             <i class="bx bx-dots-vertical-rounded"></i>
                           </a>
@@ -965,6 +974,7 @@ $(function () {
 
                           </ul>
                         </div>`;
+                        */
             }                
           },
 
@@ -1468,19 +1478,25 @@ console.log("selection started");
 //       });
 
       $clientSelectSearch.on('change', function () {
-          const clientName = $(this).val() || '';          
+          //const clientName = $(this).val() || '';          
+          const clientNo = $(this).val() || '';
 
-          if (clientName) {
-              loadAnalyzePdfSearchData(clientName);
-            //loadAnalyzePdfSearchDataAll(clientName);//Prem-staging
+          // if (clientName) {
+          //     loadAnalyzePdfSearchData(clientName);
+          if (clientNo) {
+            //loadAnalyzePdfSearchData(clientNo);
+            loadAnalyzePdfSearchDataAll(clientNo);//Prem-staging
           }
       });
 
-      const clientName = $clientSelectSearch.val() || '';
+      //const clientName = $clientSelectSearch.val() || '';
+      const clientNo = $clientSelectSearch.val() || '';
 
-      if (clientName) {
-          loadAnalyzePdfSearchData(clientName);
-        //loadAnalyzePdfSearchDataAll(clientName);//Prem-staging
+      // if (clientName) {
+      //     loadAnalyzePdfSearchData(clientName);
+      if (clientNo) {
+        //loadAnalyzePdfSearchData(clientNo);
+        loadAnalyzePdfSearchDataAll(clientNo);//Prem-staging
       }
   }
 

@@ -5078,7 +5078,10 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 }
             }
             
-            invoice_no = (parsed_extracted_data.invoice_number) ? parsed_extracted_data.invoice_number.replace('#', "") : null;
+            //invoice_no = (parsed_extracted_data.invoice_number) ? parsed_extracted_data.invoice_number.replace('#', "") : null;
+            invoice_no = parsed_extracted_data.effective_invoice_number
+              ? parsed_extracted_data.effective_invoice_number.replace('#', "")
+              : ((parsed_extracted_data.invoice_number) ? parsed_extracted_data.invoice_number.replace('#', "") : null);
             invoice_date = parsed_extracted_data.invoice_date;
 
             currency = (parsed_extracted_data.currency) ? parsed_extracted_data.currency : null;
@@ -5131,7 +5134,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
                   invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
 
-                if (client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
+                //if (client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
+                if (!parsed_extracted_data.effective_invoice_number && client_name && (client_name.toLowerCase().indexOf('rainwear') > -1 || client_name.toLowerCase().indexOf('engel') > -1
                    || client_name.toLowerCase().indexOf('berendsohn') > -1)
                 )
                   invoice_no = (parsed_extracted_data.no_invoice_number) ? parsed_extracted_data.no_invoice_number : invoice_no;
@@ -5139,7 +5143,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 if (client_name && client_name.toLowerCase().indexOf('stof') > -1)
                   invoice_no = (invoice_no) ? invoice_no.replace(/-/g, '') : invoice_no;
                 
-                if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+                //if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+                if (!parsed_extracted_data.effective_invoice_number && client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
                 {
                   if(!parsed_extracted_data.credit_note)                  
                     invoice_no = (parsed_extracted_data.order_number) ? parsed_extracted_data.order_number : invoice_no;
@@ -5817,11 +5822,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
                   invoice_no = (invoice_no) ? invoice_no : ((invoice_date) ? invoice_date.replace(/-/g, '') : null);
 
-                if(client_name && client_name.toLowerCase().indexOf('engel') > -1)
+                //if(client_name && client_name.toLowerCase().indexOf('engel') > -1)
+                if(!parsed_extracted_data.effective_invoice_number && client_name && client_name.toLowerCase().indexOf('engel') > -1)
                   //invoice_no = invoice_no.replace('..FF', '');  
                   invoice_no = invoice_no.replace(/\s*\.\.\s*ff\s*/gi, '');
 
-                if(client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
+                //if(client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
+                if(!parsed_extracted_data.effective_invoice_number && client_name && client_name.toLowerCase().indexOf('rainwear') > -1)
                 {
                   var special_invoice_no = null;
                   if(parsed_extracted_data?.special_capture_invoice_number)

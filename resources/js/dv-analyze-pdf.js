@@ -370,7 +370,8 @@ $(function () {
       }
   };
 
-  let currentAnalyzeClient = '';
+  //let currentAnalyzeClient = '';
+  let currentAnalyzeClientNo = '';
 
   window.analyzepdf_completed_datas = [];   
   window.analyzepdf_processing_datas = [];
@@ -601,15 +602,18 @@ $(function () {
   let currentPage = 1;
   let lastPage = 1;
 
-  function loadAnalyzePdfData(clientName) {
+  //function loadAnalyzePdfData(clientName) {
+  function loadAnalyzePdfData(clientNo) {
 
-      if (currentAnalyzeClient !== clientName) {
+      //if (currentAnalyzeClient !== clientName) {
+      if (currentAnalyzeClientNo !== clientNo) {
           analyzepdf_completed_datas = [];
           analyzepdf_processing_datas = [];
           analyzepdf_error_datas = [];
           analyzepdf_deleted_datas = [];
 
-          currentAnalyzeClient = clientName;
+          //currentAnalyzeClient = clientName;
+          currentAnalyzeClientNo = clientNo;
           currentPage = 1;
           lastPage = 1;
       }
@@ -621,7 +625,8 @@ $(function () {
           url: `${analyzePdfUrl}data`,
           type: "GET",
           data: {
-              client_name: clientName,
+              //client_name: clientName,
+              client_no: clientNo,
               page: currentPage,
               per_page: 1000
           },
@@ -722,7 +727,8 @@ $(function () {
                   currentPage++;
 
                   setTimeout(function () {
-                      loadAnalyzePdfData(clientName);
+                      //loadAnalyzePdfData(clientName);
+                      loadAnalyzePdfData(clientNo);
                   }, 100);
 
               } else {
@@ -820,19 +826,25 @@ $(function () {
 
       $clientSelectCapture.on('change', function () {
 console.log("on change");
-          const clientName = $(this).val() || '';
+          //const clientName = $(this).val() || '';
+          const clientNo = $(this).val() || '';
 
           $('#FilterInvoiceType').val('');
 
-          if (clientName) {
-              loadAnalyzePdfData(clientName);
+          // if (clientName) {
+          //     loadAnalyzePdfData(clientName);
+          if (clientNo) {
+              loadAnalyzePdfData(clientNo);
           }
       });
 
-      const clientName = $clientSelectCapture.val() || '';
+      //const clientName = $clientSelectCapture.val() || '';
+      const clientNo = $clientSelectCapture.val() || '';
 
-      if (clientName) {
-          loadAnalyzePdfData(clientName);
+      // if (clientName) {
+      //     loadAnalyzePdfData(clientName);
+      if (clientNo) {
+          loadAnalyzePdfData(clientNo);
       }
   }
 
@@ -1474,14 +1486,14 @@ console.log("on change");
     $("#offcanvasAnalyzePdfData").offcanvas('show');
     loadItem($(this).data('analyzepdf_id')); 
   });  
-
+/*
   $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
       const analyzePdfId = $(this).attr('id').replace('invoice_', '');
 
       $("#offcanvasAnalyzePdfData").offcanvas('show');
       loadItem(analyzePdfId);
   });
-  /*
+  */
   //Prem-staging
   $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
 
@@ -1532,7 +1544,6 @@ console.log("on change");
           loadItem(analyzePdfId);
       }
   });
-*/
   
 //   $(document).on('click', '#show-analyzepdf-data', function () {
 //     clearFormItems();

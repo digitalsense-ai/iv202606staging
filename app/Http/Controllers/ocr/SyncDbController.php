@@ -21,6 +21,7 @@ use App\Models\VATRegistrationMain;
 use App\Jobs\SyncDbFromOcr;
 
 use App\Services\OcrProcessingService;
+use App\Services\OcrClientNameResolver;
 use App\Helpers\EnvironmentHelper;
 
 class SyncDbController extends Controller
@@ -78,12 +79,23 @@ class SyncDbController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf');      
         /* --end PAGE CONFIG -- */
         
+        $nameResolver = app(OcrClientNameResolver::class);
         $synceddbclients = OcrPdfSyncDb::query()
-                            ->select('client_name')
-                            ->distinct()
-                            ->orderBy('client_name', 'ASC')
-                            ->pluck('client_name')
-                            ->toArray();
+                            // ->select('client_name')
+                            // ->distinct()
+                            // ->orderBy('client_name', 'ASC')
+                            // ->pluck('client_name')
+                            // ->toArray();
+                            ->select(['client_no', 'client_name'])
+                            ->get()
+                            ->unique(fn (OcrPdfSyncDb $record) => $record->client_no)
+                            ->map(fn (OcrPdfSyncDb $record) => [
+                                'client_no' => $record->client_no,
+                                'client_name' => $nameResolver->resolve($record->client_no, $record->client_name),
+                            ])
+                            ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
+                            ->values()
+                            ->all();
         
         /* -- RETURN VIEW -- */
         return view('content.ocr.synced', [
@@ -98,7 +110,9 @@ class SyncDbController extends Controller
     /* -- GET /analyzepdf/synceddbdata -- */
     public function syncedDbData(Request $request)
     {
-        $clientName = trim($request->client_name ?? '');
+        //$clientName = trim($request->client_name ?? '');
+        $clientNo = trim($request->client_no ?? '');
+        $legacyClientName = trim($request->client_name ?? '');
 
         $page = (int) ($request->page ?? 1);
         $limit = 1000;
@@ -114,8 +128,14 @@ class SyncDbController extends Controller
                           ->where('is_deleted', 0);
                     });
            
-        if ($clientName !== '') {
-            $query->where("client_name", $clientName);
+        // if ($clientName !== '') {
+        //     $query->where("client_name", $clientName);
+        if ($clientNo !== '') {
+            $query->where('client_no', $clientNo);
+        } elseif ($legacyClientName !== '') {
+            // Backward compatibility for cached/older frontends. New clients
+            // filter by the stable client number instead of this snapshot name.
+            $query->where('client_name', $legacyClientName);
         }
 
         $synceddbdatas = $query
@@ -123,6 +143,15 @@ class SyncDbController extends Controller
                             ->orderByDesc('id')
                             ->paginate($limit, ['*'], 'page', $page);
     
+        $nameResolver = app(OcrClientNameResolver::class);
+        $synceddbdatas->setCollection(
+            $synceddbdatas->getCollection()->map(function (OcrPdfSyncDb $record) use ($nameResolver) {
+                $record->client_name = $nameResolver->resolve($record->client_no, $record->client_name);
+
+                return $record;
+            })
+        );
+        
         $response = [
             'data' => $synceddbdatas->items(),
             'current_page' => $synceddbdatas->currentPage(),

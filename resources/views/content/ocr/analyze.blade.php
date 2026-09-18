@@ -407,11 +407,14 @@ async function fetchInboxAndTrackProgress() {
 
                 <option value="">Select Client</option>
 
-                @foreach($clientnames as $index => $clientName)
+                {{--@foreach($clientnames as $index => $clientName)--}}
+                @foreach($clientnames as $index => $client)
                     <option
-                        value="{{ $clientName }}"
+                        {{--value="{{ $clientName }}"--}}
+                        value="{{ $client['client_no'] }}"
                         @selected($index === 0)>
-                        {{ $clientName }}
+                        {{--{{ $clientName }}--}}
+                        {{ $client['client_name'] }}
                     </option>
                 @endforeach
             </select>

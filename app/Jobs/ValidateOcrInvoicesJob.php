@@ -129,11 +129,15 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                         ELSE p.invoice_type
                     END AS invoice_type,
 
-                    JSON_UNQUOTE(
-                        JSON_EXTRACT(
-                            p.extracted_data,
-                            '$.invoice_number'
-                        )
+                    -- JSON_UNQUOTE(
+                    --     JSON_EXTRACT(
+                    --         p.extracted_data,
+                    --         '$.invoice_number'
+                    --     )
+                    COALESCE(
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.effective_invoice_number')), ''),
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.special_capture_invoice_number')), ''),
+                        JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number'))
                     ) AS invoice_no,
 
                     CASE
@@ -219,16 +223,24 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                         )
 
                         /* Same invoice number */
-                        AND JSON_UNQUOTE(
-                            JSON_EXTRACT(
-                                target.extracted_data,
-                                '$.invoice_number'
-                            )
-                        ) = JSON_UNQUOTE(
-                            JSON_EXTRACT(
-                                p.extracted_data,
-                                '$.invoice_number'
-                            )
+                        -- AND JSON_UNQUOTE(
+                        --     JSON_EXTRACT(
+                        --         target.extracted_data,
+                        --         '$.invoice_number'
+                        --     )
+                        -- ) = JSON_UNQUOTE(
+                        --     JSON_EXTRACT(
+                        --         p.extracted_data,
+                        --         '$.invoice_number'
+                        --     )
+                        AND COALESCE(
+                            NULLIF(JSON_UNQUOTE(JSON_EXTRACT(target.extracted_data, '$.effective_invoice_number')), ''),
+                            NULLIF(JSON_UNQUOTE(JSON_EXTRACT(target.extracted_data, '$.special_capture_invoice_number')), ''),
+                            JSON_UNQUOTE(JSON_EXTRACT(target.extracted_data, '$.invoice_number'))
+                        ) = COALESCE(
+                            NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.effective_invoice_number')), ''),
+                            NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.special_capture_invoice_number')), ''),
+                            JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number'))
                         )
 
                         /* Same client number */
@@ -336,11 +348,15 @@ class ValidateOcrInvoicesJob implements ShouldQueue
                         ELSE p.invoice_type
                     END,
 
-                    JSON_UNQUOTE(
-                        JSON_EXTRACT(
-                            p.extracted_data,
-                            '$.invoice_number'
-                        )
+                    -- JSON_UNQUOTE(
+                    --     JSON_EXTRACT(
+                    --         p.extracted_data,
+                    --         '$.invoice_number'
+                    --     )
+                    COALESCE(
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.effective_invoice_number')), ''),
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.special_capture_invoice_number')), ''),
+                        JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number'))
                     ),
 
                     CASE
@@ -403,14 +419,14 @@ class ValidateOcrInvoicesJob implements ShouldQueue
 
             $rows = $connection->select($myquery, $invoiceIds);
 
-            $excludeIds = [55395, 55396, 55397];
+            //$excludeIds = [55395, 55396, 55397];
 
             $selected_analyze_ids = collect($rows)
                 ->pluck('invoice_ids')
                 ->filter()
                 ->flatMap(fn ($ids) => explode(',', $ids))
                 ->map(fn ($id) => (int) trim($id))
-                ->reject(fn ($id) => in_array($id, $excludeIds, true))
+                //->reject(fn ($id) => in_array($id, $excludeIds, true))
                 ->unique()
                 ->values()
                 ->toArray();

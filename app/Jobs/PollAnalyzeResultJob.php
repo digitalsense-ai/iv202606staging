@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\OcrPdf;
 use App\Models\OcrPdfPayload;
 use App\Models\OcrSyncStatus;
+use App\Models\Client;
 
 use App\Classes\CommonClass;
 
@@ -28,6 +29,7 @@ use App\Services\AzureStorageService;
 use App\Services\OcrAccuracyService;
 use App\Services\OcrParserStrategyService;
 use App\Services\OcrAnalyzeService;
+use App\Services\OcrInvoiceNumberService;
 
 use App\Jobs\ValidateOcrInvoicesJob;
 
@@ -439,6 +441,19 @@ class PollAnalyzeResultJob implements ShouldQueue
             $finalStatus = $hasNormalizedError ? 'failed' : 'completed';
 
             $extractedData = OcrPdf::query()->where('id', $this->documentId)->first();            
+
+            if (!$extractedData->manual_input_by && !$extractedData->search_save_by) {
+                $clientName = $client_id
+                    ? Client::query()->whereKey($client_id)->value('client_name')
+                    : null;
+
+                $normalized = app(OcrInvoiceNumberService::class)->apply(
+                    $normalized,
+                    $clientName,
+                    $extractedData->file_name,
+                    $this->invoiceType
+                );
+            }
 
             OcrPdf::query()
                 ->where('id', $this->documentId)
@@ -1508,7 +1523,11 @@ class PollAnalyzeResultJob implements ShouldQueue
             ? $currentExtractedData
             : [];
 
-        $invoiceNo = $currentExtractedData['invoice_number'] ?? null;
+        //$invoiceNo = $currentExtractedData['invoice_number'] ?? null;
+        $invoiceNo = $currentExtractedData['effective_invoice_number']
+            ?? $currentExtractedData['special_capture_invoice_number']
+            ?? $currentExtractedData['invoice_number']
+            ?? null;
 
         $invoiceNo = is_string($invoiceNo)
             ? trim($invoiceNo)
@@ -1635,11 +1654,15 @@ class PollAnalyzeResultJob implements ShouldQueue
                   
                   AND p.invoice_type IN ($invoiceTypePlaceholders)
 
-                  AND JSON_UNQUOTE(
-                        JSON_EXTRACT(
-                            p.extracted_data,
-                            '$.invoice_number'
-                        )
+                  -- AND JSON_UNQUOTE(
+                  --       JSON_EXTRACT(
+                  --           p.extracted_data,
+                  --           '$.invoice_number'
+                  --       )
+                  AND COALESCE(
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.effective_invoice_number')), ''),
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.special_capture_invoice_number')), ''),
+                        JSON_UNQUOTE(JSON_EXTRACT(p.extracted_data, '$.invoice_number'))
                       ) = ?
 
                   AND LOWER(TRIM(

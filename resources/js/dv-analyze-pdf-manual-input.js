@@ -156,7 +156,7 @@ $(function () {
       '[data-repeater-list="sales-invoice"] > [data-repeater-item]'
     ).length;
 
-    console.log('Sales invoice count:', count);
+    //console.log('Sales invoice count:', count);
 
     $('.sales-invoice-count')
       .text(count)
@@ -373,9 +373,9 @@ $(function () {
     //var syncedPage = ($('#syncedPage').length > 0) ? true :  false;
 
     return $.getJSON(endpoints.sftpoioShow + '/' + id + '/show')
-      .then(response => { console.log(response);
+      .then(response => { //console.log(response);
         //current = response.item;
-        fillForm(response.item);
+        fillForm(response.item, 'sftp');
         //renderQueue();
         //updateCounter(response.position, response.total);
         //updateNav();
@@ -388,7 +388,7 @@ $(function () {
       .always(() => setBusy(false));
   }
 
-  function fillForm(item) {
+  function fillForm(item, source = 'ocr') {
     const localCurrencyMap = {
         no: 'NOK',
         gb: 'GBP',
@@ -400,16 +400,20 @@ $(function () {
     };
     let client_name = item.client_name || '';
 
-    let invoice_no = item.invoice_no.replace('#', '').trim() || '';
-    if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+    // let invoice_no = item.invoice_no.replace('#', '').trim() || '';
+    // if (client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
+    let invoice_no = (item.effective_invoice_number || item.invoice_no || '').replace('#', '').trim();
+    if (!item.effective_invoice_number && client_name && client_name.toLowerCase().indexOf('horn bord') > -1)
     {
       if(!item.credit_note)
         invoice_no = (item.order_number) ? item.order_number : invoice_no;
     }
-    else if (client_name && client_name.toLowerCase().indexOf('rainwear') > -1
+    //else if (client_name && client_name.toLowerCase().indexOf('rainwear') > -1
+    else if (!item.effective_invoice_number && client_name && (client_name.toLowerCase().indexOf('rainwear') > -1
       || client_name.toLowerCase().indexOf('engel') > -1
       || client_name.toLowerCase().indexOf('berendsohn') > -1
-    )
+    //)
+    ))  
     {
       if(client_name && client_name.toLowerCase().indexOf('engel') > -1)
       {
@@ -756,7 +760,7 @@ $(function () {
     
     applyInvoiceTypeVisibility(item.invoice_type);
 
-    if($("#datafrom").length > 0)
+    if(source === 'sftp')
       loadSftpOioViewer(item);
     else
       loadPdfViewer(item);    
@@ -1011,7 +1015,7 @@ $(function () {
     return true;
   }
 
-  function saveItem(force) {
+  function saveItem(force, source = '') {
     if (!current) return;
 
     if (!validateManualInputForm()) {
@@ -1020,7 +1024,17 @@ $(function () {
 
     setBusy(true);
     const url = endpoints.show + '/' + current.id + (force ? '/force-submit' : '/save');
-    $.post(url, serializeForm())
+
+    const postData = {
+        ...serializeForm()
+    };
+
+    if (source === 'sftp') {
+        postData.source = source;
+    }
+
+    $.post(url, postData)
+    //$.post(url, serializeForm())
       //.then(response => handleNextResponse(response))
       .then(function (response) { 
 
@@ -1044,7 +1058,7 @@ $(function () {
               if(invoice_type == 'com')
                 table_invoice_type = 'commercial';
 
-              loadSearchSave(table_invoice_type, id);
+              loadSearchSave(table_invoice_type, id, source);
             }
           });
         }
@@ -1074,7 +1088,7 @@ $(function () {
       .always(() => setBusy(false));
   }
 
-  function loadSearchSave(type, id, removeFrom = '') {    
+  function loadSearchSave(type, id, removeFrom = '', source = '') {    
     const formData = Object.fromEntries(
         $("#manualInputForm").serializeArray().map(item => [item.name, item.value])
     );
@@ -1083,7 +1097,10 @@ $(function () {
     if(!removeFrom)
       table = $('.datatables-analyzepdfsearch.datatables-'+ type +'-invoice-analyzepdfsearch').DataTable();  
 
-    const row = table.row('#invoice_' + id);
+    //const row = table.row('#invoice_' + id);
+    let row = table.row('#ocr_invoice_' + id);
+    if(source === 'sftp')
+      row = table.row('#sftp_invoice_' + id);
 
     // Row does not exist
     if (!row.any()) {

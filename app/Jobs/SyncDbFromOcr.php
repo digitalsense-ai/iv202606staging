@@ -833,9 +833,15 @@ class SyncDbFromOcr implements ShouldQueue
         $result = [];
 
         // Invoice details
-        $invoice_no = ($parsed_extracted_data['invoice_number'])
-                        ? ltrim((string) $parsed_extracted_data['invoice_number'], '#')
-                        : null;
+        // $invoice_no = ($parsed_extracted_data['invoice_number'])
+        //                 ? ltrim((string) $parsed_extracted_data['invoice_number'], '#')
+        //                 : null;
+        $effective_invoice_number = $parsed_extracted_data['effective_invoice_number'] ?? null;
+        $invoice_no = $effective_invoice_number
+                        ? ltrim((string) $effective_invoice_number, '#')
+                        : (!empty($parsed_extracted_data['invoice_number'])
+                            ? ltrim((string) $parsed_extracted_data['invoice_number'], '#')
+                            : null);
         $invoice_date = $parsed_extracted_data['invoice_date'] ?? null;
         $currency = Arr::get($parsed_extracted_data, 'currency', null);
         $currency = $currency ? strtoupper(substr(preg_replace('/[^\w]/', '', trim($currency)), 0, 3)) : null;
@@ -866,7 +872,8 @@ class SyncDbFromOcr implements ShouldQueue
         
         //$client_name = empty($party['name']) ? $client_name : $party['name'];
         $client_name = $party['name'] ?? null;
-        if ( $type == 'sales' &&          
+        //if ( $type == 'sales' &&          
+        if ( !$effective_invoice_number && $type == 'sales' &&
             !empty($client_name) &&
             (
                 str_contains(strtolower($client_name), 'rainwear') 
@@ -1030,9 +1037,10 @@ class SyncDbFromOcr implements ShouldQueue
         // Related sales invoices
         $related_sales_invoices = [];
 
-        if($type != 'sales')
+        if($type != 'sales')        
         {     
-            if (!empty($client_name) &&
+            //if (!empty($client_name) &&
+            if (!$effective_invoice_number && !empty($client_name) &&
                 (
                     str_contains(strtolower($client_name), 'engel')
                 )    
@@ -1042,7 +1050,8 @@ class SyncDbFromOcr implements ShouldQueue
                 $invoice_no = preg_replace('/\s*\.\.\s*ff\s*/i', '', $invoice_no);
             }
                
-            if (!empty($client_name) &&
+            //if (!empty($client_name) &&
+            if (!$effective_invoice_number && !empty($client_name) &&
                 (
                     str_contains(strtolower($client_name), 'rainwear')
                 )    

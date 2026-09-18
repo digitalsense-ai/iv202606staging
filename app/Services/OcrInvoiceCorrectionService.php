@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 use App\Repositories\ClientRepository;
 use App\Services\ClientResolver;
+use App\Services\OcrInvoiceNumberService;
 
 use App\Helpers\EnvironmentHelper;
 
@@ -47,6 +48,12 @@ class OcrInvoiceCorrectionService
         $clientName = Arr::get($payload, 'client_name');
 
         $invoiceNo = Arr::get($payload, 'invoice_no');
+        $data = app(OcrInvoiceNumberService::class)->withSubmittedNumber(
+            $data,
+            $clientName,
+            $invoiceNo
+        );
+        
         if($clientName && (
                 str_contains(strtolower($clientName), 'rainwear') 
                 || str_contains(strtolower($clientName), 'engel') 

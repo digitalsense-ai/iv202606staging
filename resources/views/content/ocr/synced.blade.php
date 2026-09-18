@@ -119,10 +119,13 @@
 
                 <option value="">Select Client</option>
 
-                @foreach($synceddbclients as $index => $clientName)
+                {{--@foreach($synceddbclients as $index => $clientName)--}}
+                @foreach($synceddbclients as $index => $client)
                     <option
-                        value="{{ $clientName }}">
-                        {{ $clientName }}
+                        {{--value="{{ $clientName }}">
+                        {{ $clientName }}--}}
+                        value="{{ $client['client_no'] }}">
+                        {{ $client['client_name'] }}
                     </option>
                 @endforeach
             </select>            

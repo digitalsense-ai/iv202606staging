@@ -9,6 +9,7 @@ use App\Models\OcrSyncStatus;
 use App\Models\OcrPdfSyncDb;
 use App\Models\VATRegistrationMain;
 use App\Services\OcrAnalyzeService;
+use App\Services\OcrInvoiceNumberService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -123,7 +124,7 @@ class ManualInputController extends Controller
    
     public function save(Request $request, int $id): JsonResponse
     {
-        if ($request->datafrom) {
+        if ($request->source) {
             return response()->json([
                 'success' => true,
                 'message' => 'FTP data does not require saving.'
@@ -557,7 +558,10 @@ class ManualInputController extends Controller
                         : (data_get($data, 'supplier.name') ?? data_get($data, 'supplier.extracted_name'))
                 ),
             'country_code' => $vatRegistration?->country,
-            'invoice_no' => data_get($data, 'invoice_number'),
+            //'invoice_no' => data_get($data, 'invoice_number'),
+            'invoice_no' => data_get($data, 'effective_invoice_number')
+                ?? data_get($data, 'special_capture_invoice_number')
+                ?? data_get($data, 'invoice_number'),
             'invoice_date' => data_get($data, 'invoice_date'),
             'error' => $invoice->error,
             'status' => $invoice->status,
@@ -581,10 +585,20 @@ class ManualInputController extends Controller
 
         $vatRegistration = $this->findVatRegistration($clientNo, $clientName);
 
+        $data = app(OcrInvoiceNumberService::class)->apply(
+            $data,
+            $vatRegistration?->client?->client_name ?? $clientName,
+            $invoice->file_name,
+            $invoice->invoice_type
+        );
+
         return array_merge($this->summaryPayload($invoice), [
             // 'client_name' => $vatRegistration?->client?->client_name
             //     ?? data_get($data, 'recipient.name')
             //     ?? data_get($data, 'supplier.name'),
+            'invoice_no' => data_get($data, 'effective_invoice_number')
+                ?? data_get($data, 'special_capture_invoice_number')
+                ?? data_get($data, 'invoice_number'),
             'client_name' => $vatRegistration?->client?->client_name
                 ?? (
                     data_get($data, 'recipient')
@@ -625,6 +639,8 @@ class ManualInputController extends Controller
             'sas_url' => app(OcrAnalyzeService::class)->getSasUrl($invoice->id),
 
             'special_capture_invoice_number' => data_get($data, 'special_capture_invoice_number'),
+            'effective_invoice_number' => data_get($data, 'effective_invoice_number'),
+            'original_invoice_number' => data_get($data, 'original_invoice_number'),
         ]);
     }
 

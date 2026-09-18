@@ -28,7 +28,8 @@ $(function () {
     }
   });  
 
-  let currentAnalyzeSyncedClient = '';
+  //let currentAnalyzeSyncedClient = '';
+  let currentAnalyzeSyncedClientNo = '';
 
   window.syncedCommercialRawData = [];
   window.syncedSalesRawData = [];
@@ -37,12 +38,15 @@ $(function () {
   let lastPage = 1;
   let isLoading = false;
   
-  function loadSyncedData(clientName) {
-      if (currentAnalyzeSyncedClient !== clientName) {
+  // function loadSyncedData(clientName) {
+  //     if (currentAnalyzeSyncedClient !== clientName) {
+  function loadSyncedData(clientNo) {
+      if (currentAnalyzeSyncedClientNo !== clientNo) {
           syncedCommercialRawData = [];
           syncedSalesRawData = [];
           
-          currentAnalyzeSyncedClient = clientName;   
+          //currentAnalyzeSyncedClient = clientName;   
+          currentAnalyzeSyncedClientNo = clientNo;
           currentPage = 1;
           lastPage = 1;       
       }
@@ -61,7 +65,8 @@ $(function () {
           url: `${analyzePdfSyncedUrl}synceddbdata`,
           type: "GET",
           data: {
-              client_name: clientName,
+              //client_name: clientName,
+              client_no: clientNo,
               page: currentPage
           },
 
@@ -90,6 +95,7 @@ $(function () {
               //     currentPage,
               //     'Client Name:',
               //     clientName,
+              //     clientNo,
               //     'Commercial:',
               //     window.syncedCommercialRawData.length,
               //     'Sales:',
@@ -107,7 +113,8 @@ $(function () {
                   currentPage++;
 
                   setTimeout(function () {
-                      loadSyncedData(clientName);
+                      //loadSyncedData(clientName);
+                      loadSyncedData(clientNo);
                   }, 100);
 
                   //return;
@@ -423,17 +430,23 @@ $(function () {
   if ($clientSelectSyncDB.length) {
 
       $clientSelectSyncDB.on('change', function () {
-          const clientName = $(this).val() || '';          
+          //const clientName = $(this).val() || '';          
+          const clientNo = $(this).val() || '';
 
-          if (clientName) {
-              loadSyncedData(clientName);
+          // if (clientName) {
+          //     loadSyncedData(clientName);
+          if (clientNo) {
+              loadSyncedData(clientNo);
           }
       });
 
-      const clientName = $clientSelectSyncDB.val() || '';
+      //const clientName = $clientSelectSyncDB.val() || '';
+      const clientNo = $clientSelectSyncDB.val() || '';
 
-      if (clientName) {
-          loadSyncedData(clientName);
+      // if (clientName) {
+      //     loadSyncedData(clientName);
+      if (clientNo) {
+          loadSyncedData(clientNo);
       }
   }
 

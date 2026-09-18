@@ -79,7 +79,13 @@ class ValidateOcrInvoiceDuplicateService
             // 'org_number' => $data['recipient']['org_number'] ?? null,
             // 'shipments' => $data['related_shipment_nos'] ?? null,
             // 'sales_invoices' => $data['related_sales_invoices'] ?? null,
-            'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            //'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            'invoice_number' => $this->normalizeIdentifier(
+                $data['effective_invoice_number']
+                    ?? $data['special_capture_invoice_number']
+                    ?? $data['invoice_number']
+                    ?? null
+            ),
             //'invoice_date' => $this->normalizeDate($data['invoice_date'] ?? null),
             'currency' => $this->normalizeIdentifier($data['currency'] ?? null),
             //'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
@@ -101,7 +107,10 @@ class ValidateOcrInvoiceDuplicateService
             // 'vat_amount' => $data['vat_amount'] ?? null,
             // 'total_amount' => $data['total_amount'] ?? null,
             // 'org_number' => $data['supplier']['org_number'] ?? null,
-            'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            //'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            'invoice_number' => $this->normalizeIdentifier(
+                $data['effective_invoice_number'] ?? $data['invoice_number'] ?? null
+            ),
             'no_invoice_number' => $this->normalizeIdentifier($data['no_invoice_number'] ?? null),
             'invoice_date' => $this->normalizeDate($data['invoice_date'] ?? null),
             'order_number' => $this->normalizeIdentifier($data['order_number'] ?? null),
@@ -119,7 +128,10 @@ class ValidateOcrInvoiceDuplicateService
         return [
             // 'invoice_number' => $data['invoice_number'] ?? null,
             // 'net_amount' => $data['net_amount'] ?? null,
-            'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            //'invoice_number' => $this->normalizeIdentifier($data['invoice_number'] ?? null),
+            'invoice_number' => $this->normalizeIdentifier(
+                $data['effective_invoice_number'] ?? $data['invoice_number'] ?? null
+            ),
             // 'net_amount' => $this->normalizeAmount($data['net_amount'] ?? null),
             // 'total_amount' => $this->normalizeAmount($data['total_amount'] ?? null),
 

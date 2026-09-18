@@ -28,6 +28,7 @@ use App\Services\AzureStorageService;
 use App\Services\OcrCorrectionFeedbackService;
 use App\Services\MicrosoftMailService;
 use App\Services\OcrAnalyzeService;
+use App\Services\OcrClientNameResolver;
 
 use App\Repositories\ClientRepository;
 
@@ -348,28 +349,32 @@ class AnalyzePdfController extends Controller
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser);      
         /* --end PAGE CONFIG -- */
         
-        $clientnames = OcrPdf::query()
-                        ->selectRaw("
-                            COALESCE(
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                            ) AS client_name
-                        ")
-                        ->where('status', 'completed')
-                        ->where('is_deleted', 0)
-                        ->orderBy('client_name')
-                        ->orderBy('id', 'DESC')
-                        ->pluck('client_name')
-                        ->filter(fn ($name) => trim($name ?? '') !== '')
-                        ->unique();
+        // $clientnames = OcrPdf::query()
+        //                 ->selectRaw("
+        //                     COALESCE(
+        //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+        //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+        //                     ) AS client_name
+        //                 ")
+        //                 ->where('status', 'completed')
+        //                 ->where('is_deleted', 0)
+        //                 ->orderBy('client_name')
+        //                 ->orderBy('id', 'DESC')
+        //                 ->pluck('client_name')
+        //                 ->filter(fn ($name) => trim($name ?? '') !== '')
+        //                 ->unique();
+
+        $clients = $this->ocrClients();
 
         /* -- RETURN VIEW -- */
         return view('content.ocr.analyze', [
           'pageConfigs' => $pageConfigs, 
           'authUser' => $this->authUser,          
-          'hasanalyzepdfs' => $clientnames->count(),
+          //'hasanalyzepdfs' => $clientnames->count(),
+          'hasanalyzepdfs' => $clients->count(),
           'environment' => $this->environment,
-          'clientnames' => $clientnames,
+          //'clientnames' => $clientnames,
+          'clientnames' => $clients,
         ]);
         /* --end RETURN VIEW -- */
     }
@@ -495,7 +500,8 @@ class AnalyzePdfController extends Controller
 
     public function analyzeData(Request $request)
     {
-        $clientName = trim($request->client_name ?? '');
+        //$clientName = trim($request->client_name ?? '');
+        $clientNo = $this->requestedClientNumber($request);
 
         $page = (int) $request->input('page', 1);
         $perPage = (int) ($request->input('per_page', 1000));
@@ -508,13 +514,15 @@ class AnalyzePdfController extends Controller
             ->where('status', 'completed')
             ->where('is_deleted', 0);
 
-        if ($clientName !== '') {
-            $completedQuery->whereRaw("
-                COALESCE(
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                ) = ?
-            ", [$clientName]);
+        // if ($clientName !== '') {
+        //     $completedQuery->whereRaw("
+        //         COALESCE(
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+        //         ) = ?
+        //     ", [$clientName]);
+        if ($clientNo !== '') {
+            $this->applyClientNumberFilter($completedQuery, $clientNo);    
         }
 
         $completed = $completedQuery
@@ -535,7 +543,8 @@ class AnalyzePdfController extends Controller
 
             $otherData = OcrPdf::query()
                 ->select($this->selectedFields)
-                ->where(function ($q) use ($clientName) {
+                //->where(function ($q) use ($clientName) {
+                ->where(function ($q) {
 
                     // Failed - always include
                     $q->where('status', 'failed');
@@ -546,7 +555,8 @@ class AnalyzePdfController extends Controller
                     // Processing / queued - selected client only
                     //if ($clientName !== '') {
 
-                        $q->orWhere(function ($q) use ($clientName) {
+                        //$q->orWhere(function ($q) use ($clientName) {
+                        $q->orWhere(function ($q) {
 
                             $q->whereIn('status', [
                                 'processing',
@@ -583,7 +593,8 @@ class AnalyzePdfController extends Controller
         // -----------------------------------------
         $response = [
             'analyzepdfs' => $completed,
-            'client_name' => $clientName,
+            //'client_name' => $clientName,
+            'client_no' => $clientNo,
             'current_page' => $completed->currentPage(),
             'last_page' => $completed->lastPage(),
         ];
@@ -738,20 +749,21 @@ class AnalyzePdfController extends Controller
                         ->orderBy('id', 'ASC')            
                         ->get(); 
       
-        $clientnames = OcrPdf::query()
-                        ->selectRaw("
-                            COALESCE(
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                                JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                            ) AS client_name
-                        ")
-                        ->where('status', 'completed')
-                        ->where('is_deleted', 0)
-                        ->orderBy('client_name')
-                        ->orderBy('id', 'DESC')
-                        ->pluck('client_name')
-                        ->filter(fn ($name) => trim($name ?? '') !== '')
-                        ->unique();
+        // $clientnames = OcrPdf::query()
+        //                 ->selectRaw("
+        //                     COALESCE(
+        //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+        //                         JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+        //                     ) AS client_name
+        //                 ")
+        //                 ->where('status', 'completed')
+        //                 ->where('is_deleted', 0)
+        //                 ->orderBy('client_name')
+        //                 ->orderBy('id', 'DESC')
+        //                 ->pluck('client_name')
+        //                 ->filter(fn ($name) => trim($name ?? '') !== '')
+        //                 ->unique();
+        $clientnames = $this->ocrClients();
 
         // $vatregmains = VATRegistrationMain::with(['client'])
         //                 ->orderBy('id', 'ASC')
@@ -836,7 +848,8 @@ class AnalyzePdfController extends Controller
 
     public function analyzeSearchData(Request $request)
     {
-        $clientName = trim($request->client_name ?? '');
+        //$clientName = trim($request->client_name ?? '');
+        $clientNo = $this->requestedClientNumber($request);
 
         $page = (int) $request->input('page', 1);
         $perPage = (int) ($request->input('per_page', 1000));
@@ -846,13 +859,15 @@ class AnalyzePdfController extends Controller
             ->where('status', 'completed')
             ->where('is_deleted', 0);
 
-        if ($clientName !== '') {
-            $query->whereRaw("
-                COALESCE(
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                ) = ?
-            ", [$clientName]);
+        // if ($clientName !== '') {
+        //     $query->whereRaw("
+        //         COALESCE(
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+        //         ) = ?
+        //     ", [$clientName]);
+        if ($clientNo !== '') {
+            $this->applyClientNumberFilter($query, $clientNo);    
         }
 
         $analyzepdfs = $query
@@ -873,7 +888,8 @@ class AnalyzePdfController extends Controller
 
         $response = [
             'analyzepdfs' => $analyzepdfs,
-            'client_name' => $clientName,
+            //'client_name' => $clientName,
+            'client_no' => $clientNo,
         ];
     
         // -----------------------------------------
@@ -905,7 +921,9 @@ class AnalyzePdfController extends Controller
     
     public function analyzeSearchDataAll(Request $request)
     {
-        $clientName = trim($request->input('client_name', ''));
+        //$clientName = trim($request->input('client_name', ''));
+        $clientNo = $this->requestedClientNumber($request);
+        $clientName = app(OcrClientNameResolver::class)->resolve($clientNo);
 
         $page = max((int) $request->input('page', 1), 1);
         $perPage = (int) $request->input('per_page', 1000);
@@ -921,13 +939,15 @@ class AnalyzePdfController extends Controller
             ->where('status', 'completed')
             ->where('is_deleted', 0);
 
-        if ($clientName !== '') {
-            $ocrQuery->whereRaw("
-                COALESCE(
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
-                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
-                ) = ?
-            ", [$clientName]);
+        // if ($clientName !== '') {
+        //     $ocrQuery->whereRaw("
+        //         COALESCE(
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+        //             JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+        //         ) = ?
+        //     ", [$clientName]);
+        if ($clientNo !== '') {
+            $this->applyClientNumberFilter($ocrQuery, $clientNo);
         }
 
         $analyzepdfs = $ocrQuery
@@ -972,7 +992,8 @@ class AnalyzePdfController extends Controller
         /*
          * SFTP data is only required for selected clients.
          */
-        if ($clientName !== '') {
+        //if ($clientName !== '') {
+        if ($clientNo !== '' && $clientName) {
             $sftpQuery->whereHas('vatreg.client', function ($q) use ($clientName) {
                 $q->where('client_name', $clientName);
             });
@@ -1027,7 +1048,8 @@ class AnalyzePdfController extends Controller
         //     });
         // }
 
-        if ($clientName !== '') {
+        //if ($clientName !== '') {
+        if ($clientNo !== '' && $clientName) {
             $sftpdatas = $sftpQuery
                 ->orderByDesc('id')
                 ->get();
@@ -1092,7 +1114,8 @@ class AnalyzePdfController extends Controller
             //         'total' => 0,
             //     ],
 
-            'sftpdatas' => $clientName !== ''
+            //'sftpdatas' => $clientName !== ''
+            'sftpdatas' => $clientNo !== ''
                 ? [
                     'data' => $sftpdatas,
                     'total' => $sftpdatas->count(),
@@ -1102,7 +1125,8 @@ class AnalyzePdfController extends Controller
                     'total' => 0,
                 ],
 
-            'client_name' => $clientName,
+            //'client_name' => $clientName,
+            'client_no' => $clientNo,
 
             'environment' => $this->environment,
         ];
@@ -1132,7 +1156,74 @@ class AnalyzePdfController extends Controller
         return response()->json($response);
     }
 
+    private function ocrClients()
+    {
+        $nameResolver = app(OcrClientNameResolver::class);
 
+        return OcrPdf::query()
+            ->selectRaw("
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number'))
+                ) AS client_no,
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+                    JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+                ) AS client_name
+            ")
+            ->where('status', 'completed')
+            ->where('is_deleted', 0)
+            ->distinct()
+            ->get()
+            ->map(function (OcrPdf $invoice) use ($nameResolver) {
+                $clientNo = $nameResolver->normalizeClientNumber($invoice->client_no);
+
+                return $clientNo === null ? null : [
+                    'client_no' => $clientNo,
+                    'client_name' => $nameResolver->resolve($clientNo, $invoice->client_name),
+                ];
+            })
+            ->filter(fn ($client) => $client !== null && !empty($client['client_name']))
+            ->unique('client_no')
+            ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
+    private function applyClientNumberFilter($query, string $clientNo): void
+    {
+        $clientNo = preg_replace('/\D+/', '', $clientNo);
+
+        $query->where(function ($query) use ($clientNo) {
+            foreach (['supplier.org_number', 'supplier.cvr_number', 'recipient.org_number'] as $path) {
+                $query->orWhereRaw(
+                    "REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(extracted_data, ?)), '[^0-9]', '') = ?",
+                    ['$.'.$path, $clientNo]
+                );
+            }
+        });
+    }
+
+    private function requestedClientNumber(Request $request): string
+    {
+        $clientNo = preg_replace('/\D+/', '', (string) $request->input('client_no', ''));
+
+        if ($clientNo !== '') {
+            return $clientNo;
+        }
+
+        $legacyClientName = trim((string) $request->input('client_name', ''));
+
+        if ($legacyClientName === '') {
+            return '';
+        }
+
+        $client = $this->ocrClients()
+            ->first(fn (array $client) => strcasecmp($client['client_name'], $legacyClientName) === 0);
+
+        return (string) ($client['client_no'] ?? '');
+    }
+    
     // /* -- GET /analyzepdf/synceddb -- */
     // public function syncedDb()
     // {   
@@ -3505,7 +3596,7 @@ class AnalyzePdfController extends Controller
                 //     //->take(2)
                 //     ->toArray();
                 //$excludeIds = [55395, 55396, 55397];
-                $excludeIds = [];
+                //$excludeIds = [];
                 $selected_analyze_ids = collect($rows)
                     ->pluck('invoice_ids')
                     ->filter()
@@ -3513,7 +3604,7 @@ class AnalyzePdfController extends Controller
                         return explode(',', $ids);
                     })
                     ->map(fn ($id) => (int) trim($id))
-                    ->reject(fn ($id) => in_array($id, $excludeIds, true))
+                    //->reject(fn ($id) => in_array($id, $excludeIds, true))
                     ->unique()
                     ->values()
                     ->toArray();

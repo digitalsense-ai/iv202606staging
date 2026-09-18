@@ -8167,16 +8167,27 @@ class CommonClass
            * Remove sync records whose source OCR PDF has already
            * been marked as deleted.
            */
-          OcrPdfSyncDb::query()
-              ->whereIn('id', function ($query) {
-                  $query->select('s.id')
-                      ->from('dv_ocr_pdf_sync_db as s')
-                      ->join('dv_ocr_pdfs as p', 'p.id', '=', 's.ocr_pdf_id')
-                      ->where('p.is_deleted', 1)
-                      //->where('p.status', 'completed');
-                      ;
-              })
-              ->delete();
+          // OcrPdfSyncDb::query()
+          //     ->whereIn('id', function ($query) {
+          //         $query->select('s.id')
+          //             ->from('dv_ocr_pdf_sync_db as s')
+          //             ->join('dv_ocr_pdfs as p', 'p.id', '=', 's.ocr_pdf_id')
+          //             ->where('p.is_deleted', 1)
+          //             //->where('p.status', 'completed');
+          //             ;
+          //     })
+          //     ->delete();
+
+          // MySQL rejects deleting from a table while the same table is read
+          // by a nested IN subquery (error 1093). A multi-table DELETE joins
+          // the source PDF directly and performs the cleanup atomically.
+          (new OcrPdfSyncDb())->getConnection()->delete(<<<SQL
+              DELETE sync_record
+              FROM dv_ocr_pdf_sync_db AS sync_record
+              INNER JOIN dv_ocr_pdfs AS pdf
+                  ON pdf.id = sync_record.ocr_pdf_id
+              WHERE pdf.is_deleted = 1
+          SQL);
 
           /*
            * =========================================================
