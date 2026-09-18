@@ -682,22 +682,23 @@ $(function () {
       else if (i === 1) {
        
         columns = [
-          //{ data: 'fake_id', width: '100px' },
-          {
-              data: null,
-              width: '100px',
-              render: function (data, type, row) {
-                if (row.source === 'sftp') {
-                    return `
-                        <div>
-                            <div>${row.id}</div>
-                            <span class="badge bg-label-primary">FTP</span>                            
-                        </div>
-                    `;
-                }
-                return row.id;
-              }
-          },
+          { data: 'fake_id', width: '100px' },
+          //Prem-staging
+          // {
+          //     data: null,
+          //     width: '100px',
+          //     render: function (data, type, row) {
+          //       if (row.source === 'sftp') {
+          //           return `
+          //               <div>
+          //                   <div>${row.id}</div>
+          //                   <span class="badge bg-label-primary">FTP</span>                            
+          //               </div>
+          //           `;
+          //       }
+          //       return row.id;
+          //     }
+          // },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },
           { data: 'invoice_no', width: '200px' },
@@ -757,8 +758,8 @@ $(function () {
 
         data: analyzepdfsearch_datas,
         rowId: function (data) {
-            //return 'invoice_' + data.id;
-          return data.source + '_invoice_' + data.id;
+            return 'invoice_' + data.id;
+          //return data.source + '_invoice_' + data.id;//Prem-staging
         },
         scrollCollapse: true,
         scrollX: true,
@@ -887,7 +888,16 @@ $(function () {
               }
 
               if (arr.length === 1) return arr[0];
-              if (arr.length > 1) return arr[0] + " ...";
+              //if (arr.length > 1) return arr[0] + " ...";
+              //d-flex justify-content-between align-items-center
+              if (arr.length > 1) {
+                return `
+                  <div class="">
+                    <span>${arr[0]} ...</span>
+                    <span class="badge bg-label-dark ms-2">${arr.length}</span>
+                  </div>
+                `;
+              }
 
               return '';
             }
@@ -898,11 +908,11 @@ $(function () {
             orderable: false,
             searchable: false,
             render: function (data, type, full, meta) { 
-
+              /*Prem-staging
               const isSftp = full.source === 'sftp';
               const recordId = full.id || '';
               const source = isSftp ? 'sftp' : 'ocr';
-
+              
                 return `<div class="d-inline-block">
                           <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
                             <i class="bx bx-dots-vertical-rounded"></i>
@@ -920,6 +930,33 @@ $(function () {
                                 data-tab_name="${analyzepdfsearch_name}"
                                 data-invoice_no="${full['invoice_no'] || full['declaration_no'] || ''}">
                                 
+                                <span>
+                                  <i class="bx bx-show me-2"></i>Show Data
+                                </span>
+                              </a>
+                            </li>
+
+                          </ul>
+                        </div>`;
+                        */
+                return `<div class="d-inline-block">
+                          <a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
+                            <i class="bx bx-dots-vertical-rounded"></i>
+                          </a>
+                          <ul class="dropdown-menu dropdown-menu-end m-0">
+
+                            <li>
+                              <a href="javascript:;" 
+                                class="dropdown-item btn-show-data" 
+                                id="show-analyzepdf-data"
+                                title="Show Data"
+
+                                data-analyzepdf_id="` + full['id'] + `"
+                                data-tab_name="` + analyzepdfsearch_name + `"
+                                data-invoice_no="` + (full['invoice_no'] || full['declaration_no'] || '') + `"
+
+                                >
+
                                 <span>
                                   <i class="bx bx-show me-2"></i>Show Data
                                 </span>
@@ -1434,16 +1471,16 @@ console.log("selection started");
           const clientName = $(this).val() || '';          
 
           if (clientName) {
-              //loadAnalyzePdfSearchData(clientName);
-            loadAnalyzePdfSearchDataAll(clientName);
+              loadAnalyzePdfSearchData(clientName);
+            //loadAnalyzePdfSearchDataAll(clientName);//Prem-staging
           }
       });
 
       const clientName = $clientSelectSearch.val() || '';
 
       if (clientName) {
-          //loadAnalyzePdfSearchData(clientName);
-        loadAnalyzePdfSearchDataAll(clientName);
+          loadAnalyzePdfSearchData(clientName);
+        //loadAnalyzePdfSearchDataAll(clientName);//Prem-staging
       }
   }
 

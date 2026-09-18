@@ -388,7 +388,7 @@ $(function () {
     const invoiceNo = type === 'declaration' ? item.declaration_no : (type === 'com' ? item.co_invoice_no : item.invoice_no);
     const invoiceDate = item.o_declaration_date || item.o_invoice_date || item.invoice_date || '';
     const commentAction = item.comment_reason ? 'Edit' : 'Add';
-    const commercialData = type === 'sales' ? ' data-cominvoice_id="' + escapeHtml(item.cominvoice_id) + '" data-cominvoice_no="' + escapeHtml(item.cominvoice_no) + '"' : '';
+    const commercialData = type === 'sales' ? ' data-cominvoice_id="' + escapeHtml(item.cominvoice_id) + '" data-cominvoice_no="' + escapeHtml(item.cominvoice_no) + '"' : (type === 'com' ? ' data-group_invoice_id="' + escapeHtml(item.group_lope_no || '') + '"' : '');
     const declarationData = typeof item.declaration_index === 'number' ? ' data-declaration_index="' + item.declaration_index + '"' : '';
     const data = ' data-invoice_name="' + invoiceName + '" data-invoice_id="' + escapeHtml(item.id) + '" data-invoice_no="' + escapeHtml(invoiceNo) + '" data-invoice_date="' + escapeHtml(invoiceDate) + '" data-tab_name="first"' + commercialData + declarationData;
     const commentMode = item.comment_reason ? 'edit' : 'add';    
@@ -418,6 +418,11 @@ $(function () {
           ' data-cargo_type="' + cargoType + '" data-cargo_file_id="' + escapeHtml(item.pdf) + '"><i class="bx bxs-file-pdf text-danger me-2"></i>View Cargo PDF</a></li>';
       }
 
+      if (String(item.group_lope_no || '').includes('***')) {
+        actions += '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice" title="Disregard wrong com. invoice"' + data +
+          ' data-disregard="1" data-disregard_type="ivf"><i class="bx bx-folder-minus me-2"></i>Disregard wrong com. invoice</a></li>';
+      }
+
       actions += item.disregard_invoice
         ? '<li><a href="javascript:;" class="dropdown-item btn-retain-cominvoice" title="Retain com. invoice"' + data + ' data-retain="1"><i class="bx bx-add-to-queue me-2"></i>Retain com. invoice</a></li>'
         : '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice" title="Disregard com. invoice"' + data + ' data-disregard="1"><i class="bx bx-folder-minus me-2"></i>Disregard com. invoice</a></li>';
@@ -427,9 +432,21 @@ $(function () {
         : '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice" title="Disregard lope no."' + data + ' data-disregard="1" data-disregard_type="lopeno"><i class="bx bx-folder-minus me-2"></i>Disregard lope No.</a></li>';
     }
     if (type === 'sales') {
-      if (item.pdf) actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-download-pdf"' + data + ' data-invoice_xml_id="' + escapeHtml(item.pdf) + '"><i class="bx bxs-file-pdf text-danger me-2"></i>View PDF</a></li>';
-      actions += '<li><a href="javascript:;" class="dropdown-item btn-move-declaration-salesinvoice"' + data + '><i class="bx bx-move me-2"></i>Move sales invoice</a></li>';
-      actions += '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice"' + data + ' data-disregard="1"><i class="bx bx-list-minus me-2"></i>Disregard invoice</a></li>';
+      // if (item.pdf) actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-download-pdf"' + data + ' data-invoice_xml_id="' + escapeHtml(item.pdf) + '"><i class="bx bxs-file-pdf text-danger me-2"></i>View PDF</a></li>';
+      // actions += '<li><a href="javascript:;" class="dropdown-item btn-move-declaration-salesinvoice"' + data + '><i class="bx bx-move me-2"></i>Move sales invoice</a></li>';
+      // actions += '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice"' + data + ' data-disregard="1"><i class="bx bx-list-minus me-2"></i>Disregard invoice</a></li>';
+
+      if (item.disregard_invoice) {
+        actions += '<li><a href="javascript:;" class="dropdown-item btn-enable-declaration-invoice" title="Enable invoice"' + data + ' data-enable="1"><i class="bx bx-list-check me-2"></i>Enable invoice</a></li>';
+      } else {
+        actions += '<li><a href="javascript:;" class="dropdown-item btn-move-declaration-salesinvoice" title="Move sales invoice"' + data + '><i class="bx bx-move me-2"></i>Move sales invoice</a></li>';
+        actions += '<li><a href="javascript:;" class="dropdown-item text-danger btn-disregard-declaration-invoice" title="Disregard invoice"' + data + ' data-disregard="1"><i class="bx bx-list-minus me-2"></i>Disregard invoice</a></li>';
+      }
+      if (item.pdf) {
+        const pdfData = data + ' data-invoice_xml_id="' + escapeHtml(item.pdf) + '"';
+        actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-download-pdf" title="View PDF"' + pdfData + '><i class="bx bxs-file-pdf text-danger me-2"></i>View PDF</a></li>';
+        actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-edit" title="Edit"' + pdfData + ' data-credit_note="' + (item.credit_note ? 1 : 0) + '" data-edit_from="' + escapeHtml(item.edit_from || '') + '"><i class="bx bx-edit-alt me-2"></i>Edit</a></li>';
+      }
     }
     return '<div class="d-inline-block declaration-action">' +
       '<button type="button" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" title="Actions"><i class="bx bx-dots-vertical-rounded"></i></button>' +
@@ -460,7 +477,8 @@ $(function () {
       return invoice.is_net_amount_null || invoice.disregard_invoice || (country === 'NO' && invoice.currency !== 'NOK') || (country === 'CH' && invoice.currency !== 'CHF');
     });   
     const rows = invoices.map(invoice => '<tr class="' + (invoice.disregard_invoice ? 'disabled' : '') + '"' + commentTooltip(invoice) + '>' +
-      '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
+      //'<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
+      '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input' + (commercial.category_desc === 'Credit Notes/Missing Ref.' ? ' move-invoice-file' : '') + '" value="' + escapeHtml(invoice.id) + '" data-invoice_no="' + escapeHtml(invoice.invoice_no) + '" data-invoice_date="' + escapeHtml(invoice.o_invoice_date || invoice.invoice_date) + '">') + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_no) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_date || invoice.o_invoice_date) + '</td>' +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.net_amount) + '</td>' +
@@ -470,7 +488,8 @@ $(function () {
       (country === 'CH' ? '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.convert_vat_amount) + '</td>' : '') +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.vat_check_25) + '</td>' +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.currency) + '</td>' +
-      '<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
+      //'<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
+      '<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, credit_note: commercial.id === '-', declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
     const headers = ['__checkbox__', 'Invoices', 'Date', 'Net amount'];
     if (country === 'CH') headers.push('Net amount (CHF)');
     headers.push('Adjustment', 'VAT amount');
@@ -496,21 +515,41 @@ $(function () {
     }).format(netInvoiceSumValue(commercial));
   }
 
+  function isCommercialDisregarded(commercial) {
+    return Boolean(commercial && (commercial.disregard_invoice || commercial.disregard_type === 'lopeno'));
+  }
+
+  function visibleCommercialInvoices(declaration) {
+    const showDisregarded = $('#chk-declaration-filter-show-disregarded-invoices').prop('checked');
+
+    return list(declaration && declaration.co_invoices).filter(commercial => {
+      const disregarded = isCommercialDisregarded(commercial);
+      if (disregarded && !showDisregarded) return false;
+
+      const lope = commercial.lope_no || commercial.group_lope_no;
+      return (lope && lope !== '-') || disregarded;
+    });
+  }
+
   function commercialInvoices(declaration, declarationIndex) {
     if (!declaration) return '';
 
     const isSwiss = declaration.country === 'CH';
-    const commercials = list(declaration.co_invoices).filter(commercial => {
-      const lope = commercial.lope_no || commercial.group_lope_no;
-      //return lope && lope !== '-';
-      return (lope && lope !== '-') || commercial.disregard_invoice || commercial.disregard_type === 'lopeno';
-    });
+    // const commercials = list(declaration.co_invoices).filter(commercial => {
+    //   const lope = commercial.lope_no || commercial.group_lope_no;
+    //   //return lope && lope !== '-';
+    //   return (lope && lope !== '-') || commercial.disregard_invoice || commercial.disregard_type === 'lopeno';
+    // });
+    const commercials = visibleCommercialInvoices(declaration);
     const rows = commercials.map((commercial, index) => {
       const invoiceSum = netInvoiceSum(commercial);    
       const netDifference = Math.abs(window.parseAmountValue(commercial.com_net_amount || commercial.net_amount, commercial.currency) - netInvoiceSumValue(commercial));
       const netAmountWarning = netDifference > 100;
-      const invoiceCount = list(commercial.invoices).length;     
-      return '<tr class="accordion-button collapsed cw-1 js-commercial-row" data-commercial-index="' + index + '"' + commentTooltip(commercial) + '>' +
+      //const invoiceCount = list(commercial.invoices).length;     
+      // const invoiceCount = list(commercial.invoices).filter(invoice => !invoice.disregard_invoice).length;
+      // return '<tr class="accordion-button collapsed cw-1 js-commercial-row" data-commercial-index="' + index + '"' + commentTooltip(commercial) + '>' +
+      const invoiceCount = list(commercial.invoices).filter(invoice => !invoice.disregard_invoice).length;
+      return '<tr class="accordion-button collapsed cw-1 js-commercial-row' + (isCommercialDisregarded(commercial) ? ' disabled' : '') + '" data-commercial-index="' + index + '"' + commentTooltip(commercial) + '>' +
       '<td class="cw-1 declaration-th-w20"></td>' +      
       //'<td class="text-start declaration-th-w150">' + escapeHtml(commercial.lope_no || commercial.group_lope_no) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.disregard_type === 'lopeno' ? commercial.disregarded_no : (commercial.lope_no || commercial.group_lope_no)) + '</td>' +
@@ -640,11 +679,12 @@ console.log(declarationData);
       $button.attr('aria-expanded', 'false').find('i').attr('class', 'bx bx-chevron-right');
     } else {
       row.child(commercialInvoices(row.data(), row.index()), 'p-0 cw-1').show();
-      const commercials = list(row.data().co_invoices).filter(commercial => {
-        const lope = commercial.lope_no || commercial.group_lope_no;
-        //return lope && lope !== '-';
-        return (lope && lope !== '-') || commercial.disregard_invoice || commercial.disregard_type === 'lopeno';
-      });
+      // const commercials = list(row.data().co_invoices).filter(commercial => {
+      //   const lope = commercial.lope_no || commercial.group_lope_no;
+      //   //return lope && lope !== '-';
+      //   return (lope && lope !== '-') || commercial.disregard_invoice || commercial.disregard_type === 'lopeno';
+      // });
+      const commercials = visibleCommercialInvoices(row.data());
       row.child().find('.js-commercial-row').each(function (index) {
         $(this).data('commercial', Object.assign({}, commercials[index], { declaration_index: row.index() }));
       });
@@ -769,6 +809,30 @@ console.log(declarationData);
   });
 
   $('#chk-declaration-filter-show-err-lines, #chk-declaration-filter-show-disregarded-invoices').on('change', function () {
+    const showDisregardedChanged = this.id === 'chk-declaration-filter-show-disregarded-invoices';
+
+    if (showDisregardedChanged) {
+      dt.rows().every(function () {
+        if (!this.child || !this.child.isShown()) return;
+
+        const expandedCommercials = new Set();
+        this.child().find('.js-commercial-row.shown').each(function () {
+          const commercial = $(this).data('commercial');
+          if (commercial) expandedCommercials.add(commercialKey(commercial));
+        });
+
+        const rowElement = this.node();
+        toggleDeclaration(rowElement);
+        toggleDeclaration(rowElement);
+
+        this.child().find('.js-commercial-row').each(function () {
+          const commercial = $(this).data('commercial');
+          if (commercial && expandedCommercials.has(commercialKey(commercial))) $(this).trigger('click');
+        });
+      });
+      return;
+    }
+    
     $table.find('.js-commercial-row.shown').each(function () { $(this).trigger('click').trigger('click'); });
   });
 

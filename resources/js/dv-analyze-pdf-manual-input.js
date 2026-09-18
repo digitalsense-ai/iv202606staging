@@ -91,18 +91,109 @@ $(function () {
     }
   });
   
+  // initSalesInvoiceRepeater();
+
+  // function initSalesInvoiceRepeater() {
+  //   const $repeater = $('.form-salesinvoice-repeater');
+  //   if ($repeater.length && !$repeater.data('repeater-initialized')) {
+  //     $repeater.repeater({
+  //       show: function () { $(this).slideDown(); },
+  //       hide: function (deleteElement) { $(this).slideUp(deleteElement); }
+  //     });
+  //     $repeater.data('repeater-initialized', true);
+  //   }
+  // }
+
   initSalesInvoiceRepeater();
 
   function initSalesInvoiceRepeater() {
     const $repeater = $('.form-salesinvoice-repeater');
-    if ($repeater.length && !$repeater.data('repeater-initialized')) {
+
+    if (!$repeater.length) {
+      return;
+    }
+
+    // Initialize repeater only once
+    if (!$repeater.data('repeater-initialized')) {
+
       $repeater.repeater({
-        show: function () { $(this).slideDown(); },
-        hide: function (deleteElement) { $(this).slideUp(deleteElement); }
+        show: function () {
+          $(this).slideDown();
+        },
+
+        hide: function (deleteElement) {
+          $(this).slideUp(deleteElement);
+        }
       });
+
       $repeater.data('repeater-initialized', true);
     }
+
+    // Watch for items being added/removed
+    const list = $repeater.find('[data-repeater-list="sales-invoice"]')[0];
+
+    if (list && !list._salesInvoiceObserver) {
+
+      const observer = new MutationObserver(function () {
+        updateSalesInvoiceCount();
+      });
+
+      observer.observe(list, {
+        childList: true
+      });
+
+      list._salesInvoiceObserver = observer;
+    }
+
+    updateSalesInvoiceCount();
   }
+
+
+  function updateSalesInvoiceCount() {
+    const $repeater = $('.form-salesinvoice-repeater');
+
+    const count = $repeater.find(
+      '[data-repeater-list="sales-invoice"] > [data-repeater-item]'
+    ).length;
+
+    console.log('Sales invoice count:', count);
+
+    $('.sales-invoice-count')
+      .text(count)
+      .toggle(count > 0);
+  }
+
+
+  function setSalesInvoiceRefs(values) {
+    const $repeater = $('.form-salesinvoice-repeater');
+    const $list = $repeater.find('[data-repeater-list="sales-invoice"]');
+    const $create = $repeater.find('[data-repeater-create]');
+
+    // Remove existing items except first
+    $list.find('[data-repeater-item]').not(':first').remove();
+
+    if (!values || values.length === 0) {
+      $list.find('[data-repeater-item]:first .sales-invoice-ref-no').val('');
+      updateSalesInvoiceCount();
+      return;
+    }
+
+    // First invoice
+    $list.find('[data-repeater-item]:first .sales-invoice-ref-no')
+      .val(values[0]);
+
+    // Remaining invoices
+    values.slice(1).forEach(function (value) {
+      $create.trigger('click');
+
+      $list.find('[data-repeater-item]:last .sales-invoice-ref-no')
+        .val(value);
+    });
+
+    // Observer will update this automatically
+    updateSalesInvoiceCount();
+  }
+
 
   function setBusy(isBusy) {
     if (isBusy) {
@@ -842,16 +933,16 @@ $(function () {
     }
   }
 
-  function setSalesInvoiceRefs(values) {
-    const $list = $('[data-repeater-list="sales-invoice"]');
-    const $create = $('[data-repeater-create]');
-    $list.find('[data-repeater-item]').not(':first').remove();
-    $list.find('[data-repeater-item]:first .sales-invoice-ref-no').val(values[0] || '');
-    values.slice(1).forEach(value => {
-      $create.trigger('click');
-      $list.find('[data-repeater-item]:last .sales-invoice-ref-no').val(value);
-    });
-  }
+  // function setSalesInvoiceRefs(values) {
+  //   const $list = $('[data-repeater-list="sales-invoice"]');
+  //   const $create = $('[data-repeater-create]');
+  //   $list.find('[data-repeater-item]').not(':first').remove();
+  //   $list.find('[data-repeater-item]:first .sales-invoice-ref-no').val(values[0] || '');
+  //   values.slice(1).forEach(value => {
+  //     $create.trigger('click');
+  //     $list.find('[data-repeater-item]:last .sales-invoice-ref-no').val(value);
+  //   });
+  // }
   
   function serializeForm() {
     const data = $form.serializeArray();
@@ -1108,15 +1199,40 @@ $(function () {
             rowData.related_sales_invoices = relatedInvoices;
 
             // Display first invoice + ... if multiple
-            if (relatedInvoices.length === 1) {
-                $(this).text(relatedInvoices[0]);
+            // if (relatedInvoices.length === 1) {
+            //     $(this).text(relatedInvoices[0]);
+            // }
+            // else if (relatedInvoices.length > 1) {
+            //     $(this).text(relatedInvoices[0] + ' ...');
+            // }
+            // else {
+            //     $(this).text('');
+            // }
+
+            if (relatedInvoices.length > 1) {
+
+                $(this).html(`
+                    <div class="">
+                        <span>${relatedInvoices[0]} ...</span>
+                        <span class="badge bg-label-dark ms-2">
+                            ${relatedInvoices.length}
+                        </span>
+                    </div>
+                `);
+
+            } else if (relatedInvoices.length === 1) {
+
+                $(this).html(`
+                    <div class="">
+                        <span>${relatedInvoices[0]}</span>
+                    </div>
+                `);
+
+            } else {
+
+                $(this).html('');
             }
-            else if (relatedInvoices.length > 1) {
-                $(this).text(relatedInvoices[0] + ' ...');
-            }
-            else {
-                $(this).text('');
-            }
+
         }
       }
       else

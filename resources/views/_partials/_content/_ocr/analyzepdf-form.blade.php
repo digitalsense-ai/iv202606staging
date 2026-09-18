@@ -212,7 +212,7 @@
             @endif
 
             <div class="mb-2">
-              <label class="form-label" for="sales_invoice_ref_no">Sales Invoice Ref. No.</label>
+              <label class="form-label" for="sales_invoice_ref_no"><span>Sales Invoice Ref. No.</span><span class="badge bg-label-dark sales-invoice-count ms-2">0</span></label>
               <div class="form-salesinvoice-repeater manual-input-salesinvoice-repeater">
                 <button type="button" class="btn btn-label-warning mb-2 py-0" {{ (($ismanual ?? false) || ($issearch ?? false)) ? '' : 'disabled' }} data-repeater-create>+Add</button>
                 <div data-repeater-list="sales-invoice" class="h-px-180 overflow-scroll-y">

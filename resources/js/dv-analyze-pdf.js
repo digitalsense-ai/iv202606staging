@@ -1475,13 +1475,14 @@ console.log("on change");
     loadItem($(this).data('analyzepdf_id')); 
   });  
 
-  // $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
-  //     const analyzePdfId = $(this).attr('id').replace('invoice_', '');
+  $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
+      const analyzePdfId = $(this).attr('id').replace('invoice_', '');
 
-  //     $("#offcanvasAnalyzePdfData").offcanvas('show');
-  //     loadItem(analyzePdfId);
-  // });
-
+      $("#offcanvasAnalyzePdfData").offcanvas('show');
+      loadItem(analyzePdfId);
+  });
+  /*
+  //Prem-staging
   $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {
 
       const rowId = $(this).attr('id');
@@ -1531,7 +1532,7 @@ console.log("on change");
           loadItem(analyzePdfId);
       }
   });
-
+*/
   
 //   $(document).on('click', '#show-analyzepdf-data', function () {
 //     clearFormItems();

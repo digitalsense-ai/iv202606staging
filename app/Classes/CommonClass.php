@@ -8159,7 +8159,6 @@ class CommonClass
       $ocr_pdf_id = null
   ) {
       try {
-
           /*
            * =========================================================
            * CLEANUP DELETED OCR PDF SYNC RECORDS
@@ -8178,7 +8177,7 @@ class CommonClass
                       ;
               })
               ->delete();
-          
+
           /*
            * =========================================================
            * AUTO REFRESH

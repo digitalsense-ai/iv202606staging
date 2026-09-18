@@ -189,6 +189,7 @@ class RematchOcrComInvoicesChunkJob implements ShouldQueue
             ->where('id', '!=', $invoice->id)
             ->whereNotNull('lope_no')
             ->where('unmatch', 0)
+            ->where('disregard_invoice', 0)
             ->where('vat_reg_id', $invoice->vat_reg_id);
 
         if (

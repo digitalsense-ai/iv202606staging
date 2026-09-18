@@ -763,7 +763,16 @@ $(function () {
               }
 
               if (arr.length === 1) return arr[0];
-              if (arr.length > 1) return arr[0] + " ...";
+              //if (arr.length > 1) return arr[0] + " ...";
+              //d-flex justify-content-between align-items-center
+              if (arr.length > 1) {
+                return `
+                  <div class="">
+                    <span>${arr[0]} ...</span>
+                    <span class="badge bg-label-dark ms-2">${arr.length}</span>
+                  </div>
+                `;
+              }
 
               return '';
             }
