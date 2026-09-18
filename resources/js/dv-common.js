@@ -5578,7 +5578,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   }
                 } //completed
                 else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
-                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error'))
+                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error' || analyzepdf.status === 'timeout'))
                 {  
                   console.log("SALES - processing");
                   console.log(analyzepdf);
@@ -6057,7 +6057,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   }
                 } //completed
                 else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
-                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error'))
+                  || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error' || analyzepdf.status === 'timeout'))
                 {  
                   console.log("COM - processing");
                   console.log(analyzepdf);
@@ -6207,7 +6207,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
           {
             if(type == 'analyzepdf')
             {
-              if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued'))
+              if(!analyzepdf.is_deleted && (analyzepdf.status === 'processing' || analyzepdf.status === 'queued' || analyzepdf.status === 'timeout'))
               {  
                 //console.log("COM - processing");
                 //console.log(analyzepdf);

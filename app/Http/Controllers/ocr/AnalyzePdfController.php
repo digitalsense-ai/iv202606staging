@@ -561,7 +561,8 @@ class AnalyzePdfController extends Controller
                             $q->whereIn('status', [
                                 'processing',
                                 'queued',
-                                'queued error'
+                                'queued error',
+                                'timeout'
                             ])
                             ->where('is_deleted', 0)
                             // ->whereRaw("

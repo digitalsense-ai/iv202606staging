@@ -8081,7 +8081,9 @@ class CommonClass
          
           $insert_invoices = 0;
           if($result)  
-            $insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
+          {
+            //$insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
+          }
           
           if($full_refresh && $from == 'global-search-refresh')
             return [
@@ -8178,16 +8180,17 @@ class CommonClass
           //     })
           //     ->delete();
 
-          // MySQL rejects deleting from a table while the same table is read
-          // by a nested IN subquery (error 1093). A multi-table DELETE joins
-          // the source PDF directly and performs the cleanup atomically.
-          (new OcrPdfSyncDb())->getConnection()->delete(<<<SQL
-              DELETE sync_record
-              FROM dv_ocr_pdf_sync_db AS sync_record
-              INNER JOIN dv_ocr_pdfs AS pdf
-                  ON pdf.id = sync_record.ocr_pdf_id
-              WHERE pdf.is_deleted = 1
-          SQL);
+          // Keep the source lookup and target delete as separate statements.
+          // This cannot be rewritten into MySQL's prohibited
+          // DELETE ... WHERE id IN (SELECT id FROM the_same_table) form.
+          OcrPdf::query()
+              ->select('id')
+              ->where('is_deleted', 1)
+              ->chunkById(1000, function ($deletedPdfs) {
+                  OcrPdfSyncDb::query()
+                      ->whereIn('ocr_pdf_id', $deletedPdfs->pluck('id'))
+                      ->delete();
+              });
 
           /*
            * =========================================================
