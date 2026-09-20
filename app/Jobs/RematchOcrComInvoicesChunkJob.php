@@ -185,6 +185,7 @@ class RematchOcrComInvoicesChunkJob implements ShouldQueue
          * for your data relationship.
          */
         $query = ImportReconciliationComInvoices::query()
+            ->where('data_from', 'ivf')
             ->whereNull('rematch_ocr_com_invoice_id')
             ->where('id', '!=', $invoice->id)
             ->whereNotNull('lope_no')

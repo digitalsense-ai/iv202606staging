@@ -54,6 +54,16 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
         $salesCount = 0;
         DB::transaction(function () use ($environment, $allowedFtpClients, &$salesCount) {
             
+            // Lock one row that always exists before looking for reconciliation
+            // invoices. A SELECT ... FOR UPDATE on an empty invoice result does
+            // not reliably prevent two workers from inserting the same invoice.
+            // Serializing OCR writes per VAT registration closes that race when
+            // several users trigger Synced DB at the same time.
+            DB::table('dv_vat_registration')
+                ->where('id', $this->vatreg->id)
+                ->lockForUpdate()
+                ->first();
+
             $comInvoice = OcrPdfSyncDb::where('id', $this->comInvoiceId)->first();
 
             $salesInvoices = OcrPdfSyncDb::query()
@@ -64,6 +74,20 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                 return;
             }
             
+            // A reconciliation COM row is an OCR row only when it has a source
+            // OCR PDF. Records without this value belong to the Azure/GS flow
+            // and must not be inserted with data_from = "ocr". Their matching
+            // is represented on the IVF row through rematch_com_invoice_id.
+            if (!$comInvoice->ocr_pdf_id) {
+                Log::warning('Skipping OCR reconciliation row without OCR PDF id', [
+                    'ocr_sync_db_id' => $comInvoice->id,
+                    'invoice_no' => $comInvoice->invoice_no,
+                    'vat_reg_id' => $this->vatreg->id,
+                ]);
+
+                return;
+            }
+
             $salesCount = count($this->salesInvoiceIds);
 
             if ($salesCount === 0) {
@@ -107,41 +131,79 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
             $saved_at = now();
             $last_modified_at = now();            
 
-            /*
-             * ---------------------------------------------------------
-             * Remove existing COM invoice with same VAT Reg + Invoice No
-             * when it belongs to another OCR PDF.
-             * ---------------------------------------------------------
-             */
-            ImportReconciliationComInvoices::where(
-                    'vat_reg_id',
-                    $matched_vatregid
-                )
-                ->where(
-                    'invoice_no',
-                    $commercial_invoice_no
-                )
+            // /*
+            //  * ---------------------------------------------------------
+            //  * Remove existing COM invoice with same VAT Reg + Invoice No
+            //  * when it belongs to another OCR PDF.
+            //  * ---------------------------------------------------------
+            //  */
+            // ImportReconciliationComInvoices::where(
+            //         'vat_reg_id',
+            //         $matched_vatregid
+            //     )
+            //     ->where(
+            //         'invoice_no',
+            //         $commercial_invoice_no
+            //     )
+            // The OCR PDF id can change when a document is reprocessed.  The
+            // invoice number is therefore the stable identity used on refresh.
+            // Consolidate any OCR rows left by the old OCR-id based
+            // implementation and move their sales invoices before removing
+            // them. Rows without an OCR PDF id belong to the Azure import and
+            // must remain independent, even when the invoice number matches.
+            $commercialRows = ImportReconciliationComInvoices::query()
+                ->where('vat_reg_id', $matched_vatregid)
+                ->where('invoice_no', $commercial_invoice_no)
+                ->where('data_from', 'ocr')
                 ->whereNotNull('ocr_pdf_id')
-                ->where(
-                    'ocr_pdf_id',
-                    '!=',
-                    $comInvoice->ocr_pdf_id
-                )
-                ->delete();
+                // ->where(
+                //     'ocr_pdf_id',
+                //     '!=',
+                //     $comInvoice->ocr_pdf_id
+                // )
+                // ->delete();
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
             /*
              * ---------------------------------------------------------
              * Insert / update COM invoice
              * ---------------------------------------------------------
              */
+            // Keep the OCR row already referenced by an IVF row. This preserves
+            // rematches when duplicate OCR rows from an earlier race are
+            // consolidated. Otherwise prefer the populated row, then the oldest.
+            $referencedCommercialIds = ImportReconciliationComInvoices::query()
+                ->where('data_from', 'ivf')
+                ->whereIn('rematch_ocr_com_invoice_id', $commercialRows->pluck('id'))
+                ->pluck('rematch_ocr_com_invoice_id');
 
-            $insert_cominvoice = ImportReconciliationComInvoices::updateOrCreate(
+            $insert_cominvoice = $commercialRows->first(
+                fn ($row) => $referencedCommercialIds->contains($row->id)
+            ) ?? $commercialRows->first(
+                fn ($row) => $row->net_amount !== null
+            ) ?? new ImportReconciliationComInvoices();
+
+            $populatedCommercialInvoice = $commercialRows->first(
+                fn ($row) => $row->net_amount !== null
+            );
+            $existingCommercialNetAmount = $populatedCommercialInvoice
+                ? $populatedCommercialInvoice->net_amount
+                : null;
+
+            //$insert_cominvoice = ImportReconciliationComInvoices::updateOrCreate(
+            if (!$insert_cominvoice->exists) {
+                $insert_cominvoice->created_by = $this->authUser->id;
+            }
+
+            $insert_cominvoice->fill(
                 [
                     'vat_reg_id' => $matched_vatregid,
                     'ocr_pdf_id' => $comInvoice->ocr_pdf_id,
-                ],
-                [
-                    'vat_reg_id' => $matched_vatregid,
+                // ],
+                // [
+                //     'vat_reg_id' => $matched_vatregid,
                     'data_from' => 'ocr',
                     'month_year' => Carbon::parse($commercial_invoice_date)->format('m-Y'),
                     'invoice_no' => $commercial_invoice_no,
@@ -150,13 +212,46 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                     'doc_status' => $document_status,
                     'country' => $matched_country,
                     'currency_code' => $commercial_currency,
-                    'net_amount' => $commercial_net_amount,
-                    'created_by' => $this->authUser->id,
+                    //'net_amount' => $commercial_net_amount,
+                    //'created_by' => $this->authUser->id,
+                    // A partially synchronized OCR record must not erase a
+                    // populated amount written on any duplicate row by another
+                    // synchronization.
+                    'net_amount' => $commercial_net_amount
+                        ?? $existingCommercialNetAmount,
                     'updated_by' => $this->authUser->id,
                     'saved_at' => $saved_at,
                     'last_modified_at' => $last_modified_at,
                 ]
             );
+
+            $insert_cominvoice->save();
+
+            $duplicateCommercialIds = $commercialRows
+                ->where('id', '!=', $insert_cominvoice->id)
+                ->pluck('id');
+
+            if ($duplicateCommercialIds->isNotEmpty()) {
+                // Repair IVF rematches before deleting duplicate OCR rows. This
+                // also fixes references orphaned by the previous implementation.
+                ImportReconciliationComInvoices::query()
+                    ->where('data_from', 'ivf')
+                    ->whereIn(
+                        'rematch_ocr_com_invoice_id',
+                        $duplicateCommercialIds
+                    )
+                    ->update([
+                        'rematch_ocr_com_invoice_id' => $insert_cominvoice->id,
+                    ]);
+
+                ImportReconciliationSalesInvoices::query()
+                    ->whereIn('com_invoice_id', $duplicateCommercialIds)
+                    ->update(['com_invoice_id' => $insert_cominvoice->id]);
+
+                ImportReconciliationComInvoices::query()
+                    ->whereIn('id', $duplicateCommercialIds)
+                    ->delete();
+            }
 
             /*
              * ---------------------------------------------------------
@@ -250,13 +345,18 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                         /*
                          * Insert / update Sales Invoice
                          */
-                        ImportReconciliationSalesInvoices::updateOrCreate(
-                            [
-                                'vat_reg_id' => $matched_vatregid,
-                                //'ocr_pdf_id' => $sales_invoice->ocr_pdf_id,
-                                'invoice_no' => $sales_invoice->invoice_no,
-                                'com_invoice_id' => $insert_cominvoice->id,
-                            ],
+                        // ImportReconciliationSalesInvoices::updateOrCreate(
+                        //     [
+                        //         'vat_reg_id' => $matched_vatregid,
+                        //         //'ocr_pdf_id' => $sales_invoice->ocr_pdf_id,
+                        //         'invoice_no' => $sales_invoice->invoice_no,
+                        //         'com_invoice_id' => $insert_cominvoice->id,
+                        //     ],
+                        $this->saveSalesInvoice(
+                            $matched_vatregid,
+                            $insert_cominvoice->id,
+                            $sales_invoice->invoice_no,
+                            null,
                             [
                                 'com_invoice_id' => $insert_cominvoice->id,
                                 'vat_reg_id' => $matched_vatregid,
@@ -277,7 +377,7 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                                 'convert_vat_amount' => $sales_invoice->exchange_vat_amount,
                                 'convert_total_amount' => $sales_invoice->exchange_total_amount,
                                 'credit_note' => $sales_invoice->credit_note ?? false,
-                                'created_by' => $this->authUser->id,
+                                //'created_by' => $this->authUser->id,
                                 'updated_by' => $this->authUser->id,
                                 'saved_at' => $saved_at,
                             ]
@@ -332,38 +432,43 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                     $sales_invoice_credit_note =
                         $sales_invoice->credit_note ?? false;
 
-                    /*
-                      * ---------------------------------------------------------
-                      * Remove existing Sales Invoice with same VAT Reg + Invoice No
-                      * when it belongs to another OCR PDF.
-                      * ---------------------------------------------------------
-                      */
-                    ImportReconciliationSalesInvoices::where(
-                            'vat_reg_id',
-                            $matched_vatregid
-                        )
-                        ->where(
-                            'invoice_no',
-                            $sales_invoice_no
-                        )
-                        ->where(
-                            'com_invoice_id',
-                            $insert_cominvoice->id
-                        )
-                        ->whereNotNull('ocr_pdf_id')
-                        ->where(
-                            'ocr_pdf_id',
-                            '!=',
-                            $sales_invoice->ocr_pdf_id
-                        )
-                        ->delete();
+                    // /*
+                    //   * ---------------------------------------------------------
+                    //   * Remove existing Sales Invoice with same VAT Reg + Invoice No
+                    //   * when it belongs to another OCR PDF.
+                    //   * ---------------------------------------------------------
+                    //   */
+                    // ImportReconciliationSalesInvoices::where(
+                    //         'vat_reg_id',
+                    //         $matched_vatregid
+                    //     )
+                    //     ->where(
+                    //         'invoice_no',
+                    //         $sales_invoice_no
+                    //     )
+                    //     ->where(
+                    //         'com_invoice_id',
+                    //         $insert_cominvoice->id
+                    //     )
+                    //     ->whereNotNull('ocr_pdf_id')
+                    //     ->where(
+                    //         'ocr_pdf_id',
+                    //         '!=',
+                    //         $sales_invoice->ocr_pdf_id
+                    //     )
+                    //     ->delete();
 
-                    ImportReconciliationSalesInvoices::updateOrCreate(
-                        [
-                            'vat_reg_id' => $matched_vatregid,
-                            'ocr_pdf_id' => $sales_invoice->ocr_pdf_id,
-                            'com_invoice_id' => $insert_cominvoice->id,
-                        ],
+                    // ImportReconciliationSalesInvoices::updateOrCreate(
+                    //     [
+                    //         'vat_reg_id' => $matched_vatregid,
+                    //         'ocr_pdf_id' => $sales_invoice->ocr_pdf_id,
+                    //         'com_invoice_id' => $insert_cominvoice->id,
+                    //     ],
+                    $this->saveSalesInvoice(
+                        $matched_vatregid,
+                        $insert_cominvoice->id,
+                        $sales_invoice_no,
+                        $sales_invoice->ocr_pdf_id,  
                         [
                             'com_invoice_id' => $insert_cominvoice->id,
                             'vat_reg_id' => $matched_vatregid,
@@ -385,7 +490,7 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                             'convert_vat_amount' => $sales_invoice_exchange_vat_amount,
                             'convert_total_amount' => $sales_invoice_exchange_total_amount,
                             'credit_note' => $sales_invoice_credit_note,
-                            'created_by' => $this->authUser->id,
+                            //'created_by' => $this->authUser->id,
                             'updated_by' => $this->authUser->id,
                             'saved_at' => $saved_at,
                         ]
@@ -421,8 +526,10 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                  * OCR sales invoice list.
                  * ---------------------------------------------------------
                  */
-                $currentSalesOcrPdfIds = $salesInvoices
-                    ->pluck('ocr_pdf_id')
+                // $currentSalesOcrPdfIds = $salesInvoices
+                //     ->pluck('ocr_pdf_id')
+                $currentSalesInvoiceNumbers = $salesInvoices
+                    ->pluck('invoice_no')
                     ->filter()
                     ->unique()
                     ->values()
@@ -436,8 +543,17 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                     'com_invoice_id',
                     $insert_cominvoice->id
                 )
+                // This job must never prune Azure-imported rows, which use a
+                // null OCR PDF id in the shared reconciliation table.
                 ->whereNotNull('ocr_pdf_id')
-                ->whereNotIn('ocr_pdf_id', $currentSalesOcrPdfIds)
+                //->whereNotIn('ocr_pdf_id', $currentSalesOcrPdfIds)
+                ->when(
+                    count($currentSalesInvoiceNumbers) > 0,
+                    fn ($query) => $query->whereNotIn(
+                        'invoice_no',
+                        $currentSalesInvoiceNumbers
+                    )
+                )
                 ->delete();
             }
 
@@ -460,7 +576,8 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                     'updated_at' => now(),
                 ]
             );
-        });
+        //});
+        }, 5);
 
         Log::info('OCR invoice job completed', [
             'com_invoice_id' => $this->comInvoiceId,
@@ -472,6 +589,58 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
         ]);
     }
 
+     /**
+     * Reuse the stable VAT-registration/invoice-number row within the same
+     * import source and remove older duplicates. A null OCR PDF id identifies
+     * an Azure row; a non-null id identifies an OCR row. These two data sets
+     * share a table but must never overwrite or deduplicate each other.
+     */
+    private function saveSalesInvoice(
+        int $vatRegId,
+        int $commercialInvoiceId,
+        string $invoiceNumber,
+        ?int $ocrPdfId,
+        array $values
+    ): ImportReconciliationSalesInvoices {
+        $rows = ImportReconciliationSalesInvoices::query()
+            ->where('vat_reg_id', $vatRegId)
+            ->where('invoice_no', $invoiceNumber)
+            ->when(
+                $ocrPdfId === null,
+                fn ($query) => $query->whereNull('ocr_pdf_id'),
+                fn ($query) => $query->whereNotNull('ocr_pdf_id')
+            )
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        $invoice = $rows->first() ?? new ImportReconciliationSalesInvoices();
+
+        if (!$invoice->exists) {
+            $invoice->created_by = $this->authUser->id;
+        }
+
+        $invoice->fill(array_merge($values, [
+            'vat_reg_id' => $vatRegId,
+            'com_invoice_id' => $commercialInvoiceId,
+            'ocr_pdf_id' => $ocrPdfId,
+            'invoice_no' => $invoiceNumber,
+        ]));
+        $invoice->save();
+
+        $duplicateIds = $rows
+            ->where('id', '!=', $invoice->id)
+            ->pluck('id');
+
+        if ($duplicateIds->isNotEmpty()) {
+            ImportReconciliationSalesInvoices::query()
+                ->whereIn('id', $duplicateIds)
+                ->delete();
+        }
+
+        return $invoice;
+    }
+    
     public function failed(Throwable $exception): void
     {
         // Optional: update OcrSyncStatus here as failed

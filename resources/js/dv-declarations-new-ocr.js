@@ -554,7 +554,7 @@ $(function () {
       //'<td class="text-start declaration-th-w150">' + escapeHtml(commercial.lope_no || commercial.group_lope_no) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.disregard_type === 'lopeno' ? commercial.disregarded_no : (commercial.lope_no || commercial.group_lope_no)) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.category_desc) + '</td>' +
-      '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.o_invoice_date || commercial.invoice_date) + '</td>' +
+      '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.expo_date || commercial.o_invoice_date || commercial.invoice_date) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(commercial.co_invoice_no) + ' <span class="' + (invoiceCount === 0 ? 'alert-danger' : 'alert-primary') + ' fs-tiny p-1 ms-1">' + invoiceCount + '</span>' +
         (commercial.orginal_co_invoice_no && commercial.co_invoice_no !== commercial.orginal_co_invoice_no ? '<br><span class="alert-warning text-end fs-tiny p-1">' + escapeHtml(commercial.orginal_co_invoice_no) + '</span>' : '') + '</td>' +    
       '<td class="text-end declaration-th-w150">' + escapeHtml(commercial.statistical_value) + '</td>' +

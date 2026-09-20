@@ -7,6 +7,8 @@ use App\Models\Client;
 use App\Models\OcrPdf;
 use App\Models\OcrSyncStatus;
 use App\Models\OcrPdfSyncDb;
+use App\Models\ImportReconciliationFiles;
+use App\Models\ImportReconciliationSalesInvoicesData;
 use App\Models\VATRegistrationMain;
 use App\Services\OcrAnalyzeService;
 use App\Services\OcrInvoiceNumberService;
@@ -124,11 +126,14 @@ class ManualInputController extends Controller
    
     public function save(Request $request, int $id): JsonResponse
     {
-        if ($request->source) {
-            return response()->json([
-                'success' => true,
-                'message' => 'FTP data does not require saving.'
-            ]);
+        // if ($request->source) {
+        //     return response()->json([
+        //         'success' => true,
+        //         'message' => 'FTP data does not require saving.'
+        //     ]);
+        // }
+        if ($request->input('source') === 'sftp') {
+            return $this->saveSftpInvoice($request, $id);
         }
 
         $invoice = OcrPdf::query()->findOrFail($id);
@@ -215,6 +220,71 @@ class ManualInputController extends Controller
         
     }
    
+    /**
+     * Persist the fields exposed by the OCR offcanvas for an SFTP/OIO invoice.
+     */
+    private function saveSftpInvoice(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'invoice_type' => ['required', 'in:sales'],
+            'invoice_no' => ['required', 'string', 'max:255'],
+            'invoice_date' => ['required', 'date_format:Y-m-d'],
+            'currency' => ['required', 'string', 'size:3'],
+            'credit_note' => ['nullable', 'boolean'],
+            'net_amount' => ['nullable', 'string', 'max:255'],
+            'vat_amount' => ['nullable', 'string', 'max:255'],
+            'vat_rate' => ['nullable', 'string', 'max:255'],
+            'total_amount' => ['nullable', 'string', 'max:255'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $file = DB::transaction(function () use ($data, $id) {
+            $file = ImportReconciliationFiles::query()
+                ->lockForUpdate()
+                ->findOrFail($id);
+            $currency = strtoupper($data['currency']);
+
+            $file->update([
+                'invoice_no' => $data['invoice_no'],
+                'updated_by' => auth()->id(),
+            ]);
+
+            $invoice = ImportReconciliationSalesInvoicesData::query()
+                ->where('ir_file_id', $file->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $invoice->update([
+                'invoice_no' => $data['invoice_no'],
+                'invoice_date' => $data['invoice_date'],
+                'currency_code' => $currency,
+                'credit_note' => (bool) ($data['credit_note'] ?? false),
+                'note' => $data['note'] ?? null,
+                'tax_total_net_amount' => $data['net_amount'] ?? null,
+                'tax_total_net_amount_currency_code' => $currency,
+                'tax_total_amount' => $data['vat_amount'] ?? null,
+                'tax_total_amount_currency_code' => $currency,
+                'tax_total_percent' => isset($data['vat_rate'])
+                    ? str_replace(',', '.', $data['vat_rate'])
+                    : null,
+                'total_tax_incl_amount' => $data['total_amount'] ?? null,
+                'total_tax_incl_currency_code' => $currency,
+                'total_payable_amount' => $data['total_amount'] ?? null,
+                'total_payable_currency_code' => $currency,
+                'updated_by' => auth()->id(),
+            ]);
+
+            return $file;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'SFTP/OIO invoice data saved successfully.',
+            'invoice_id' => $file->id,
+            'invoice_type' => 'sales',
+        ]);
+    }
+    
     public function forceSubmit(Request $request, int $id): JsonResponse
     {
         $invoice = OcrPdf::query()->findOrFail($id);

@@ -1157,6 +1157,40 @@ class AnalyzePdfController extends Controller
         return response()->json($response);
     }
 
+    // private function ocrClients()
+    // {
+    //     $nameResolver = app(OcrClientNameResolver::class);
+
+    //     return OcrPdf::query()
+    //         ->selectRaw("
+    //             COALESCE(
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.org_number')),
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.cvr_number')),
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.org_number'))
+    //             ) AS client_no,
+    //             COALESCE(
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.supplier.name')),
+    //                 JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.recipient.name'))
+    //             ) AS client_name
+    //         ")
+    //         ->where('status', 'completed')
+    //         ->where('is_deleted', 0)
+    //         ->distinct()
+    //         ->get()
+    //         ->map(function (OcrPdf $invoice) use ($nameResolver) {
+    //             $clientNo = $nameResolver->normalizeClientNumber($invoice->client_no);
+
+    //             return $clientNo === null ? null : [
+    //                 'client_no' => $clientNo,
+    //                 'client_name' => $nameResolver->resolve($clientNo, $invoice->client_name),
+    //             ];
+    //         })
+    //         ->filter(fn ($client) => $client !== null && !empty($client['client_name']))
+    //         ->unique('client_no')
+    //         ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
+    //         ->values();
+    // }
+
     private function ocrClients()
     {
         $nameResolver = app(OcrClientNameResolver::class);
@@ -1180,14 +1214,13 @@ class AnalyzePdfController extends Controller
             ->map(function (OcrPdf $invoice) use ($nameResolver) {
                 $clientNo = $nameResolver->normalizeClientNumber($invoice->client_no);
 
-                return $clientNo === null ? null : [
-                    'client_no' => $clientNo,
-                    'client_name' => $nameResolver->resolve($clientNo, $invoice->client_name),
-                ];
+                return $clientNo === null
+                    ? null
+                    : $nameResolver->resolveIdentity($clientNo, $invoice->client_name);
             })
             ->filter(fn ($client) => $client !== null && !empty($client['client_name']))
             ->unique('client_no')
-            ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->sortBy('client_label', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }
 

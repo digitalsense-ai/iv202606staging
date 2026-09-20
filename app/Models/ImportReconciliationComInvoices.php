@@ -33,6 +33,18 @@ class ImportReconciliationComInvoices extends Model
         'convert_total_amount' => 'encrypted'     
     ];   
    
+    protected static function booted(): void
+    {
+        static::saving(function (ImportReconciliationComInvoices $invoice) {
+            // Rematch columns belong exclusively to the declaration/IVF row.
+            // OCR and Azure rows are targets of these references, never owners.
+            if ($invoice->data_from !== 'ivf') {
+                $invoice->rematch_com_invoice_id = null;
+                $invoice->rematch_ocr_com_invoice_id = null;
+            }
+        });
+    }
+    
     /**
      * Get the vat reg. for the importreconciliationcominvoices
      */

@@ -8,6 +8,75 @@
 // import Echo from 'laravel-echo';
 // import Pusher from 'pusher-js';
 
+window.addOcrFromDateFilter = function addOcrFromDateFilter(api, name) {
+  const $filter = $(api.table().container()).find('.dataTables_filter');
+  const fromInputId = 'ocr-from-date-' + name;
+  const toInputId = 'ocr-to-date-' + name;
+
+  if (!$filter.length || $('#' + fromInputId).length || $('#' + toInputId).length) return;
+
+  const $fromInput = $('<input>', {
+    type: 'date',
+    id: fromInputId,
+    class: 'form-control ms-2',
+    'aria-label': 'From Date'
+  });
+  const $toInput = $('<input>', {
+    type: 'date',
+    id: toInputId,
+    class: 'form-control ms-2',
+    'aria-label': 'To Date'
+  });
+  const $fromControl = $('<label>', {
+    class: 'd-inline-flex align-items-center mb-0 me-2 text-nowrap',
+    for: fromInputId,
+    text: 'From Date'
+  }).append($fromInput);
+  const $toControl = $('<label>', {
+    class: 'd-inline-flex align-items-center mb-0 me-2 text-nowrap',
+    for: toInputId,
+    text: 'To Date'
+  }).append($toInput);
+  const $dateControls = $('<span>', {
+    class: 'd-inline-flex align-items-center'
+  }).append($fromControl, $toControl);
+
+  $filter.prepend($dateControls);
+  $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+    if (settings.nTable !== api.table().node()) return true;
+
+    const fromDate = $fromInput.val();
+    const toDate = $toInput.val();
+    if (!fromDate && !toDate) return true;
+
+    const row = api.row(dataIndex).data();
+    // const createdAt = row && row.created_at ? String(row.created_at) : '';
+    // const parsedDate = moment(createdAt, [
+    //   moment.ISO_8601, 'YYYY-MM-DD HH:mm:ss', 'DD-MM-YYYY hh:mm A', 'DD-MM-YYYY'
+    const invoiceDate = row && row.invoice_date ? String(row.invoice_date) : '';
+    const parsedDate = moment(invoiceDate, [
+      moment.ISO_8601,
+      'YYYY-MM-DD HH:mm:ss',
+      'DD-MM-YYYY hh:mm A',
+      'DD-MM-YYYY',
+      'DD/MM/YYYY'
+    ], true);
+
+    if (!parsedDate.isValid()) return false;
+
+    const rowDate = parsedDate.format('YYYY-MM-DD');
+    return (!fromDate || rowDate >= fromDate) && (!toDate || rowDate <= toDate);
+  });
+  $fromInput.on('change', function () {
+    $toInput.attr('min', $fromInput.val() || null);
+    api.draw();
+  });
+  $toInput.on('change', function () {
+    $fromInput.attr('max', $toInput.val() || null);
+    api.draw();
+  });
+};
+
 // Datatable (jquery)
 $(function () {
   // window.Pusher = Pusher;
@@ -79,6 +148,7 @@ $(function () {
   let queue = [];
   let filteredQueue = [];
   let current = null;
+  let currentSource = 'ocr';
   const $queue = $('#manualInputQueue');
   const $counter = $('#manualInputCounter');
   const $empty = $('#manualInputEmpty');
@@ -269,7 +339,9 @@ $(function () {
     $('#btnPreviousItem').prop('disabled', !current || idx <= 0);
     //$('#btnNextItem').prop('disabled', !current || idx < 0 || idx >= queue.length - 1);
     $('#btnNextItem').prop('disabled', !current || idx < 0 || idx >= items.length - 1);
-    $('#btnDeleteItem, #btnSaveManualInput, #btnSearchSave, #btnForceSubmit').prop('disabled', !current);
+    //$('#btnDeleteItem, #btnSaveManualInput, #btnSearchSave, #btnForceSubmit').prop('disabled', !current);
+    $('#btnSaveManualInput, #btnSearchSave, #btnForceSubmit').prop('disabled', !current);
+    $('#btnDeleteItem').prop('disabled', !current || currentSource === 'sftp');
   }
 
   function renderQueue() {
@@ -344,7 +416,9 @@ $(function () {
   }
 
   //function loadItem(id) {
-  window.loadItem = function loadItem(id) { 
+  //window.loadItem = function loadItem(id) { 
+  window.loadItem = function loadItem(id) {
+    currentSource = 'ocr';
     setBusy(true);
 
     var syncedPage = ($('#syncedPage').length > 0) ? true :  false;
@@ -366,6 +440,7 @@ $(function () {
   }
 
   window.loadSFtpOioItem = function loadSFtpOioItem(id) { 
+    currentSource = 'sftp';
     setBusy(true);
 
     $empty.removeClass('d-none');
@@ -374,7 +449,7 @@ $(function () {
 
     return $.getJSON(endpoints.sftpoioShow + '/' + id + '/show')
       .then(response => { //console.log(response);
-        //current = response.item;
+        current = response.item;
         fillForm(response.item, 'sftp');
         //renderQueue();
         //updateCounter(response.position, response.total);
@@ -382,6 +457,7 @@ $(function () {
 
         $empty.addClass('d-none');
         $detail.removeClass('d-none');
+        updateNav();
 
         $('#manualInputForm').scrollTop(0);
       })
@@ -1058,7 +1134,8 @@ $(function () {
               if(invoice_type == 'com')
                 table_invoice_type = 'commercial';
 
-              loadSearchSave(table_invoice_type, id, source);
+              //loadSearchSave(table_invoice_type, id, source);
+              loadSearchSave(table_invoice_type, id, '', source);
             }
           });
         }
@@ -1497,7 +1574,8 @@ console.log("index777 col8 == " + col8);
 
   $form.on('submit', function (event) {
     event.preventDefault();
-    saveItem(false);
+    //saveItem(false);
+    saveItem(false, currentSource);
   });
   
   // cancel button

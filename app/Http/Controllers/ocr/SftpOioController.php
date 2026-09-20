@@ -190,7 +190,8 @@ class SftpOioController extends Controller
             'vatreg:id,client_id,vat_reg_main_id',
             'vatreg.vatregmain:id,org_no,vat_no,country',
             'vatreg.client:id,client_name',
-            'salesinvoicesdata:id,ir_file_id,invoice_no,invoice_date,currency_code,credit_note,tax_total_amount,tax_total_amount_currency_code,tax_total_net_amount,tax_total_percent',
+            //'salesinvoicesdata:id,ir_file_id,invoice_no,invoice_date,currency_code,credit_note,tax_total_amount,tax_total_amount_currency_code,tax_total_net_amount,tax_total_percent',
+            'salesinvoicesdata:id,ir_file_id,invoice_no,invoice_date,currency_code,credit_note,note,tax_total_amount,tax_total_amount_currency_code,tax_total_net_amount,tax_total_percent,total_tax_incl_amount,total_payable_amount',
         ]);
        
         $sftpdata = $query
@@ -227,6 +228,8 @@ class SftpOioController extends Controller
         $sftpdata->calc_net_amount = $invoice?->tax_total_net_amount;            
         $sftpdata->vat_amount = $invoice?->tax_total_amount;
         $sftpdata->vat_rate = $invoice?->tax_total_percent;
+        $sftpdata->total_amount = $invoice?->total_tax_incl_amount ?? $invoice?->total_payable_amount;
+        $sftpdata->note = $invoice?->note;
 
         $sftpdata->exchange_currency = null;
         

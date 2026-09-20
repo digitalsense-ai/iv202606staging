@@ -5,18 +5,18 @@
 'use strict';
 Dropzone.autoDiscover = false;
 
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
+// import Echo from 'laravel-echo';
+// import Pusher from 'pusher-js';
 
 // Datatable (jquery)
 $(function () {
-  window.Pusher = Pusher;
-  window.Echo = new Echo({
-      broadcaster: 'pusher',      
-      key: window.EchoConfig.pusherKey,
-      cluster: window.EchoConfig.pusherCluster,      
-      forceTLS: true
-  });
+  // window.Pusher = Pusher;
+  // window.Echo = new Echo({
+  //     broadcaster: 'pusher',      
+  //     key: window.EchoConfig.pusherKey,
+  //     cluster: window.EchoConfig.pusherCluster,      
+  //     forceTLS: true
+  // });
 
   let borderColor, bodyBg, headingColor;
 
@@ -47,29 +47,29 @@ $(function () {
     }
   });  
   
-  window.Echo.channel('ocr-sync-invoices-channel').listen('.OcrInvoicesSyncEvent', (event) => {
-    //console.log(event);
-    console.log('OCR Sync Invoices Event:', event);
-     // console.log(event.message);
-     // console.log(event.client_id);
-    // Handle the event
-    var client_id = event.client_id;
-    //console.log(client_id);
+  // window.Echo.channel('ocr-sync-invoices-channel').listen('.OcrInvoicesSyncEvent', (event) => {
+  //   //console.log(event);
+  //   console.log('OCR Sync Invoices Event:', event);
+  //    // console.log(event.message);
+  //    // console.log(event.client_id);
+  //   // Handle the event
+  //   var client_id = event.client_id;
+  //   //console.log(client_id);
     
-    $.ajax({              
-      url: `${analyzePdfUrl}progress`,     
-      type: 'GET',
-      success: function (result) {   console.log(result);
-        //const progressData = result.json();
+  //   $.ajax({              
+  //     url: `${analyzePdfUrl}progress`,     
+  //     type: 'GET',
+  //     success: function (result) {   console.log(result);
+  //       //const progressData = result.json();
 
-        var analyzepdf_datas = drawDtTable(result, 'analyzepdf');            
-        reloadAnalyzedPdf(analyzepdf_datas);
-      },
-      error: function (err) {
-        console.log(err);        
-      }
-    });
-  });
+  //       var analyzepdf_datas = drawDtTable(result, 'analyzepdf');            
+  //       reloadAnalyzedPdf(analyzepdf_datas);
+  //     },
+  //     error: function (err) {
+  //       console.log(err);        
+  //     }
+  //   });
+  // });
 
   window.analyzepdfDeleteCommentEditor = function analyzepdfDeleteCommentEditor(data = null) {      
     const analyzepdfDeleteCommentEditors = document.querySelector('#analyzepdf-delete-reason-editor');   
@@ -1276,6 +1276,7 @@ console.log("on change");
           }            
         ],       
         initComplete: function (settings, json) {
+          //window.addOcrFromDateFilter(this.api(), analyzepdf_name);
 
           // $("."+ analyzepdf_name +"-search-filter").appendTo('.dt-search-filter');
 
@@ -1484,7 +1485,14 @@ console.log("on change");
   // edit record
   $(document).on('click', '#show-analyzepdf-data', function () {
     $("#offcanvasAnalyzePdfData").offcanvas('show');
-    loadItem($(this).data('analyzepdf_id')); 
+    //loadItem($(this).data('analyzepdf_id')); 
+    const id = $(this).data('analyzepdf_id');
+
+    if ($(this).data('source') === 'sftp') {
+      loadSFtpOioItem(id);
+    } else {
+      loadItem(id);
+    }
   });  
 /*
   $(document).on('dblclick', '.datatables-analyzepdfsearch tbody tr', function () {

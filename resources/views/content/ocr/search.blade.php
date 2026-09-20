@@ -144,7 +144,7 @@ $(function () {
                       value="{{ $client['client_no'] }}"
                       @selected($index === 0)>
                       {{--{{ $clientName }}--}}
-                      {{ $client['client_name'] }}
+                      {{ $client['client_label'] }}
                   </option>
               @endforeach
           </select>

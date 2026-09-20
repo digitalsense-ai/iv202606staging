@@ -837,8 +837,9 @@ $(function () {
 
         dom:
           '<"row mx-0 '+ analyzepdfsynced_name +'-synced-filter '+ analyzepdfsynced_filter_class +'"' +
-          '<"col-sm-12 col-md-6 sub-btns text-start my-auto">' +
-          '<"col-sm-12 col-md-6"plfB>' +
+          //'<"col-sm-12 col-md-6 sub-btns text-start my-auto">' +
+          //'<"col-sm-12 col-md-6"plfB>' +
+          '<"col-sm-12 col-md-3 text-start mt-3"i><"col-sm-12 col-md-9"plfB>' +
           '>r' +
           '<"row mx-0"<"col-sm-12 p-0"t>>' +
           '<"row mx-2"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
@@ -917,7 +918,9 @@ $(function () {
 
         initComplete: function () {
           const api = this.api();
-         
+          
+          window.addOcrFromDateFilter(api, analyzepdfsynced_name);
+
           function fixLayout() {
             api.columns.adjust();
             api.columns.adjust();

@@ -86,16 +86,27 @@ class SyncDbController extends Controller
                             // ->orderBy('client_name', 'ASC')
                             // ->pluck('client_name')
                             // ->toArray();
-                            ->select(['client_no', 'client_name'])
-                            ->get()
-                            ->unique(fn (OcrPdfSyncDb $record) => $record->client_no)
-                            ->map(fn (OcrPdfSyncDb $record) => [
-                                'client_no' => $record->client_no,
-                                'client_name' => $nameResolver->resolve($record->client_no, $record->client_name),
-                            ])
-                            ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
-                            ->values()
-                            ->all();
+                            // ->select(['client_no', 'client_name'])
+                            // ->get()
+                            // ->unique(fn (OcrPdfSyncDb $record) => $record->client_no)
+                            // ->map(fn (OcrPdfSyncDb $record) => [
+                            //     'client_no' => $record->client_no,
+                            //     'client_name' => $nameResolver->resolve($record->client_no, $record->client_name),
+                            // ])
+                            // ->sortBy('client_name', SORT_NATURAL | SORT_FLAG_CASE)
+                            // ->values()
+                            // ->all();
+            ->select(['client_no', 'client_name'])
+            ->get()
+            ->map(fn (OcrPdfSyncDb $record) => $nameResolver->resolveIdentity(
+                $record->client_no,
+                $record->client_name
+            ))
+            ->filter(fn (array $client) => !empty($client['client_no']))
+            ->unique('client_no')
+            ->sortBy('client_label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
         
         /* -- RETURN VIEW -- */
         return view('content.ocr.synced', [

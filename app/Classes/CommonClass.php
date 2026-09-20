@@ -8082,7 +8082,7 @@ class CommonClass
           $insert_invoices = 0;
           if($result)  
           {
-            //$insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
+            $insert_invoices = $this->insertImportReconciliationInvoices($result, $vatregs, $authUser, $from);
           }
           
           if($full_refresh && $from == 'global-search-refresh')
@@ -11865,6 +11865,7 @@ dd($matches);
                     ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
                         $subquery->where('id', $client_id);
                     })
+                    ->where('data_from', 'ivf')
                     ->whereNull('rematch_com_invoice_id');                    
                    
           if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')
@@ -12010,6 +12011,7 @@ dd($matches);
                     ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
                         $subquery->where('id', $client_id);
                     })
+                    ->where('data_from', 'ivf')
                     ->whereNull('rematch_ocr_com_invoice_id');                    
                    
           if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')

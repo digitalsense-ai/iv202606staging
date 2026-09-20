@@ -125,7 +125,7 @@
                         {{--value="{{ $clientName }}">
                         {{ $clientName }}--}}
                         value="{{ $client['client_no'] }}">
-                        {{ $client['client_name'] }}
+                        {{ $client['client_label'] }}
                     </option>
                 @endforeach
             </select>            

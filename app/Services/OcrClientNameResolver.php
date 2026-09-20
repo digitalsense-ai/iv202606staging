@@ -7,7 +7,7 @@ use Illuminate\Support\Collection;
 
 class OcrClientNameResolver
 {
-    private ?Collection $namesByClientNumber = null;
+    private ?Collection $identitiesByClientNumber = null;
 
     public function resolve(?string $clientNumber, ?string $snapshotName = null): ?string
     {
@@ -17,22 +17,72 @@ class OcrClientNameResolver
             return $snapshotName;
         }
 
-        return $this->namesByClientNumber()->get($normalized, $snapshotName);
+        return $this->resolveIdentity($normalized, $snapshotName)['client_name'];
     }
 
-    private function namesByClientNumber(): Collection
-    {
-        if ($this->namesByClientNumber !== null) {
-            return $this->namesByClientNumber;
+    public function resolveIdentity(
+        ?string $clientNumber,
+        ?string $snapshotName = null
+    ): array {
+        $normalized = $this->normalizeClientNumber($clientNumber);
+        $identity = $normalized === null
+            ? null
+            : $this->identitiesByClientNumber()->get($normalized);
+
+        $clientName = $identity['client_name'] ?? $snapshotName;
+        $countryCode = $identity['country_code'] ?? null;
+
+        return [
+            'client_no' => $normalized,
+            'client_name' => $clientName,
+            'country_code' => $countryCode,
+            //'client_label' => $this->formatLabel($clientName, $countryCode, $normalized),
+            'client_label' => $this->formatLabel($clientName, $countryCode),
+        ];
+    }
+
+    // public function formatLabel(
+    //     ?string $clientName,
+    //     ?string $countryCode,
+    //     ?string $clientNumber
+    // ): ?string {
+    public function formatLabel(
+        ?string $clientName,
+        ?string $countryCode        
+    ): ?string {
+        if (!$clientName) {
+            return null;
         }
 
-        $names = collect();
+        $parts = [$clientName];
+
+        if ($countryCode) {
+            $parts[] = strtoupper($countryCode);
+        }
+
+        // // Country alone is not unique (for example, two Norwegian VAT
+        // // registrations can have the same client name), so retain the stable
+        // // registration number in the visible label as the final discriminator.
+        // if ($clientNumber) {
+        //     $parts[] = $clientNumber;
+        // }
+
+        return implode(' - ', $parts);
+    }
+
+    private function identitiesByClientNumber(): Collection
+    {
+        if ($this->identitiesByClientNumber !== null) {
+            return $this->identitiesByClientNumber;
+        }
+
+        $identities = collect();
 
         VATRegistrationMain::query()
-            ->select(['id', 'client_id', 'org_no', 'vat_no'])
+            ->select(['id', 'client_id', 'org_no', 'vat_no', 'country'])
             ->with('client:id,client_name')
             ->get()
-            ->each(function (VATRegistrationMain $registration) use ($names): void {
+            ->each(function (VATRegistrationMain $registration) use ($identities): void {
                 $clientName = $registration->client?->client_name;
 
                 if (!$clientName) {
@@ -43,12 +93,17 @@ class OcrClientNameResolver
                     $normalized = $this->normalizeClientNumber($clientNumber);
 
                     if ($normalized !== null) {
-                        $names->put($normalized, $clientName);
+                        $identities->put($normalized, [
+                            'client_name' => $clientName,
+                            'country_code' => $registration->country
+                                ? strtoupper($registration->country)
+                                : null,
+                        ]);
                     }
                 }
             });
 
-        return $this->namesByClientNumber = $names;
+        return $this->identitiesByClientNumber = $identities;
     }
 
     public function normalizeClientNumber(?string $clientNumber): ?string
