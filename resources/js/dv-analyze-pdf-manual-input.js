@@ -710,6 +710,8 @@ $(function () {
     let total_amount = item.total_amount;
     let exchange_total_amount = item.exchange_total_amount;
 
+    let vat_rate = item.vat_rate;
+
     if(!total_amount)
     {              
       parse_total_amount = calNetAmount + Math.abs(parse_vat_amount);
@@ -797,6 +799,29 @@ $(function () {
     if (credit_note === true && exchange_total_amount && !exchange_total_amount.startsWith('-'))
       exchange_total_amount = '-' + exchange_total_amount.trim();    
 
+    // SFTP amounts are stored with a dot decimal separator, but the manual
+    // input offcanvas must continue to present monetary values in the
+    // European format used by the rest of this screen.
+    if (source === 'sftp') {
+      const formatSftpAmount = amount => (
+        amount === undefined || amount === null || amount === ''
+          ? ''
+          : parseDenmarkFormat(amount)
+      );
+
+      net_amount = formatSftpAmount(net_amount);
+      vat_amount = formatSftpAmount(vat_amount);
+      total_amount = formatSftpAmount(total_amount);
+      exchange_net_amount = formatSftpAmount(exchange_net_amount);
+      exchange_vat_amount = formatSftpAmount(exchange_vat_amount);
+      exchange_total_amount = formatSftpAmount(exchange_total_amount);
+
+      const numericVatRate = Number(vat_rate);
+      if (vat_rate !== null && vat_rate !== '' && Number.isFinite(numericVatRate)) {
+        vat_rate = String(numericVatRate);
+      }
+    }
+
     $('#manualInputTitle').text(item.file_name || ('OCR item #' + item.id));
     //$('#manualInputSubtitle').text((item.error || item.validation_status || '').toString().replace(/\n/g, ' · '));
     $('#manualInputSubtitle').text((item.error || '').toString().replace(/\n/g, ' · '));
@@ -811,7 +836,8 @@ $(function () {
     $('#credit_note').prop('checked', !!credit_note);
     $('#currency').val(currency || '');
     $('#exchange_currency').val(exchange_currency || '');
-    $('#vat_rate').val(item.vat_rate || '');
+    //$('#vat_rate').val(item.vat_rate || '');
+    $('#vat_rate').val(vat_rate || '');
     $('#exchange_rate').val(item.exchange_rate || '');
     $('#net_amount').val(net_amount || '');
     $('#exchange_net_amount').val(exchange_net_amount || '');
@@ -1156,6 +1182,22 @@ $(function () {
                       : 'Unable to save manual input.'
               );
 
+          const csrfTokenMismatch = xhr.status === 419 ||
+              /csrf\s+toke(?:n)?\s+mis(?:match|tach)/i.test(message);
+
+          if (csrfTokenMismatch) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Session expired',
+              text: 'Your session has expired. Please sign in again.',
+              confirmButtonText: 'Go to login'
+            }).then(function () {
+              window.location.assign(baseUrl + 'signin');
+            });
+
+            return;
+          }
+          
           Swal.fire(
               'Save failed',
               message,

@@ -260,16 +260,21 @@ class ManualInputController extends Controller
                 'currency_code' => $currency,
                 'credit_note' => (bool) ($data['credit_note'] ?? false),
                 'note' => $data['note'] ?? null,
-                'tax_total_net_amount' => $data['net_amount'] ?? null,
+                //'tax_total_net_amount' => $data['net_amount'] ?? null,
+                'tax_total_net_amount' => $this->normalizeDecimalAmount($data['net_amount'] ?? null),
                 'tax_total_net_amount_currency_code' => $currency,
-                'tax_total_amount' => $data['vat_amount'] ?? null,
+                //'tax_total_amount' => $data['vat_amount'] ?? null,
+                'tax_total_amount' => $this->normalizeDecimalAmount($data['vat_amount'] ?? null),
                 'tax_total_amount_currency_code' => $currency,
-                'tax_total_percent' => isset($data['vat_rate'])
-                    ? str_replace(',', '.', $data['vat_rate'])
-                    : null,
-                'total_tax_incl_amount' => $data['total_amount'] ?? null,
+                // 'tax_total_percent' => isset($data['vat_rate'])
+                //     ? str_replace(',', '.', $data['vat_rate'])
+                //     : null,
+                // 'total_tax_incl_amount' => $data['total_amount'] ?? null,
+                'tax_total_percent' => $this->normalizeDecimalAmount($data['vat_rate'] ?? null),
+                'total_tax_incl_amount' => $this->normalizeDecimalAmount($data['total_amount'] ?? null),
                 'total_tax_incl_currency_code' => $currency,
-                'total_payable_amount' => $data['total_amount'] ?? null,
+                //'total_payable_amount' => $data['total_amount'] ?? null,
+                'total_payable_amount' => $this->normalizeDecimalAmount($data['total_amount'] ?? null),
                 'total_payable_currency_code' => $currency,
                 'updated_by' => auth()->id(),
             ]);
@@ -285,6 +290,25 @@ class ManualInputController extends Controller
         ]);
     }
     
+    /**
+     * Convert a localized amount to the database decimal representation.
+     */
+    private function normalizeDecimalAmount(?string $amount): ?string
+    {
+        if ($amount === null) {
+            return null;
+        }
+
+        $amount = preg_replace('/[\s\p{Z}\']/u', '', trim($amount));
+
+        if (str_contains($amount, ',')) {
+            $amount = str_replace('.', '', $amount);
+            $amount = str_replace(',', '.', $amount);
+        }
+
+        return $amount;
+    }
+
     public function forceSubmit(Request $request, int $id): JsonResponse
     {
         $invoice = OcrPdf::query()->findOrFail($id);

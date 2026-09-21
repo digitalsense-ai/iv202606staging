@@ -337,6 +337,20 @@ $(function () {
 </div>
 <!--/ Header -->
 
+@if(!empty($invoice_number_rule_notes))
+<div class="alert alert-info d-flex align-items-start mb-4" role="alert">
+  <i class="bx bx-info-circle fs-4 me-2"></i>
+  <div>
+    <h6 class="alert-heading mb-1">General information – OCR invoice number rules</h6>
+    <ul class="mb-0 ps-3">
+      @foreach($invoice_number_rule_notes as $invoice_number_rule_note)
+        <li>{{ $invoice_number_rule_note }}</li>
+      @endforeach
+    </ul>
+  </div>
+</div>
+@endif
+
 <!-- Navbar pills -->
 <div class="row">
   <div class="col-md-12">

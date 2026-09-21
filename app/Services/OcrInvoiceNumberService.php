@@ -4,6 +4,34 @@ namespace App\Services;
 
 class OcrInvoiceNumberService
 {
+    public function ruleNotes(?string $clientName): array
+    {
+        if ($clientName === null) {
+            return [];
+        }
+
+        $clientName = strtolower($clientName);
+        $notes = [];
+
+        if (str_contains($clientName, 'rainwear')) {
+            $notes[] = 'Commercial invoices use File Name in place of invoice number.';
+        }
+
+        if (
+            str_contains($clientName, 'rainwear')
+            || str_contains($clientName, 'engel')
+            || str_contains($clientName, 'berendsohn')
+        ) {
+            $notes[] = 'Sales invoices use NO Invoice Number in place of invoice number.';
+        }
+
+        if (str_contains($clientName, 'horn bord')) {
+            $notes[] = 'Non-credit invoices use Order Number in place of invoice number.';
+        }
+
+        return $notes;
+    }
+    
     public function apply(array $data, ?string $clientName, ?string $fileName, ?string $invoiceType): array
     {
         $data = $this->preserveOriginal($data);

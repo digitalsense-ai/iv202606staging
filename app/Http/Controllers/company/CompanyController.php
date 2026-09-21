@@ -29,6 +29,7 @@ use App\Classes\ApiClass;
 use App\Classes\CVRApiClass;
 
 use App\Helpers\EnvironmentHelper;
+use App\Services\OcrInvoiceNumberService;
 
 class CompanyController extends Controller
 {    
@@ -815,6 +816,9 @@ class CompanyController extends Controller
 
         if($client)
         {
+          $invoice_number_rule_notes = app(OcrInvoiceNumberService::class)
+            ->ruleNotes($client->client_name);
+
           /* -- COVER PHOTO SECTION -- */   
           $system = $this->commonClass->getSystemInfoLazy(); 
           $systemapi = $system->systemapi->first();  
@@ -913,6 +917,7 @@ class CompanyController extends Controller
                 'pageConfigs' => $pageConfigs,
                 'authUser' => $this->authUser,
                 'client' => $client,
+                'invoice_number_rule_notes' => $invoice_number_rule_notes,
                 'otherClient' => (in_array($client_id, $this->clientIds)) ? false : true,
                 
                 'note_countries' => $note_countries,

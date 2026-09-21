@@ -38,12 +38,12 @@
 
 @section('page-script')
 <script src="{{asset('assets/js/forms-selects.js')}}"></script>
-<script type="text/javascript">  
+{{--<script type="text/javascript">  
     window.EchoConfig = {
         pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
         pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'
     };
-</script>
+</script>--}}
 <script src="{{asset('js/dv-common.js')}}"></script>
 <script src="{{asset('js/dv-analyze-pdf-manual-input.js')}}"></script>
 <script src="{{asset('js/dv-analyze-pdf-sftpoio.js')}}"></script>
