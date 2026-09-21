@@ -90,11 +90,8 @@
 		        --}}
 
 		    	@if(strtoupper($vatreg->country) == 'NO' || strtoupper($vatreg->country) == 'CH')
-		        <li class="nav-item">	         
-		          <button type="button" id="btn-declarations-{{ $vat_reg_id }}" class="btn-declarations nav-link {{ ($show_importreconciliation) ? '' : 'disabled' }}" role="tab" data-bs-toggle="tab" aria-controls="navs-vatreturns-declarations-{{ $vat_reg_id }}" aria-selected="true" data-vat_reg_id="{{ $vat_reg_id }}">Declaration view <sup class="alert-danger">beta</sup><i class="fa-solid fa-arrow-up-right-from-square ms-2"></i></button>
-		        </li>
 
-		        @php
+		    	@php
 		        	$show_ocr = true;
 		        	$frequency = $vatreg->frequency;
 
@@ -121,6 +118,12 @@
 			        if (!$vatregmain->ocr_sync || !$fetch_period_from)
 			        	$show_ocr = false;
 		        @endphp
+
+		        @if(!$show_ocr)
+		        <li class="nav-item">	         
+		          <button type="button" id="btn-declarations-{{ $vat_reg_id }}" class="btn-declarations nav-link {{ ($show_importreconciliation) ? '' : 'disabled' }}" role="tab" data-bs-toggle="tab" aria-controls="navs-vatreturns-declarations-{{ $vat_reg_id }}" aria-selected="true" data-vat_reg_id="{{ $vat_reg_id }}">Declaration view <sup class="alert-danger">beta</sup><i class="fa-solid fa-arrow-up-right-from-square ms-2"></i></button>
+		        </li>	
+		        @endif
 
 		        @if($show_ocr)
 			        <li class="nav-item">	         

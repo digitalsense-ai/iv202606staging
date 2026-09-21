@@ -90,7 +90,10 @@ class DeclarationNewOcrController extends Controller
 
         $show = true;
         if(($this->authUser->role == 'client-user') && !in_array($client_id, $this->clientIds))
-          $show = false;      
+          $show = false;  
+
+        if(!$vatregmain->ocr_sync)
+          $show = false;
 
         $frequency = $this->commonClass->getFrequency(
             $vatreg->general_periods

@@ -112,6 +112,37 @@ class DeclarationController extends Controller
         if(($this->authUser->role == 'client-user') && !in_array($client_id, $this->clientIds))
           $show = false;      
 
+        if($vatreg?->vatregmain->ocr_sync)
+        {
+          $vatregmain = $vatreg?->vatregmain;
+          $frequency = $this->commonClass->getFrequency(
+              $vatreg->general_periods
+          );
+
+          $serviceStart = Carbon::parse(
+              $vatreg->service_start
+          );
+
+          $serviceEnd = $serviceStart
+              ->copy()
+              ->addMonths($frequency - 1)
+              ->endOfMonth();
+
+          $fetch_period_from = null;
+          if ($vatregmain->country == 'CH') {
+              $fetch_period_from = ($serviceEnd >= '2026-04-01')
+                  ? '2026-04-01'
+                  : null;
+          } else {
+              $fetch_period_from = ($serviceEnd >= '2026-06-01')
+                  ? '2026-06-01'
+                  : null;
+          }
+
+          if ($fetch_period_from)
+            $show = false;
+        }
+
         if($show)                          
         {
           $declarations = $this->reloadDeclarations($vat_reg_id, true);   

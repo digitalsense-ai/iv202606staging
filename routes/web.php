@@ -836,7 +836,7 @@ Route::middleware([
 
                 /* -- DECLARATIONS TAB -- */                
                     /* -- DECLARATIONS:VIEW -- */       
-                        //Route::get('declarations/{vat_reg_id}', [DeclarationController::class, 'index'])->name('declarations');
+                        Route::get('declarations/{vat_reg_id}', [DeclarationController::class, 'index'])->name('declarations');
 
                         /* -- DECLARATIONS: DECLARATION/COM/SALES INVOICE - REFRESH GS -- */
                             Route::get('declaration-invoice/{vat_reg_id}/global-search-refresh', [DeclarationController::class, 'refreshGlobalSearch'])->name('declaration.invoice.refresh.global.search');    

@@ -198,8 +198,7 @@ $(function () {
   function loadAnalyzePdfSearchDataAll(clientNo) {
     const requestId = ++analyzeSearchRequestId;
     const perPage = 1000;
-    const analyzepdfs = [];
-    let firstPageResult = null;
+    let sftpSalesData = [];
 
     //     //currentAnalyzeSearchClient = clientName;
     //     currentAnalyzeSearchClientNo = clientNo;
@@ -229,186 +228,140 @@ $(function () {
         success: function (result) {
             if (requestId !== analyzeSearchRequestId) return;
 
-            // if (result.vatregmains) {
-            //     window.vatregmains = result.vatregmains;
-            // }
-            // result.vatregmains = window.vatregmains;
+            if (result.vatregmains) {
+                window.vatregmains = result.vatregmains;
+            }
+            result.vatregmains = window.vatregmains;
 
-            // const analyzepdfsearch_datas =
-            //     drawDtTable(result, 'analyzepdf_search');
+            const analyzepdfsearch_datas =
+                drawDtTable(result, 'analyzepdf_search');
 
-            // if (!analyzepdfsearch_datas) {
-            //     $('#ocr-search-loading-overlay').addClass('d-none');
-            //     return;
-            // }
-
-
-            // /*
-            //  * ---------------------------------------------------------
-            //  * OCR DATA
-            //  * ---------------------------------------------------------
-            //  */
-
-            // //let commercialData =
-            // const commercialData =
-            //     analyzepdfsearch_datas
-            //         .analyzepdf_commercial_invoice_datas || [];
-
-            // //let salesData =
-            // const ocrSalesData =
-            //     analyzepdfsearch_datas
-            //         .analyzepdf_sales_invoice_datas || [];
+            if (!analyzepdfsearch_datas) {
+                $('#ocr-search-loading-overlay').addClass('d-none');
+                return;
+            }
 
 
-            // /*
-            //  * ---------------------------------------------------------
-            //  * SFTP SALES DATA
-            //  * ---------------------------------------------------------
-            //  */
+            /*
+             * ---------------------------------------------------------
+             * OCR DATA
+             * ---------------------------------------------------------
+             */
 
-            // // const sftpSalesData =
-            // //     result.sftp_sales_invoices || [];
-            // //const sftpSalesData = result.sftpdatas?.data || [];
-            // if (page === 1) {
-            //     sftpSalesData = (result.sftpdatas?.data || []).map(item => ({
-            //         ...item,
-            //         source: 'sftp'
-            //     }));
-            // }
+            //let commercialData =
+            const commercialData =
+                analyzepdfsearch_datas
+                    .analyzepdf_commercial_invoice_datas || [];
 
-            // /*
-            //  * Identify source
-            //  */
+            //let salesData =
+            const ocrSalesData =
+                analyzepdfsearch_datas
+                    .analyzepdf_sales_invoice_datas || [];
 
-            // //commercialData = commercialData.map(item => ({
-            // const identifiedCommercialData = commercialData.map(item => ({
+
+            /*
+             * ---------------------------------------------------------
+             * SFTP SALES DATA
+             * ---------------------------------------------------------
+             */
+
+            // const sftpSalesData =
+            //     result.sftp_sales_invoices || [];
+            //const sftpSalesData = result.sftpdatas?.data || [];
+            if (page === 1) {
+                sftpSalesData = (result.sftpdatas?.data || []).map(item => ({
+                    ...item,
+                    source: 'sftp'
+                }));
+            }
+
+            /*
+             * Identify source
+             */
+
+            //commercialData = commercialData.map(item => ({
+            const identifiedCommercialData = commercialData.map(item => ({
+                ...item,
+                source: 'ocr'
+            }));
+
+            //salesData = salesData.map(item => ({
+            const identifiedOcrSalesData = ocrSalesData.map(item => ({
+                ...item,
+                source: 'ocr'
+            }));
+
+            // const identifiedSftpData = sftpSalesData.map(item => ({
             //     ...item,
-            //     source: 'ocr'
+            //     source: 'sftp'
             // }));
 
-            // //salesData = salesData.map(item => ({
-            // const identifiedOcrSalesData = ocrSalesData.map(item => ({
-            //     ...item,
-            //     source: 'ocr'
-            // }));
-
-            // // const identifiedSftpData = sftpSalesData.map(item => ({
-            // //     ...item,
-            // //     source: 'sftp'
-            // // }));
-
-            // // /*
-            // //  * Add SFTP sales invoices to the SAME sales invoice table.
-            // //  */
-
-            // // // salesData = [
-            // // //     ...salesData,
-            // // //     ...sftpSalesData
-            // // // ];
+            // /*
+            //  * Add SFTP sales invoices to the SAME sales invoice table.
+            //  */
 
             // // salesData = [
             // //     ...salesData,
-            // //     ...identifiedSftpData
+            // //     ...sftpSalesData
             // // ];
 
-            // const salesData = [...identifiedOcrSalesData, ...sftpSalesData];
+            // salesData = [
+            //     ...salesData,
+            //     ...identifiedSftpData
+            // ];
 
-            // /*
-            //  * ---------------------------------------------------------
-            //  * RELOAD BOTH DATATABLES
-            //  * ---------------------------------------------------------
-            //  */
+            const salesData = [...identifiedOcrSalesData, ...sftpSalesData];
 
-            // reloadAnalyzedPdfSearch({
+            /*
+             * ---------------------------------------------------------
+             * RELOAD BOTH DATATABLES
+             * ---------------------------------------------------------
+             */
 
-            //     analyzepdf_commercial_invoice_datas:
-            //         //commercialData,
-            //         identifiedCommercialData,
+            reloadAnalyzedPdfSearch({
 
-            //     analyzepdf_sales_invoice_datas:
-            //         salesData
-            // });
+                analyzepdf_commercial_invoice_datas:
+                    //commercialData,
+                    identifiedCommercialData,
 
-            if (page === 1) {
-              firstPageResult = result;
-              window.vatregmains = result.vatregmains || [];
-            }
+                analyzepdf_sales_invoice_datas:
+                    salesData
+            });
+
 
             /*
              * ---------------------------------------------------------
              * Counts
              * ---------------------------------------------------------
              */
-            const paginator = result.analyzepdfs;
-            analyzepdfs.push(...(paginator.data || []));
-            //console.log('Commercial invoices:', commercialData.length);
 
-            if (paginator.current_page < paginator.last_page) {
-              loadPage(paginator.current_page + 1);
-              return;
-            }
+            //console.log('Commercial invoices:', commercialData.length);
 
             // console.log('OCR sales invoices:',
             //     analyzepdfsearch_datas
             //         .analyzepdf_sales_invoice_datas?.length || 0
             // );
 
-            // Transform and render once all paginated OCR batches have arrived.
-            // drawDtTable accepts either a paginator or a plain records array.
-            firstPageResult.analyzepdfs = analyzepdfs;
-            firstPageResult.vatregmains = window.vatregmains;
-
             // console.log('SFTP sales invoices:',
             //     sftpSalesData.length
             // );
-
-            const analyzepdfsearchDatas =
-            drawDtTable(firstPageResult, 'analyzepdf_search');
 
             // console.log('Total sales invoices:',
             //     salesData.length
             // );
 
-            if (!analyzepdfsearchDatas) {
-              $('#ocr-search-loading-overlay').addClass('d-none');
-              return;
+
+            //$('#ocr-search-loading-overlay').addClass('d-none');
+
+            const currentPage = result.analyzepdfs.current_page;
+            const lastPage = result.analyzepdfs.last_page;
+
+            if (currentPage < lastPage) {
+                $('#ocr-search-loading-overlay').removeClass('d-none');
+                loadPage(currentPage + 1);
+            } else {
+                $('#ocr-search-loading-overlay').addClass('d-none');
             }
-
-            const commercialData = (
-              analyzepdfsearchDatas.analyzepdf_commercial_invoice_datas || []
-            ).map(item => ({
-              ...item,
-              source: 'ocr'
-            }));
-
-            const ocrSalesData = (
-              analyzepdfsearchDatas.analyzepdf_sales_invoice_datas || []
-            ).map(item => ({
-              ...item,
-              source: 'ocr'
-            }));
-
-            const sftpSalesData = (firstPageResult.sftpdatas?.data || []).map(item => ({
-              ...item,
-              source: 'sftp'
-            }));
-
-            reloadAnalyzedPdfSearch({
-              analyzepdf_commercial_invoice_datas: commercialData,
-              analyzepdf_sales_invoice_datas: [...ocrSalesData, ...sftpSalesData]
-            });
-
-            $('#ocr-search-loading-overlay').addClass('d-none');
-
-            // const currentPage = result.analyzepdfs.current_page;
-            // const lastPage = result.analyzepdfs.last_page;
-
-            // if (currentPage < lastPage) {
-            //     $('#ocr-search-loading-overlay').removeClass('d-none');
-            //     loadPage(currentPage + 1);
-            // } else {
-            //     $('#ocr-search-loading-overlay').addClass('d-none');
-            // }
         },
 
         error: function (xhr) {

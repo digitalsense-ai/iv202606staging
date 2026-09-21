@@ -927,7 +927,8 @@ class AnalyzePdfController extends Controller
         $clientName = app(OcrClientNameResolver::class)->resolve($clientNo);
 
         $page = max((int) $request->input('page', 1), 1);
-        $perPage = (int) $request->input('per_page', 1000);
+        //$perPage = (int) $request->input('per_page', 1000);
+        $perPage = min(max((int) $request->input('per_page', 1000), 1), 1000);
 
         /*
         |--------------------------------------------------------------------------
@@ -971,7 +972,7 @@ class AnalyzePdfController extends Controller
         | SFTP Sales Invoices
         |--------------------------------------------------------------------------
         */
-
+        $sftpdatas = collect();
         $sftpQuery = ImportReconciliationFiles::query()
             ->select([
                 'id',
@@ -994,17 +995,19 @@ class AnalyzePdfController extends Controller
          * SFTP data is only required for selected clients.
          */
         //if ($clientName !== '') {
-        if ($clientNo !== '' && $clientName) {
+        //if ($clientNo !== '' && $clientName) {
+        if ($page === 1 && $clientNo !== '' && $clientName) {
             $sftpQuery->whereHas('vatreg.client', function ($q) use ($clientName) {
                 $q->where('client_name', $clientName);
             });
-        } else {
-            /*
-             * No client selected:
-             * don't return SFTP invoices.
-             */
-            $sftpdatas = collect();
-        }
+        } 
+        // else {
+        //     /*
+        //      * No client selected:
+        //      * don't return SFTP invoices.
+        //      */
+        //     $sftpdatas = collect();
+        // }
 
         // if ($clientName !== '') {
         //     $sftpdatas = $sftpQuery
@@ -1050,7 +1053,8 @@ class AnalyzePdfController extends Controller
         // }
 
         //if ($clientName !== '') {
-        if ($clientNo !== '' && $clientName) {
+        //if ($clientNo !== '' && $clientName) {
+        if ($page === 1 && $clientNo !== '' && $clientName) {
             $sftpdatas = $sftpQuery
                 ->orderByDesc('id')
                 ->get();
@@ -1094,7 +1098,7 @@ class AnalyzePdfController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | VAT Registration
+        | VAT Registration - only needed with the first batch
         |--------------------------------------------------------------------------
         */
 
@@ -1134,7 +1138,7 @@ class AnalyzePdfController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | VAT Registration - only page 1
+        | VAT Registration
         |--------------------------------------------------------------------------
         */
 
