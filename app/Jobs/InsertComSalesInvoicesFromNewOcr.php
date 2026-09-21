@@ -590,10 +590,9 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
     }
 
      /**
-     * Reuse the stable VAT-registration/invoice-number row within the same
-     * import source and remove older duplicates. A null OCR PDF id identifies
-     * an Azure row; a non-null id identifies an OCR row. These two data sets
-     * share a table but must never overwrite or deduplicate each other.
+     * Reuse the stable invoice row for this commercial invoice and import
+     * source. The same sales-invoice reference may belong to more than one
+     * commercial invoice, so the parent is part of the row identity.
      */
     private function saveSalesInvoice(
         int $vatRegId,
@@ -604,6 +603,7 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
     ): ImportReconciliationSalesInvoices {
         $rows = ImportReconciliationSalesInvoices::query()
             ->where('vat_reg_id', $vatRegId)
+            ->where('com_invoice_id', $commercialInvoiceId)
             ->where('invoice_no', $invoiceNumber)
             ->when(
                 $ocrPdfId === null,
