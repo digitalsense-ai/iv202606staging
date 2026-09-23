@@ -11866,7 +11866,8 @@ dd($matches);
                         $subquery->where('id', $client_id);
                     })
                     ->where('data_from', 'ivf')
-                    ->whereNull('rematch_com_invoice_id');                    
+                    //->whereNull('rematch_com_invoice_id')
+                    ;                    
                    
           if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')
           {
@@ -12012,7 +12013,8 @@ dd($matches);
                         $subquery->where('id', $client_id);
                     })
                     ->where('data_from', 'ivf')
-                    ->whereNull('rematch_ocr_com_invoice_id');                    
+                    //->whereNull('rematch_ocr_com_invoice_id')
+                    ;                    
                    
           if(strtoupper($importreconciliationcominvoice->vatreg->client->client_name) == 'SECOND FEMALE NORGE AS')
           {

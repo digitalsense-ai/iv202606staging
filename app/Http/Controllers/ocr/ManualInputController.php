@@ -308,7 +308,7 @@ class ManualInputController extends Controller
 
         return $amount;
     }
-
+    
     public function forceSubmit(Request $request, int $id): JsonResponse
     {
         $invoice = OcrPdf::query()->findOrFail($id);

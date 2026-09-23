@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'pdf_processing' => [
+        // Smalot loads the complete PDF object graph into PHP memory. Keep it
+        // for small, text-based PDFs only; larger files go through one Azure
+        // batch-read request and cannot exhaust the worker's memory.
+        'local_text_max_pages' => (int) env('OCR_LOCAL_TEXT_MAX_PAGES', 25),
+
+        // Ghostscript linearizes unusually large split files so browser PDF
+        // viewers can render the first page before downloading the whole blob.
+        'optimize_split_files' => env('OCR_OPTIMIZE_SPLIT_FILES', true),
+        'optimize_split_min_bytes' => (int) env('OCR_OPTIMIZE_SPLIT_MIN_BYTES', 1048576),
+        'ghostscript_binary' => env('GHOSTSCRIPT_BINARY'),
+    ],
+    
     /*
     |--------------------------------------------------------------------------
     | Default OCR profile

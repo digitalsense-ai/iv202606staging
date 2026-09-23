@@ -1887,7 +1887,8 @@ class DeclarationNewOcrController extends Controller
       {       
         $invoice_name = $request->invoice_name;
         $invoice_no = $request->invoice_no;
-
+        $group_invoice_ids = $request->group_invoice_ids;
+        
         $log_name_text_suffix = 'invoice-unmatch';
         if($invoice_name == 'com')
         {
@@ -1895,76 +1896,190 @@ class DeclarationNewOcrController extends Controller
           //$log_name_text = 'com-invoice';
           $log_name_text = 'com';
 
-          $invoice = ImportReconciliationComInvoices::where('id', $invoice_id)->first();  
-
-          //if($invoice->data_from == 'ivf' && $invoice->doc_id)
-          if($invoice->data_from == 'ivf')
-          {
-            $get_rematch_ocr_com_invoice_id = $invoice->rematch_ocr_com_invoice_id; 
-
-            if($get_rematch_ocr_com_invoice_id)
+            if(stripos($group_invoice_ids, "***") !== false)
             {
-                $newRow = $invoice->replicate();
-
-                $old_invoice = ImportReconciliationComInvoices::where('id', $get_rematch_ocr_com_invoice_id)->first(); 
-
-                if($old_invoice)
+                $group_invoice_id = explode("***", $group_invoice_ids);
+                foreach ($group_invoice_id as $single_invoice_id) 
                 {
-                    $old_invoice->data_from = 'ocr-old';
-                    $old_invoice->save();
-                }
-           
-                //$newRow->data_from = ($invoice->ocr_pdf_id) ? 'ocr' : 'ocr-1';
-                $newRow->data_from = 'ocr';   
-                $newRow->rematch_ocr_com_invoice_id = NULL;
-                
-                $newRow->ocr_pdf_id = $old_invoice?->ocr_pdf_id;
-                $newRow->invoice_date = $old_invoice?->invoice_date;   
-                $newRow->gs_invoice_date = $old_invoice?->gs_invoice_date;
-                       
-                $newRow->expo_date = NULL;
-                $newRow->expo_no = NULL;
-                $newRow->lope_no = NULL;
-                $newRow->duties = NULL;
-                $newRow->adjustment = NULL;
-                $newRow->statistical_value = NULL;
-                $newRow->category_type = NULL;
-                $newRow->category_desc = NULL;           
-                $newRow->net_amount = $old_invoice?->net_amount;
-                $newRow->ivf_net_amount = NULL;
-                $newRow->omr_kurs = NULL;
-               
-                $newRow->save();
+                    $invoice = ImportReconciliationComInvoices::where('id', $single_invoice_id)->first();  
 
-                $invoice->relation_match_no = NULL;  
-                $invoice->doc_id = NULL; 
-                $invoice->gs_invoice_date = NULL; 
-                $invoice->net_amount = NULL; 
+                    if($invoice->data_from == 'ivf' || $invoice->data_from == 'replicate')
+                    {
+                        $get_rematch_ocr_com_invoice_id = $invoice->rematch_ocr_com_invoice_id; 
 
-                $invoice->unmatch = 1; 
-                $invoice->rematch_ocr_com_invoice_id = NULL;           
-                $invoice->save();
-            
-                // $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')->where('com_invoice_id', $invoice->id)
-                //                       ->update(['com_invoice_id' => $newRow->id]);
+                        if($get_rematch_ocr_com_invoice_id)
+                        {
+                            $newRow = $invoice->replicate();
 
-                $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')
-                                    ->where('com_invoice_id', $invoice->id)                                
-                                    ->orWhere('com_invoice_id', $old_invoice?->id)                                   
-                                    ->update(['com_invoice_id' => $newRow->id]);
-            }
+                            $old_invoice = ImportReconciliationComInvoices::where('id', $get_rematch_ocr_com_invoice_id)->first(); 
+
+                            if($old_invoice)
+                            {
+                                $old_invoice->data_from = 'ocr-old';
+                                $old_invoice->save();
+                            }
+                            
+                            $newRow->data_from = 'ocr';   
+                            $newRow->rematch_ocr_com_invoice_id = NULL;
+
+                            $newRow->ocr_pdf_id = $old_invoice?->ocr_pdf_id;
+                            $newRow->invoice_no = $old_invoice?->invoice_no;   
+                            $newRow->invoice_date = $old_invoice?->invoice_date;   
+                            $newRow->gs_invoice_date = $old_invoice?->gs_invoice_date;
+
+                            $newRow->expo_date = NULL;
+                            $newRow->expo_no = NULL;
+                            $newRow->lope_no = NULL;
+                            $newRow->no_of_split = NULL;
+                            $newRow->duties = NULL;
+                            $newRow->adjustment = NULL;
+                            $newRow->statistical_value = NULL;
+                            $newRow->category_type = NULL;
+                            $newRow->category_desc = NULL;           
+                            $newRow->net_amount = $old_invoice?->net_amount;
+                            $newRow->ivf_net_amount = NULL;
+                            $newRow->omr_kurs = NULL;
+
+                            $newRow->save();
+
+                            $invoice->relation_match_no = NULL;  
+                            $invoice->doc_id = NULL; 
+                            $invoice->gs_invoice_date = NULL; 
+                            $invoice->net_amount = NULL; 
+
+                            $invoice->unmatch = 1; 
+                            $invoice->rematch_ocr_com_invoice_id = NULL;           
+                            $invoice->save();
+                           
+                            // $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')
+                            //     ->where('com_invoice_id', $invoice->id)                                
+                            //     ->orWhere('com_invoice_id', $old_invoice?->id)                                   
+                            //     ->update(['com_invoice_id' => $newRow->id]);
+
+                            $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')
+                                ->where(function ($query) use ($invoice, $old_invoice) {
+                                    $query->where('com_invoice_id', $invoice->id);
+
+                                    if ($old_invoice) {
+                                        $query->orWhere('com_invoice_id', $old_invoice->id);
+                                    }
+                                })
+                                ->update([
+                                    'com_invoice_id' => $newRow->id
+                                ]);
+
+                            //delete the old invoice wwith 'cor-old'
+                            if($old_invoice)
+                            {                       
+                                $old_invoice->delete();
+                            }
+                        }
+                        else
+                        {
+                            $invoice->unmatch = 1;                  
+                            $invoice->save();
+                        }
+                    }
+                    else
+                    {
+                        $invoice->unmatch = 1;  
+                        $invoice->rematch_ocr_com_invoice_id = NULL;  
+                        $invoice->save();    
+                    }
+                } //loop ***
+            } // ***
             else
             {
-                $invoice->unmatch = 1;                  
-                $invoice->save();
-            }
-          }
-          else
-          {
-            $invoice->unmatch = 1;  
-            $invoice->rematch_ocr_com_invoice_id = NULL;  
-            $invoice->save();    
-          }    
+                $invoice = ImportReconciliationComInvoices::where('id', $invoice_id)->first();
+                //if($invoice->data_from == 'ivf' && $invoice->doc_id)
+              if($invoice->data_from == 'ivf' || $invoice->data_from == 'replicate')
+              {
+                $get_rematch_ocr_com_invoice_id = $invoice->rematch_ocr_com_invoice_id; 
+
+                if($get_rematch_ocr_com_invoice_id)
+                {
+                    $newRow = $invoice->replicate();
+
+                    $old_invoice = ImportReconciliationComInvoices::where('id', $get_rematch_ocr_com_invoice_id)->first(); 
+
+                    if($old_invoice)
+                    {
+                        $old_invoice->data_from = 'ocr-old';
+                        $old_invoice->save();
+                    }
+               
+                    //$newRow->data_from = ($invoice->ocr_pdf_id) ? 'ocr' : 'ocr-1';
+                    $newRow->data_from = 'ocr';   
+                    $newRow->rematch_ocr_com_invoice_id = NULL;
+                    
+                    $newRow->ocr_pdf_id = $old_invoice?->ocr_pdf_id;
+                    $newRow->invoice_no = $old_invoice?->invoice_no;   
+                    $newRow->invoice_date = $old_invoice?->invoice_date;   
+                    $newRow->gs_invoice_date = $old_invoice?->gs_invoice_date;
+                           
+                    $newRow->expo_date = NULL;
+                    $newRow->expo_no = NULL;
+                    $newRow->lope_no = NULL;
+                    $newRow->no_of_split = NULL;
+                    $newRow->duties = NULL;
+                    $newRow->adjustment = NULL;
+                    $newRow->statistical_value = NULL;
+                    $newRow->category_type = NULL;
+                    $newRow->category_desc = NULL;           
+                    $newRow->net_amount = $old_invoice?->net_amount;
+                    $newRow->ivf_net_amount = NULL;
+                    $newRow->omr_kurs = NULL;
+                   
+                    $newRow->save();
+
+                    $invoice->relation_match_no = NULL;  
+                    $invoice->doc_id = NULL; 
+                    $invoice->gs_invoice_date = NULL; 
+                    $invoice->net_amount = NULL; 
+
+                    $invoice->unmatch = 1; 
+                    $invoice->rematch_ocr_com_invoice_id = NULL;           
+                    $invoice->save();
+                
+                    // $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')->where('com_invoice_id', $invoice->id)
+                    //                       ->update(['com_invoice_id' => $newRow->id]);
+
+                    // $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')
+                    //                     ->where('com_invoice_id', $invoice->id)                                
+                    //                     ->orWhere('com_invoice_id', $old_invoice?->id)                                   
+                    //                     ->update(['com_invoice_id' => $newRow->id]);
+
+                    $salesinvoices = ImportReconciliationSalesInvoices::whereNotNull('ocr_pdf_id')
+                        ->where(function ($query) use ($invoice, $old_invoice) {
+                            $query->where('com_invoice_id', $invoice->id);
+
+                            if ($old_invoice) {
+                                $query->orWhere('com_invoice_id', $old_invoice->id);
+                            }
+                        })
+                        ->update([
+                            'com_invoice_id' => $newRow->id
+                        ]);
+
+                    //delete the old invoice wwith 'cor-old'
+                    if($old_invoice)
+                    {                       
+                        $old_invoice->delete();
+                    }
+                }
+                else
+                {
+                    $invoice->unmatch = 1;                  
+                    $invoice->save();
+                }
+              }
+              else
+              {
+                $invoice->unmatch = 1;  
+                $invoice->rematch_ocr_com_invoice_id = NULL;  
+                $invoice->save();    
+              }
+            } //no ***              
         }
        
         $vat_reg_id = $invoice->vat_reg_id;        

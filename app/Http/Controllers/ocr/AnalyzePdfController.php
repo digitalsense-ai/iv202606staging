@@ -960,12 +960,13 @@ class AnalyzePdfController extends Controller
                 ) ASC
             ")
             ->orderByDesc('id')
-            ->paginate(
-                $perPage,
-                ['*'],
-                'page',
-                $page
-            );
+            // ->paginate(
+            //     $perPage,
+            //     ['*'],
+            //     'page',
+            //     $page
+            // );
+            ->paginate($perPage, ['*'], 'page', $page);
 
         /*
         |--------------------------------------------------------------------------

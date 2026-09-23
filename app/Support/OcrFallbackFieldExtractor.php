@@ -422,7 +422,8 @@ class OcrFallbackFieldExtractor
             'collective',
             'reference/invoicing',
             'eksportoren af varer der',
-            'denne samlefaktura omhandler faktura numre'
+            'denne samlefaktura omhandler faktura numre',
+            'the exporter of the products covered by this document'
         ];
         
         $lines = preg_split('/\R/u', $content) ?: [];

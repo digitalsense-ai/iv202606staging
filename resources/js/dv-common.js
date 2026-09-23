@@ -5580,8 +5580,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
                   || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error' || analyzepdf.status === 'timeout'))
                 {  
-                  console.log("SALES - processing");
-                  console.log(analyzepdf);
+                  //console.log("SALES - processing");
+                  //console.log(analyzepdf);
                   analyzepdf_processing_datas.push({
                     'id' : analyzepdf.id,
                     'fake_id' : analyzepdf_processing_start,
@@ -6059,8 +6059,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                 else if(!completedOnly && !analyzepdf.is_deleted && (analyzepdf.status === 'processing' 
                   || analyzepdf.status === 'queued' || analyzepdf.status === 'queued error' || analyzepdf.status === 'timeout'))
                 {  
-                  console.log("COM - processing");
-                  console.log(analyzepdf);
+                  //console.log("COM - processing");
+                  //console.log(analyzepdf);
                   analyzepdf_processing_datas.push({
                     'id' : analyzepdf.id,
                     'fake_id' : analyzepdf_processing_start,

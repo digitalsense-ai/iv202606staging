@@ -6281,6 +6281,7 @@ console.log(result);
     var invoice_no = data['invoice_no'];
     var invoice_name = data['invoice_name'];
     var which_tab = data['tab_name'];
+    var group_invoice_ids = data['group_invoice_id'];
     
     btn_unmatch_invoice.attr('disabled', 'disabled');
     btn_unmatch_invoice.html('<i class="bx bx-loader-alt me-1"></i> Unmatching...');
@@ -6303,7 +6304,7 @@ console.log(result);
         $.ajax({
             url: `${declarationInvoiceUrl}${invoice_id}/unmatch`,
             type: 'POST',        
-            data: {invoice_no: invoice_no, invoice_name: invoice_name, vat_reg_id : $("#vat_reg_id").val(), 
+            data: {group_invoice_ids: group_invoice_ids, invoice_no: invoice_no, invoice_name: invoice_name, vat_reg_id : $("#vat_reg_id").val(), 
               tab_name: which_tab},        
             success: function (result) {        
               if(result)    

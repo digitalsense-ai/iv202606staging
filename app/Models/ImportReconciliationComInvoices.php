@@ -38,7 +38,7 @@ class ImportReconciliationComInvoices extends Model
         static::saving(function (ImportReconciliationComInvoices $invoice) {
             // Rematch columns belong exclusively to the declaration/IVF row.
             // OCR and Azure rows are targets of these references, never owners.
-            if ($invoice->data_from !== 'ivf') {
+            if ($invoice->data_from !== 'ivf' && $invoice->data_from !== 'replicate') {
                 $invoice->rematch_com_invoice_id = null;
                 $invoice->rematch_ocr_com_invoice_id = null;
             }

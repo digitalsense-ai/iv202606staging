@@ -466,19 +466,51 @@ $(function () {
       '</tbody></table></div></div>';
   }
 
+  //function salesInvoices(commercial) {
+  function visibleSalesInvoices(commercial) {
+    const country = commercial.country;
+    //const vatPercent = country === 'CH' ? '8.1' : '25';
+    const showDisregarded = $('#chk-declaration-filter-show-disregarded-invoices').prop('checked');
+    const errorsOnly = $('#chk-declaration-filter-show-err-lines').prop('checked');
+    //const invoices = list(commercial.invoices).filter(invoice => {
+      //if (invoice.disregard_invoice && !showDisregarded) return false;
+    const commercialInvoices = list(commercial.invoices);
+    const invoiceCounts = new Map();
+    const preferredDuplicateInvoices = new Map();
+
+    commercialInvoices.forEach(invoice => {
+      const invoiceNo = String(invoice.invoice_no || '').trim();
+      if (!invoiceNo) return;
+
+      invoiceCounts.set(invoiceNo, (invoiceCounts.get(invoiceNo) || 0) + 1);
+      if (!invoice.disregard_invoice && invoice.pdf && !preferredDuplicateInvoices.has(invoiceNo)) {
+        preferredDuplicateInvoices.set(invoiceNo, invoice);
+      }
+    });
+
+    return commercialInvoices.filter(invoice => {
+      const invoiceNo = String(invoice.invoice_no || '').trim();
+      if (invoiceNo && invoiceCounts.get(invoiceNo) > 1 && preferredDuplicateInvoices.get(invoiceNo) !== invoice) return false;
+      if (invoice.disregard_invoice && !invoice.pdf && !showDisregarded) return false;
+      if (!errorsOnly) return true;
+      return invoice.is_net_amount_null || invoice.disregard_invoice || (country === 'NO' && invoice.currency !== 'NOK') || (country === 'CH' && invoice.currency !== 'CHF');
+    //});   
+    // const rows = invoices.map(invoice => '<tr class="' + (invoice.disregard_invoice ? 'disabled' : '') + '"' + commentTooltip(invoice) + '>' +
+    //   //'<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
+    //   '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input' + (commercial.category_desc === 'Credit Notes/Missing Ref.' ? ' move-invoice-file' : '') + '" value="' + escapeHtml(invoice.id) + '" data-invoice_no="' + escapeHtml(invoice.invoice_no) + '" data-invoice_date="' + escapeHtml(invoice.o_invoice_date || invoice.invoice_date) + '">') + '</td>' +
+    });
+  }
+
   function salesInvoices(commercial) {
     const country = commercial.country;
     const vatPercent = country === 'CH' ? '8.1' : '25';
-    const showDisregarded = $('#chk-declaration-filter-show-disregarded-invoices').prop('checked');
-    const errorsOnly = $('#chk-declaration-filter-show-err-lines').prop('checked');
-    const invoices = list(commercial.invoices).filter(invoice => {
-      if (invoice.disregard_invoice && !showDisregarded) return false;
-      if (!errorsOnly) return true;
-      return invoice.is_net_amount_null || invoice.disregard_invoice || (country === 'NO' && invoice.currency !== 'NOK') || (country === 'CH' && invoice.currency !== 'CHF');
-    });   
-    const rows = invoices.map(invoice => '<tr class="' + (invoice.disregard_invoice ? 'disabled' : '') + '"' + commentTooltip(invoice) + '>' +
-      //'<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
-      '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (invoice.disregard_invoice ? '' : '<input type="checkbox" class="dt-chk form-check-input' + (commercial.category_desc === 'Credit Notes/Missing Ref.' ? ' move-invoice-file' : '') + '" value="' + escapeHtml(invoice.id) + '" data-invoice_no="' + escapeHtml(invoice.invoice_no) + '" data-invoice_date="' + escapeHtml(invoice.o_invoice_date || invoice.invoice_date) + '">') + '</td>' +
+    const invoices = visibleSalesInvoices(commercial);
+    const rows = invoices.map(invoice => {
+      const isDisabled = invoice.disregard_invoice && !invoice.pdf;
+
+      return '<tr class="' + (isDisabled ? 'disabled' : '') + '"' + commentTooltip(invoice) + '>' +
+      //'<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (isDisabled ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
+      '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (isDisabled ? '' : '<input type="checkbox" class="dt-chk form-check-input' + (commercial.category_desc === 'Credit Notes/Missing Ref.' ? ' move-invoice-file' : '') + '" value="' + escapeHtml(invoice.id) + '" data-invoice_no="' + escapeHtml(invoice.invoice_no) + '" data-invoice_date="' + escapeHtml(invoice.o_invoice_date || invoice.invoice_date) + '">') + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_no) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_date || invoice.o_invoice_date) + '</td>' +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.net_amount) + '</td>' +
@@ -489,7 +521,9 @@ $(function () {
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.vat_check_25) + '</td>' +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.currency) + '</td>' +
       //'<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
-      '<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, credit_note: commercial.id === '-', declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
+      //'<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, credit_note: commercial.id === '-', declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>');
+      '<td class="text-center js-action-cell">' + actionMenu(Object.assign({}, invoice, { cominvoice_id: commercial.id, cominvoice_no: commercial.co_invoice_no, credit_note: commercial.id === '-', declaration_index: commercial.declaration_index }), 'sales') + '</td></tr>';
+    });
     const headers = ['__checkbox__', 'Invoices', 'Date', 'Net amount'];
     if (country === 'CH') headers.push('Net amount (CHF)');
     headers.push('Adjustment', 'VAT amount');
@@ -548,7 +582,8 @@ $(function () {
       //const invoiceCount = list(commercial.invoices).length;     
       // const invoiceCount = list(commercial.invoices).filter(invoice => !invoice.disregard_invoice).length;
       // return '<tr class="accordion-button collapsed cw-1 js-commercial-row" data-commercial-index="' + index + '"' + commentTooltip(commercial) + '>' +
-      const invoiceCount = list(commercial.invoices).filter(invoice => !invoice.disregard_invoice).length;
+      //const invoiceCount = list(commercial.invoices).filter(invoice => !invoice.disregard_invoice).length;
+      const invoiceCount = visibleSalesInvoices(commercial).length;
       return '<tr class="accordion-button collapsed cw-1 js-commercial-row' + (isCommercialDisregarded(commercial) ? ' disabled' : '') + '" data-commercial-index="' + index + '"' + commentTooltip(commercial) + '>' +
       '<td class="cw-1 declaration-th-w20"></td>' +      
       //'<td class="text-start declaration-th-w150">' + escapeHtml(commercial.lope_no || commercial.group_lope_no) + '</td>' +

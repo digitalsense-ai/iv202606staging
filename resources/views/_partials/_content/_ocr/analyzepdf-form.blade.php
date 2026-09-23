@@ -61,7 +61,7 @@
             <div class="mb-2">
               <label class="form-label" for="invoice_type">Document Type</label>
               <input type="hidden" name="invoice_type_hidden" id="invoice_type_hidden">
-              <select id="invoice_type" class="form-select" name="invoice_type" required>
+              <select id="invoice_type" class="form-select" name="invoice_type" required disabled>
                 <option value="">Select</option>
                 <option value="com">Commercial Invoice</option>
                 <option value="sales">Sales Invoice</option>

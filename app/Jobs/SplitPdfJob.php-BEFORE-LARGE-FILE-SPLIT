@@ -12,23 +12,11 @@ use setasign\Fpdi\Fpdi;
 use App\Services\AzureStorageService;
 use App\Models\OcrPdf;
 
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
-
 use Imagick;
 
 class SplitPdfJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
-
-    /**
-     * Large PDFs can legitimately take several minutes in Azure Document
-     * Intelligence. Keep the worker alive longer than its default timeout.
-     */
-    // This must remain lower than the queue connection's retry_after value.
-    public int $timeout = 3300;
-
-    public int $tries = 2;
 
     public function __construct(
         public string $ocrProgressKey, 
@@ -358,8 +346,6 @@ class SplitPdfJob implements ShouldQueue
             $pdfSplit->Output('F', $splitPath);
             unset($pdfSplit);
 
-            $this->optimizeSplitPdfForWeb($splitPath);
-
             // Queue OCR job            
             //$docId = DB::table('dv_invoice_ocr_pdfs')->insertGetId([
             $ocrPdfId = OcrPdf::query()->create([
@@ -431,8 +417,6 @@ class SplitPdfJob implements ShouldQueue
      */
     private function splitPdfByInvoiceNumber(): array
     {
-        $startedAt = microtime(true);
-
         $ranges = [];
         $invoiceByPage = [];
        
@@ -451,195 +435,111 @@ class SplitPdfJob implements ShouldQueue
         }
         unset($pdfInfo);
 
-        // // Process each page individually
-        // for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
+        // Process each page individually
+        for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
 
-//             // Create temporary single-page PDF
-//             $tmpPdf = tempnam(sys_get_temp_dir(), 'pdfp_') . '.pdf';
-//             $fpdi = new Fpdi();
-//             $fpdi->setSourceFile($this->fullPath);
-//             $fpdi->AddPage();
-//             $tpl = $fpdi->importPage($pageNo);
-//             //$fpdi->useTemplate($tpl);
+            // Create temporary single-page PDF
+            $tmpPdf = tempnam(sys_get_temp_dir(), 'pdfp_') . '.pdf';
+            $fpdi = new Fpdi();
+            $fpdi->setSourceFile($this->fullPath);
+            $fpdi->AddPage();
+            $tpl = $fpdi->importPage($pageNo);
+            //$fpdi->useTemplate($tpl);
             
-//             $size = $fpdi->getTemplateSize($tpl);
+            $size = $fpdi->getTemplateSize($tpl);
 
-//             $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
-//             $width = (float) ($size['width'] ?? 0);
-//             $height = (float) ($size['height'] ?? 0);
+            $orientation = ($size['width'] ?? 0) > ($size['height'] ?? 0) ? 'L' : 'P';
+            $width = (float) ($size['width'] ?? 0);
+            $height = (float) ($size['height'] ?? 0);
 
-//             $fpdi->AddPage($orientation, [$width, $height]);
-//             $fpdi->useTemplate($tpl, 0, 0, $width, $height, true);
+            $fpdi->AddPage($orientation, [$width, $height]);
+            $fpdi->useTemplate($tpl, 0, 0, $width, $height, true);
 
-        \Log::info('Detecting invoice ranges', [
-            'file' => $this->originalName,
-            'pages' => $totalPages,
-        ]);
+            $fpdi->Output('F', $tmpPdf);
+            unset($fpdi);
 
-//             $fpdi->Output('F', $tmpPdf);
-//             unset($fpdi);
-
-        $localTextPageLimit = max(0, (int) config(
-            'ocr_profiles.pdf_processing.local_text_max_pages',
-            25
-        ));
-
-//             // 1️⃣ Try Smalot parser first
-//             $text = '';
-
-        // Smalot materializes the complete PDF object graph. It is useful for
-        // small PDFs but can consume more than 1 GB for a few hundred pages.
-        // Large documents skip it and use the single batch OCR request below.
-        if ($localTextPageLimit > 0 && $totalPages <= $localTextPageLimit) {
+            // 1️⃣ Try Smalot parser first
+            $text = '';
             try {
                 $parser = new \Smalot\PdfParser\Parser();
-//                 $pdf = $parser->parseFile($tmpPdf);
-//                 $text = trim($pdf->getText());
-//             } catch (\Throwable $e) {}
-// // \Log::info("TEXT: ");
-// // \Log::info($text);
-//             // 2️⃣ Fallback to Azure OCR if Smalot fails
-//             if (trim($text) === '') {
-//                 //$fixedPdf = $this->normalizePdfForOcr($tmpPdf);
+                $pdf = $parser->parseFile($tmpPdf);
+                $text = trim($pdf->getText());
+            } catch (\Throwable $e) {}
+// \Log::info("TEXT: ");
+// \Log::info($text);
+            // 2️⃣ Fallback to Azure OCR if Smalot fails
+            if (trim($text) === '') {
+                //$fixedPdf = $this->normalizePdfForOcr($tmpPdf);
 
-//                 //$text = $this->azureOcrGetTextSafe($fixedPdf);
-//                 $text = $this->azureOcrGetTextSafe($tmpPdf);
-//                 //\Log::info("azure TEXT: ");
-//                 //\Log::info($text);
-//                 sleep(5); // throttle Azure requests
-                $pdf = $parser->parseFile($this->fullPath);
-                foreach ($pdf->getPages() as $index => $page) {
-                    $pageTextByPage[$index + 1] = trim($page->getText());
+                //$text = $this->azureOcrGetTextSafe($fixedPdf);
+                $text = $this->azureOcrGetTextSafe($tmpPdf);
+                //\Log::info("azure TEXT: ");
+                //\Log::info($text);
+                sleep(5); // throttle Azure requests
+            }
+
+            $pageTextByPage[$pageNo] = trim($text);
+
+            // Detect invoice number
+            // if (
+            //     preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text, $m) ||
+            //     preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)
+            // ) {
+            //     $invoiceByPage[$pageNo] = $m[1];
+            // }
+
+            // 1️ If page contains "NO-Invoice No."
+            if (preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text)) {
+//\Log::info("/NO-Invoice No");
+                // Then extract using "Nummer"
+                if (preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)) {
+                    //\Log::info("/Nummer");
+                    $invoiceByPage[$pageNo] = $m[1];                   
                 }
-                unset($pdf, $parser);
-            } catch (\Throwable $e) {
-                \Log::warning('Local PDF text extraction failed; using batch OCR.', [
-                    'file' => $this->originalName,
-                    'error' => $e->getMessage(),
-                ]);
+            } 
+            // 1-1 If page contains "NO-Faktura nr."
+            elseif (preg_match('/NO-Faktura\s*nr\.?\s*([A-Za-z0-9-]+)/i', $text, $m)) {
+                $invoiceByPage[$pageNo] = $m[1];
             }
-        } else {
-            \Log::info('Skipping memory-intensive local PDF parser', [
-                'file' => $this->originalName,
-                'pages' => $totalPages,
-                'local_text_page_limit' => $localTextPageLimit,
-            ]);
+            // 2️ Check "Invoice No."
+            //elseif (preg_match('/Invoice No\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
+            elseif (preg_match('/Invoice\s*No[^A-Za-z0-9]+([A-Za-z0-9-]+)/i', $text, $m)) {
+
+                //\Log::info("Matched: Invoice No");
+                //\Log::info($m);
+                $invoiceByPage[$pageNo] = $m[1];
+
+            }
+            // 3 Otherwise fallback to "Fakturanr."
+            elseif (preg_match('/Fakturanr\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
+                //\Log::info("/Fakturanr");
+                $invoiceByPage[$pageNo] = $m[1];
+            }
+            // 4 Otherwise fallback to "Rechnungsnr."
+            elseif (preg_match('/Rechnungsnr\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
+                //\Log::info("/Rechnungsnr");
+                $invoiceByPage[$pageNo] = $m[1];
+            }
+            else
+            {
+                // Then extract using "Nummer"
+                if (preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)) {
+                    $invoiceByPage[$pageNo] = $m[1];
+                    //\Log::info($m);
+                    //\Log::info($invoiceByPage);
+                }
+            }
+//\Log::info($invoiceByPage);
+            // Delete temp PDF & free memory
+            unlink($tmpPdf);
+            gc_collect_cycles();
         }
-           
-            // $pageTextByPage[$pageNo] = trim($text);
-
-            // // Detect invoice number
-            // // if (
-            // //     preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text, $m) ||
-            // //     preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)
-            // // ) {
-            // //     $invoiceByPage[$pageNo] = $m[1];
-            // // }
-
-        $pagesWithoutText = 0;
-        for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
-            if (trim($pageTextByPage[$pageNo] ?? '') === '') {
-                $pagesWithoutText++;
-            }
-        }
-
-//             // 1️ If page contains "NO-Invoice No."
-//             if (preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text)) {
-// //\Log::info("/NO-Invoice No");
-//                 // Then extract using "Nummer"
-//                 if (preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)) {
-//                     //\Log::info("/Nummer");
-//                     $invoiceByPage[$pageNo] = $m[1];                   
-
-        // Submit the original document once instead of making one Azure call
-        // (plus a fixed five-second sleep) for every scanned page.
-        if ($pagesWithoutText > 0) {
-            \Log::info('Requesting one batch OCR operation for PDF', [
-                'file' => $this->originalName,
-                'pages' => $totalPages,
-                'pages_without_embedded_text' => $pagesWithoutText,
-            ]);
-            $ocrTextByPage = $this->azureOcrGetTextByPageSafe($this->fullPath);
-            for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
-                if (trim($pageTextByPage[$pageNo] ?? '') === '') {
-                    $pageTextByPage[$pageNo] = trim($ocrTextByPage[$pageNo] ?? '');
-                }                    
-
-            // } 
-            // // 1-1 If page contains "NO-Faktura nr."
-            // elseif (preg_match('/NO-Faktura\s*nr\.?\s*([A-Za-z0-9-]+)/i', $text, $m)) {
-            //     $invoiceByPage[$pageNo] = $m[1];
-            }
-            // // 2️ Check "Invoice No."
-            // //elseif (preg_match('/Invoice No\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
-            // elseif (preg_match('/Invoice\s*No[^A-Za-z0-9]+([A-Za-z0-9-]+)/i', $text, $m)) {
-
-            //     //\Log::info("Matched: Invoice No");
-            //     //\Log::info($m);
-            //     $invoiceByPage[$pageNo] = $m[1];
-        }
-
-        for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
-            $text = $pageTextByPage[$pageNo] ?? '';
-
-            $invoiceNumber = self::extractInvoiceNumber($text);
-            if ($invoiceNumber !== null) {
-                $invoiceByPage[$pageNo] = $invoiceNumber;
-            } elseif (self::containsInvoiceNumberLabel($text)) {
-                // A repeated heading can occur on continuation pages. Without
-                // a readable identifier it is not safe to invent a boundary;
-                // the range builder attaches it to the neighboring invoice.
-                \Log::notice('Invoice heading found without a readable invoice number', [
-                    'file' => $this->originalName,
-                    'page' => $pageNo,
-                ]);
-            }
-//             // 3 Otherwise fallback to "Fakturanr."
-//             elseif (preg_match('/Fakturanr\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
-//                 //\Log::info("/Fakturanr");
-//                 $invoiceByPage[$pageNo] = $m[1];
-//             }
-//             // 4 Otherwise fallback to "Rechnungsnr."
-//             elseif (preg_match('/Rechnungsnr\.?\s*(?:\r?\n)?\s*(\S+)/i', $text, $m)) {
-//                 //\Log::info("/Rechnungsnr");
-//                 $invoiceByPage[$pageNo] = $m[1];
-//             }
-//             else
-//             {
-//                 // Then extract using "Nummer"
-//                 if (preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $m)) {
-//                     $invoiceByPage[$pageNo] = $m[1];
-//                     //\Log::info($m);
-//                     //\Log::info($invoiceByPage);
-//                 }
-//             }
-// //\Log::info($invoiceByPage);
-//             // Delete temp PDF & free memory
-//             unlink($tmpPdf);
-//             gc_collect_cycles();
-            }
 //\Log::info("Total pages: ". $totalPages);
 //\Log::info($invoiceByPage);        
         // Build page ranges grouped by invoice number
-        $ranges = self::buildPageRanges($invoiceByPage, $pageTextByPage, $totalPages);
-
-        \Log::info('Invoice range detection completed', [
-            'file' => $this->originalName,
-            'pages' => $totalPages,
-            'ranges' => count($ranges),
-            'duration_seconds' => round(microtime(true) - $startedAt, 2),
-        ]);
-
-        return $ranges;
-    }
-
-    private static function buildPageRanges(array $invoiceByPage, array $pageTextByPage, int $totalPages): array
-    {
-        $ranges = [];
         $currentInvoice = null;
         $rangeStart = 1;
-        //$headers = ['Nr.', 'Fakturadato', 'FSC™'];
-        $headers = ['NR', 'FAKTURADATO', 'FSC™'];
+        $headers = ['Nr.', 'Fakturadato', 'FSC™'];
         for ($page = 1; $page <= $totalPages; $page++) {
             $invoice = $invoiceByPage[$page] ?? $currentInvoice;
 //\Log::info("Has invoice : ". $invoice);
@@ -655,15 +555,8 @@ class SplitPdfJob implements ShouldQueue
             }
 
             if ($currentInvoice === null) {
-                // $currentInvoice = $invoice;
-                // $rangeStart = $page;
-
-                // Keep rangeStart at page 1 when initial pages have no readable
-                // number. Once the first number appears those leading pages
-                // belong to it, rather than being omitted from all ranges.
-                if ($invoice !== null) {
-                    $currentInvoice = $invoice;
-                }
+                $currentInvoice = $invoice;
+                $rangeStart = $page;
                 continue;
             }
 
@@ -674,164 +567,16 @@ class SplitPdfJob implements ShouldQueue
             }
         }
 
-        // if($totalPages == 2 && $rangeStart == 2)
-        //     $rangeStart = 1;
+        if($totalPages == 2 && $rangeStart == 2)
+            $rangeStart = 1;
 
         // Add the last range
-        $ranges[] = [$rangeStart, $totalPages];        
+        $ranges[] = [$rangeStart, $totalPages];
 
         return $ranges;
     }    
 
-    private static function extractInvoiceNumber(string $text): ?string
-    {
-        // Preserve the proven layouts used by the original splitter. OCR can
-        // return invoice identifiers that start with punctuation or contain
-        // characters outside a conservative letter/number allow-list, so the
-        // value after these labels deliberately uses \S+.
-        if (
-            preg_match('/NO-Invoice No\.?\s*(\S+)/i', $text)
-            && preg_match('/Nummer\s*\n\s*(\S+)/i', $text, $match)
-        ) {
-            return self::normalizeInvoiceNumber($match[1]);
-        }
-
-        $legacyPatterns = [
-            '/NO-Faktura\s*nr\.?\s*(\S+)/i',
-            '/Invoice\s*No[^A-Za-z0-9]+(\S+)/i',
-            '/Fakturanr\.?\s*(?:\r?\n)?\s*(\S+)/i',
-            '/Rechnungsnr\.?\s*(?:\r?\n)?\s*(\S+)/i',
-            '/Nummer\s*\n\s*(\S+)/i',
-        ];
-
-        foreach ($legacyPatterns as $pattern) {
-            if (preg_match($pattern, $text, $match)) {
-                return self::normalizeInvoiceNumber($match[1]);
-            }
-        }
-
-        // Some Norwegian layouts contain both labels. Prefer the value after
-        // "Nummer", but fall back to the value next to "NO-Invoice No.". The
-        // old code discarded the latter, causing an unreadable last page to be
-        // merged into the preceding range.
-        if (preg_match('/NO[-\s]*Invoice\s*No\.?/iu', $text)) {
-            if (preg_match('/Nummer\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu', $text, $match)) {
-                return self::normalizeInvoiceNumber($match[1]);
-            }
-
-            if (preg_match('/NO[-\s]*Invoice\s*No\.?\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu', $text, $match)) {
-                return self::normalizeInvoiceNumber($match[1]);
-            }
-        }
-
-        $patterns = [
-            '/NO[-\s]*Faktura\s*nr\.?\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu',
-            '/Invoice\s*No\.?\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu',
-            '/Faktura\s*nr\.?\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu',
-            '/Rechnungs\s*nr\.?\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu',
-            '/Nummer\s*[:#-]?\s*\R?\s*([\pL\pN][\pL\pN._\/-]*)/iu',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text, $match)) {
-                return self::normalizeInvoiceNumber($match[1]);
-            }
-        }
-
-        return null;
-    }
-
-    private static function containsInvoiceNumberLabel(string $text): bool
-    {
-        return preg_match(
-            '/(?:NO[-\s]*)?Invoice\s*No\.?|(?:NO[-\s]*)?Faktura\s*nr\.?|Rechnungs\s*nr\.?/iu',
-            $text
-        ) === 1;
-    }
-
-    private static function normalizeInvoiceNumber(string $invoiceNumber): string
-    {
-        return mb_strtoupper(trim($invoiceNumber, " \t\n\r\0\x0B.,:;#"), 'UTF-8');
-    }
-
-    private function optimizeSplitPdfForWeb(string $path): void
-    {
-        if (!config('ocr_profiles.pdf_processing.optimize_split_files', true)) {
-            return;
-        }
-
-        $minimumBytes = max(0, (int) config(
-            'ocr_profiles.pdf_processing.optimize_split_min_bytes',
-            1048576
-        ));
-        if (!is_file($path) || filesize($path) < $minimumBytes) {
-            return;
-        }
-
-        $configuredBinary = config('ocr_profiles.pdf_processing.ghostscript_binary');
-        $finder = new ExecutableFinder();
-        $binary = $configuredBinary ?: $finder->find('gs')
-            ?: $finder->find('gswin64c')
-            ?: $finder->find('gswin32c');
-
-        if (!$binary) {
-            \Log::notice('Ghostscript not found; split PDF was not optimized for web viewing', [
-                'file' => $path,
-            ]);
-            return;
-        }
-
-        $optimizedPath = $path.'.optimized.pdf';
-        try {
-            $process = new Process([
-                $binary,
-                '-q',
-                '-dNOPAUSE',
-                '-dBATCH',
-                '-dSAFER',
-                '-sDEVICE=pdfwrite',
-                '-dCompatibilityLevel=1.7',
-                '-dDetectDuplicateImages=true',
-                '-dCompressFonts=true',
-                '-dSubsetFonts=true',
-                '-dFastWebView=true',
-                '-sOutputFile='.$optimizedPath,
-                $path,
-            ]);
-            $process->setTimeout(120);
-            $process->run();
-
-            if ($process->isSuccessful() && is_file($optimizedPath) && filesize($optimizedPath) > 0) {
-                // rename() replaces files atomically on Linux. copy() is the
-                // Windows fallback, where replacing an existing file can fail.
-                if (@rename($optimizedPath, $path)) {
-                    return;
-                }
-                if (@copy($optimizedPath, $path)) {
-                    @unlink($optimizedPath);
-                    return;
-                }
-            }
-
-            \Log::warning('Ghostscript could not optimize split PDF for web viewing', [
-                'file' => $path,
-                'error' => trim($process->getErrorOutput()),
-            ]);
-        } catch (\Throwable $e) {
-            // Viewer optimization must never prevent OCR submission.
-            \Log::warning('Split PDF web optimization was skipped', [
-                'file' => $path,
-                'error' => $e->getMessage(),
-            ]);
-        } finally {
-            if (is_file($optimizedPath)) {
-                @unlink($optimizedPath);
-            }
-        }
-    }
-
-    /** @return array<int, string> Text keyed by one-based PDF page number. */
-    private function azureOcrGetTextByPageSafe(string $filePath): array
+    private function azureOcrGetTextSafe(string $filePath): string
     {
         $endpoint = rtrim(config('services.azure_form.endpoint'), '/');
         $apiKey   = config('services.azure_form.key');
@@ -862,37 +607,26 @@ class SplitPdfJob implements ShouldQueue
         }
 
         $operationLocation = $response->getHeaderLine('operation-location');
-        //if (!$operationLocation) return '';
-        if (!$operationLocation) return [];
+        if (!$operationLocation) return '';
 
-        $pollStartedAt = microtime(true);
         do {
             sleep(2);
             $poll = $client->get($operationLocation, [
                 'headers' => ['Ocp-Apim-Subscription-Key' => $apiKey],
             ]);
             $result = json_decode($poll->getBody(), true);
-
-            if (microtime(true) - $pollStartedAt > 1800) {
-                throw new \RuntimeException('Azure batch OCR did not finish within 30 minutes.');
-            }
         } while (($result['status'] ?? '') === 'running');
 
         if (($result['status'] ?? '') !== 'succeeded') {
-            //return '';
-            return [];
+            return '';
         }
 
-        //$text = '';
-        $textByPage = [];
+        $text = '';
         foreach ($result['analyzeResult']['pages'] ?? [] as $page) {
-            //$text .= implode("\n", array_column($page['lines'] ?? [], 'content')) . "\n";
-            $pageNumber = (int) ($page['pageNumber'] ?? count($textByPage) + 1);
-            $textByPage[$pageNumber] = trim(implode("\n", array_column($page['lines'] ?? [], 'content')));
+            $text .= implode("\n", array_column($page['lines'] ?? [], 'content')) . "\n";
         }
 
-        //return trim($text);
-        return $textByPage;
+        return trim($text);
     }    
 
     private function normalizePdfForOcr(string $inputPath): string

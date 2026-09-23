@@ -72,7 +72,8 @@ class SftpOioController extends Controller
 
     /* -- GET /analyzepdf/sftp -- */
     public function index()
-    {                       
+    {      
+        abort(403);                 
         /* -- PAGE CONFIG -- */
         $pageConfigs = $this->commonClass->getPageConfig($this->authUser, 'analyzepdf');
         /* --end PAGE CONFIG -- */

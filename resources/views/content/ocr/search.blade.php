@@ -142,7 +142,8 @@ $(function () {
                   <option
                       {{--value="{{ $clientName }}"--}}
                       value="{{ $client['client_no'] }}"
-                      @selected($index === 0)>
+                      {{--@selected($index === 0)--}}
+                      >
                       {{--{{ $clientName }}--}}
                       {{ $client['client_label'] }}
                   </option>
