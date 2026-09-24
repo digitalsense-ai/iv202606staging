@@ -17,7 +17,18 @@ use App\Services\MicrosoftMailService;
 
 class OcrAnalyzeService
 {
-    public function analyze(string $ocrProgressKey, array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
+    // public function analyze(string $ocrProgressKey, array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
+    public function analyze(
+        string $ocrProgressKey,
+        array $clients,
+        array $paths,
+        string $folder,
+        string $batchId,
+        string $emailMessageId = null,
+        array $prevCaptures = [],
+        bool $bulk = false,
+        ?string $emailSubject = null
+    )
     {        
         $invoiceType = $folder; // 'sales' or 'com'
         $whichStudio = 'model';
@@ -164,7 +175,8 @@ class OcrAnalyzeService
                     ($whichStudio === 'model') ? $modelId : $analyzerId,
                     null,
                     $emailMessageId,
-                    $prevCapture
+                    $prevCapture,
+                    $emailSubject
                 )->onQueue(config('queue.ocr.split', 'ocrpdfinvoices'));
 
                 if($bulk)

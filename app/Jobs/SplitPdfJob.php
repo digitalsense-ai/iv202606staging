@@ -41,7 +41,8 @@ class SplitPdfJob implements ShouldQueue
         public string $analyzerId,
         public ?string $pageRanges = null,
         public ?string $emailMessageId = null,
-        public ?array $prevCapture = []
+        public ?array $prevCapture = [],
+        public ?string $emailSubject = null
     ) {}
 
     public function handle()
@@ -89,6 +90,10 @@ class SplitPdfJob implements ShouldQueue
                     $ocrpdf->data_from = $sources->implode(' - ');                   
                 }
 
+                if ($data_from === 'inbox') {
+                    $ocrpdf->subject = $this->emailSubject;
+                }
+
                 $ocrpdf->save();
             }
             else    
@@ -104,7 +109,8 @@ class SplitPdfJob implements ShouldQueue
                     'error' => "File too large ({$fileSizeMB}MB) for PDF processing",
                     'created_at' => now(),
                     'source_environment' => config('database.ocr_source_environment'),
-                    'data_from' => $data_from ?? null
+                    'data_from' => $data_from ?? null,
+                    'subject' => $data_from === 'inbox' ? $this->emailSubject : null,
                 ]);
 
             if (file_exists($this->fullPath)) unlink($this->fullPath);
@@ -130,7 +136,8 @@ class SplitPdfJob implements ShouldQueue
                     'no_of_attempts' => 1,
                     'created_at'  => now(),
                     'source_environment' => config('database.ocr_source_environment'),
-                    'data_from' => $data_from ?? null
+                    'data_from' => $data_from ?? null,
+                    'subject' => $data_from === 'inbox' ? $this->emailSubject : null,
                 ]);
                 $docId = $ocrPdfId->id;
             }
@@ -167,6 +174,10 @@ class SplitPdfJob implements ShouldQueue
                 $ocrpdf->data_from = $sources->implode(' - ');                   
             }
 
+            if ($data_from === 'inbox') {
+                $ocrpdf->subject = $this->emailSubject;
+            }
+            
             $ocrpdf->save();
 
             // Delete local file
@@ -386,7 +397,8 @@ class SplitPdfJob implements ShouldQueue
                 ]),
                 'created_at' => now(),
                 'source_environment' => config('database.ocr_source_environment'),
-                'data_from' => $data_from ?? null
+                'data_from' => $data_from ?? null,
+                'subject' => $data_from === 'inbox' ? $this->emailSubject : null,
             ]);
             $docId = $ocrPdfId->id;
 

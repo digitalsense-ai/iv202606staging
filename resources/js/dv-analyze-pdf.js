@@ -856,7 +856,8 @@ console.log("on change");
 
     if (dt_analyzepdf_table) 
     {
-      let columntargets = [7, 8];
+      //let columntargets = [7, 8];
+      let columntargets = [9, 10];
       
       var analyzepdf_filter_class = 'd-none';
       let analyzepdf_name = '';
@@ -867,7 +868,8 @@ console.log("on change");
         analyzepdf_name = 'completed';
         analyzepdf_datas = analyzepdf_completed_datas;
 
-        columntargets = [7];
+        //columntargets = [7];
+        columntargets = [9];
       }
       else if(i === 1)
       {
@@ -885,7 +887,8 @@ console.log("on change");
         analyzepdf_datas = analyzepdf_deleted_datas;
         columntargets = [];
 
-        columntargets = [8];
+        //columntargets = [8];
+        columntargets = [10];
       }
 
       let columns = [
@@ -895,6 +898,8 @@ console.log("on change");
           { data: 'client_name' },
           { data: 'invoice_no' },
           { data: 'file_name' },
+          { data: 'data_from' },
+          { data: 'subject' },
           { data: 'created_at', className: 'w-px-200' },  
           { data: 'deleted_reason' },
           { data: 'sync_status' },
@@ -1067,7 +1072,35 @@ console.log("on change");
             },
             {
               // For Uparrow Icons
-              targets:  6,         
+              targets:  6, 
+              searchable: true,
+              orderable: true,
+              render: function (data, type) {
+                const source = data || 'Unknown';
+
+                if (type !== 'display') {
+                  return source;
+                }
+
+                return '<span class="badge bg-label-info text-capitalize">' +
+                  $('<div>').text(source.replace(/ - /g, ', ')).html() +
+                  '</span>';
+              }
+            },
+            {
+              // Email subject
+              targets:  7,
+              searchable: true,
+              orderable: true,
+              className: 'text-break',
+              render: function (data, type) {
+                const subject = data || '-';
+                return type === 'display' ? $('<div>').text(subject).html() : subject;
+              }
+            },
+            {
+              // Created/updated date
+              targets:  8,        
               searchable: false,
               orderable: true,              
               render: function (data, type, full, meta) {                 
@@ -1089,7 +1122,8 @@ console.log("on change");
             },
             {
               // For Uparrow Icons
-              targets:  7,         
+              //targets:  7,         
+              targets:  9,
               searchable: false,
               orderable: false,              
               render: function (data, type, full, meta) { 
@@ -1101,7 +1135,8 @@ console.log("on change");
             },
             {
               // For Uparrow Icons
-              targets:  8,         
+              //targets:  8,         
+              targets:  10,
               searchable: true,
               orderable: true,
               visible: true,
@@ -1119,7 +1154,8 @@ console.log("on change");
             },            
             {
               // For Action
-              targets: 9,              
+              //targets: 9,              
+              targets: 11,
               searchable: false,
               orderable: false,              
               render: function (data, type, full, meta) { 

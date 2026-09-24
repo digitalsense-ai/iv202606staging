@@ -73,7 +73,18 @@ class ProcessEmailJob implements ShouldQueue
                         $paths[] = $item['path'];
                         $prevCaptures[] = $item['prevCapture'];
                     }               
-                    $ocrAnalyzeService->analyze($this->ocrProgressKey, $this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
+                    // $ocrAnalyzeService->analyze($this->ocrProgressKey, $this->clients, $paths, $folder, $batchId, $this->emailId, $prevCaptures);
+                    $ocrAnalyzeService->analyze(
+                        $this->ocrProgressKey,
+                        $this->clients,
+                        $paths,
+                        $folder,
+                        $batchId,
+                        $this->emailId,
+                        $prevCaptures,
+                        false,
+                        $this->subject
+                    );
                 }
 
                 if($environment === 'local')

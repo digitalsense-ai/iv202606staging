@@ -539,6 +539,8 @@ async function fetchInboxAndTrackProgress() {
                             <th>Client Name</th>
                             <th>Invoice No's</th>
                             <th>File Name</th>
+                            <th>Source</th>
+                            <th>Email Subject</th>
                             <th>Last Modified/<br>Created</th>
                             <th>Reason</th>     
                             <th>Status</th>  

@@ -94,6 +94,8 @@ class AnalyzePdfController extends Controller
                 //'client_id',
                 'invoice_type',
                 'file_name',
+                'data_from',
+                'subject',s
                 'start_pageno',
                 'end_pageno',
                 'status',
