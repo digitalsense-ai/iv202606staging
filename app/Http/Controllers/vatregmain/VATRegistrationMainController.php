@@ -234,6 +234,7 @@ class VATRegistrationMainController extends Controller
                             $acc_reverse = ($selected_account_details[3] == "1") ? 1 : 0;
                             $acc_auto_vat_check = ($selected_account_details[4]) ? $selected_account_details[4] : 0;
                             $acc_map_column = ($selected_account_details[5]) ? $selected_account_details[5] : null;
+                            $use_base_currency_amount = isset($selected_account_details[6]) && $selected_account_details[6] == "1" ? 1 : 0;
 
                             $vataccnos = VATRegistrationMainAccNos::updateOrCreate(
                               [                                  
@@ -243,7 +244,8 @@ class VATRegistrationMainController extends Controller
                                 'acc_type' => $acc_type,
                                 'is_reverse' => $acc_reverse,
                                 'is_auto_vat_check' => $acc_auto_vat_check,
-                                'map_column' => $acc_map_column
+                                'map_column' => $acc_map_column,
+                                'use_base_currency_amount' => $use_base_currency_amount
                               ]
                             );
                           }
@@ -327,6 +329,7 @@ class VATRegistrationMainController extends Controller
                             $acc_reverse = ($selected_account_details[3] == "1") ? 1 : 0;
                             $acc_auto_vat_check = ($selected_account_details[4]) ? $selected_account_details[4] : 0;
                             $acc_map_column = ($selected_account_details[5]) ? $selected_account_details[5] : null;
+                            $use_base_currency_amount = isset($selected_account_details[6]) && $selected_account_details[6] == "1" ? 1 : 0;
                             
                             $vataccnos = VATRegistrationMainAccNos::updateOrCreate(
                               [                                  
@@ -336,7 +339,8 @@ class VATRegistrationMainController extends Controller
                                 'acc_type' => $acc_type,
                                 'is_reverse' => $acc_reverse,
                                 'is_auto_vat_check' => $acc_auto_vat_check,
-                                'map_column' => $acc_map_column                                  
+                                'map_column' => $acc_map_column,
+                                'use_base_currency_amount' => $use_base_currency_amount                       
                               ]
                             );
                           }
@@ -359,7 +363,7 @@ class VATRegistrationMainController extends Controller
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
                           'status' => 1,
-                          'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,
+                          //'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,
                         ]
                       );
                     }                  
@@ -618,16 +622,18 @@ class VATRegistrationMainController extends Controller
                             $acc_reverse = ($selected_account_details[3] == "1") ? 1 : 0;
                             $acc_auto_vat_check = ($selected_account_details[4]) ? $selected_account_details[4] : 0;
                             $acc_map_column = ($selected_account_details[5]) ? $selected_account_details[5] : null;
+                            $use_base_currency_amount = isset($selected_account_details[6]) && $selected_account_details[6] == "1" ? 1 : 0;
 
                             $vataccnos = VATRegistrationMainAccNos::updateOrCreate(
                               [                                  
-                              'vat_reg_main_id' => $vatRegs->id, 
-                              'acc_no' => $acc_no,
-                              'acc_name' => $acc_name,
-                              'acc_type' => $acc_type,
-                              'is_reverse' => $acc_reverse,
-                              'is_auto_vat_check' => $acc_auto_vat_check,
-                              'map_column' => $acc_map_column                                  
+                                'vat_reg_main_id' => $vatRegs->id, 
+                                'acc_no' => $acc_no,
+                                'acc_name' => $acc_name,
+                                'acc_type' => $acc_type,
+                                'is_reverse' => $acc_reverse,
+                                'is_auto_vat_check' => $acc_auto_vat_check,
+                                'map_column' => $acc_map_column,
+                                'use_base_currency_amount' => $use_base_currency_amount
                               ]
                             );
                           }
@@ -711,6 +717,7 @@ class VATRegistrationMainController extends Controller
                             $acc_reverse = ($selected_account_details[3] == "1") ? 1 : 0;
                             $acc_auto_vat_check = ($selected_account_details[4]) ? $selected_account_details[4] : 0;
                             $acc_map_column = ($selected_account_details[5]) ? $selected_account_details[5] : null;
+                            $use_base_currency_amount = isset($selected_account_details[6]) && $selected_account_details[6] == "1" ? 1 : 0;
                            
                             $vataccnos = VATRegistrationMainAccNos::updateOrCreate(
                               [                                  
@@ -720,7 +727,8 @@ class VATRegistrationMainController extends Controller
                                 'acc_type' => $acc_type,
                                 'is_reverse' => $acc_reverse,
                                 'is_auto_vat_check' => $acc_auto_vat_check,
-                                'map_column' => $acc_map_column
+                                'map_column' => $acc_map_column,
+                                'use_base_currency_amount' => $use_base_currency_amount
                               ]
                             );
                           }
@@ -743,7 +751,7 @@ class VATRegistrationMainController extends Controller
                           'api_company_id' => null,
                           'currency_code' => $currency_code,
                           'status' => 1,    
-                          'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,                 
+                          //'use_base_currency_amount' => ($request->api_use_base_currency_amount) ? 1 : 0,                 
                         ]
                       );
                     }                  

@@ -950,6 +950,7 @@ $(function () {
       //var acc_auto_vat_check = ($(this).closest('li').find('input[type="checkbox"][name="acc_auto_vat_check[]"]:checked').length > 0) ? 1 : 0;
       var acc_auto_vat_check = $(this).closest('li').find('select[name="acc_auto_vat_check[]"]').val();
       var acc_map_column = $(this).closest('li').find('select[name="acc_map_column[]"]').val();
+      var use_base_currency_amount = ($(this).closest('li').find('input[name="use_base_currency_amount[]"]:checked').length > 0) ? 1 : 0;
 
       selected_acc_no.push({
         'vat_account_no' : $(this).val(),
@@ -957,7 +958,8 @@ $(function () {
         'vat_account_type' : account_type,
         'acc_reverse' : acc_reverse,
         'acc_auto_vat_check' : acc_auto_vat_check,
-        'acc_map_column' : acc_map_column
+        'acc_map_column' : acc_map_column,
+        'use_base_currency_amount' : use_base_currency_amount
       });        
     });
  console.log(selected_acc_no);
@@ -965,6 +967,7 @@ $(function () {
     var selected_acc_details="";
     $.each(selected_acc_no, function(key,value) { 
       var acc_reverse  = (value['acc_reverse']) ? '<br><u>Reverse:</u><i class="bx bx-check"></i>' : '';
+      var use_base_currency_amount = (value['use_base_currency_amount']) ? '<br><u>Use Base Currency Amount:</u><i class="bx bx-check"></i>' : '';
 
       var acc_auto_vat_check_text = '';
       var acc_auto_vat_check  = '';
@@ -993,12 +996,14 @@ $(function () {
       acc_div += '<li class="d-inline-flex mb-3 w-50">' +                                     
                     '<div class="justify-content-between flex-grow-1">' +
                       '<div class="me-2">' +
-                        '<p class="mb-0">'+ value['vat_account_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + acc_auto_vat_check +'</p>' +
+                        //'<p class="mb-0">'+ value['vat_account_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + acc_auto_vat_check +'</p>' +
+                        '<p class="mb-0">'+ value['vat_account_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + use_base_currency_amount + acc_auto_vat_check +'</p>' +
                         '<p class="mb-0 text-muted">'+ value['vat_account_name'] +'</p>' +
                       '</div>' +
                     '</div>' +                    
                   '</li>';  
-      selected_acc_details +=  value['vat_account_no'] + '%%%' + value['vat_account_name'] + '%%%' + value['vat_account_type'] + '%%%' + value['acc_reverse'] + '%%%' + value['acc_auto_vat_check'] + '%%%' + value['acc_map_column'] + '***';
+      //selected_acc_details +=  value['vat_account_no'] + '%%%' + value['vat_account_name'] + '%%%' + value['vat_account_type'] + '%%%' + value['acc_reverse'] + '%%%' + value['acc_auto_vat_check'] + '%%%' + value['acc_map_column'] + '***';
+      selected_acc_details +=  value['vat_account_no'] + '%%%' + value['vat_account_name'] + '%%%' + value['vat_account_type'] + '%%%' + value['acc_reverse'] + '%%%' + value['acc_auto_vat_check'] + '%%%' + value['acc_map_column'] + '%%%' + value['use_base_currency_amount'] + '***';
     });       
     
     $("input[name=selected_acc_nos]").val(selected_acc_details);

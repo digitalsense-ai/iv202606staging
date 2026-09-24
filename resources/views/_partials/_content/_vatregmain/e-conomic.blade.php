@@ -20,14 +20,14 @@
     <input type="text" class="form-control" id="api_client_id" name="api_client_id" placeholder="Agreement Grant Token" value="{{ (isset($api_connection) ? $api_connection->api_client_id : '') }}" required />
     <label for="api_client_id">Agreement Grant Token</label>          
   </div>
-
+{{--
   <div class="form-floating mb-3">
     <div class="form-check">
       <input type="checkbox" class="form-check-input" id="api_use_base_currency_amount" name="api_use_base_currency_amount" value="1" {{ (isset($api_connection) ? (($api_connection->use_base_currency_amount) ? 'checked="true"' : '') : '') }}/>
       <label for="api_use_base_currency_amount">Use Base Currency Amount</label>     
     </div>
   </div> 
-
+--}}
 {{--
   <div class="form-floating mb-3">
     <div class="form-check">

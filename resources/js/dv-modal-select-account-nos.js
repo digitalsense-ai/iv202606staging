@@ -48,6 +48,7 @@ $(function () {
     var acc_reverse; 
     var acc_auto_vat_check; 
     var acc_map_column; 
+    var use_base_currency_amount;
     var selected_account_details;
 
     $.each(selected_account_datas, function(strkey,strvalue) {
@@ -61,6 +62,7 @@ $(function () {
         acc_reverse = (selected_account_details[3]) ? selected_account_details[3] : null;
         acc_auto_vat_check = (selected_account_details[4]) ? selected_account_details[4] : null;
         acc_map_column = (selected_account_details[5]) ? selected_account_details[5] : null;
+        use_base_currency_amount = (selected_account_details[6] == '1') ? 1 : 0;
 
         selected_acc_no.push({
           'vat_account_no' : acc_no,
@@ -68,7 +70,8 @@ $(function () {
           'vat_account_type' : acc_type,
           'acc_reverse' : acc_reverse,
           'acc_auto_vat_check' : acc_auto_vat_check,
-          'acc_map_column' : acc_map_column
+          'acc_map_column' : acc_map_column,
+          'use_base_currency_amount' : use_base_currency_amount
         });  
       }                    
      });
@@ -107,7 +110,8 @@ $(function () {
             var checked_status = '';     
             var checked_acc_reverse = ''; 
             var selected_auto_vat_check = ''; 
-            var selected_map_column = '';           
+            var selected_map_column = '';      
+            var checked_use_base_currency_amount = '';     
             $.each(selected_acc_no, function(selkey,selvalue) {           
               if(value['account_no'] == selvalue['vat_account_no'])
               { 
@@ -116,6 +120,7 @@ $(function () {
                 checked_acc_reverse = (selvalue['acc_reverse'] == "1") ? 'checked' : ''; 
                 selected_auto_vat_check = selvalue['acc_auto_vat_check'];
                 selected_map_column = selvalue['acc_map_column'];
+                checked_use_base_currency_amount = selvalue['use_base_currency_amount'] == 1 ? 'checked' : '';
               }
             });
             // $.each(result['selectedaccountnos'], function(selkey,selvalue) {           
@@ -139,12 +144,18 @@ $(function () {
                               '<option value="vat_sales" '+ ((selected_map_column == 'vat_sales') ? 'selected="selected"' : '') +'>Output VAT (on Sales)</option>' +
                               '<option value="net_purchases" '+ ((selected_map_column == 'net_purchases') ? 'selected="selected"' : '') +'>Net Purchases</option>' +
                               '<option value="vat_purchases" '+ ((selected_map_column == 'vat_purchases') ? 'selected="selected"' : '') +'>Input VAT (on Purchases)</option>' +
-                            '</select>' +  
-
+                            '</select>' + 
+                            
                             '<!-- Reverse Toggle -->' +
-                            '<div class="form-check form-switch form-check-inline">' +
+                            '<div class="form-check form-switch form-check-inline w-100">' +
                               '<input class="form-check-input acc_reverse" name="acc_reverse[]" type="checkbox" value="'+ value['account_no'] +'" id="acc_reverse_'+ value['account_no'] +'" ' + checked_acc_reverse +'>' +
                               '<label class="form-check-label text-muted" for="acc_reverse_'+ value['account_no'] +'" style="font-size: 12px;">Reverse</label>' +
+                            '</div>' +
+
+                            '<!-- Base Currency Toggle -->' +
+                            '<div class="form-check form-switch form-check-inline w-100">' +
+                              '<input class="form-check-input use_base_currency_amount" name="use_base_currency_amount[]" type="checkbox" value="'+ value['account_no'] +'" id="use_base_currency_amount_'+ value['account_no'] +'" ' + checked_use_base_currency_amount +'>' +
+                              '<label class="form-check-label text-muted" for="use_base_currency_amount_'+ value['account_no'] +'" style="font-size: 12px;">Use Base Currency Amount</label>' +
                             '</div>' +
 
                           '</div>' +
@@ -213,7 +224,8 @@ $(function () {
     {
       let li = $(this).closest('li');
       li.find("select#acc_map_column").prop('selectedIndex', 0);
-      li.find("input.acc_reverse").prop('checked', false);     
+      li.find("input.acc_reverse").prop('checked', false);    
+      li.find("input.use_base_currency_amount").prop('checked', false); 
       li.find("select#acc_auto_vat_check").prop('selectedIndex', 0);
     }  
     selectedLength('.chk-accoutno');

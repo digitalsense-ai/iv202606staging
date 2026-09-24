@@ -2198,6 +2198,7 @@ class CommonClass
               $accountnos = $vatreg->vatregmain->accnos;
               $acc_invoice_type = 'sale';
               $allow = false;
+              $useBaseCurrencyAmount = false;
               if(count($accountnos) > 0)
               {         
                 foreach ($accountnos as $accountno) 
@@ -2206,6 +2207,8 @@ class CommonClass
                   //         ($salepurchase->account->accountNumber == $accountno->acc_no))
                   if($salepurchase->account->accountNumber == $accountno->acc_no)
                   {
+                    $useBaseCurrencyAmount = $accountno->use_base_currency_amount;
+                    
                     if($accountno->is_reverse)
                       $acc_reverse = -1;
 
@@ -2265,7 +2268,7 @@ class CommonClass
               $actualAmount = $salepurchase->amount;
               $actualCurrency = $salepurchase->currency;
               
-              $useBaseCurrencyAmount = $vatreg->vatregmain->clientapi->use_base_currency_amount;
+              // $useBaseCurrencyAmount = $vatreg->vatregmain->clientapi->use_base_currency_amount;
               // Special case: base currency is NOK or DKK → use amountInBaseCurrency if available
               //if (in_array($baseCurrency, ['NOK']) && !empty($salepurchase->amountInBaseCurrency)) {
               if ($useBaseCurrencyAmount && !empty($salepurchase->amountInBaseCurrency)) {

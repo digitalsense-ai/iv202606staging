@@ -19,7 +19,8 @@ class VATRegistrationMainAccNos extends Model
     protected $guarded = []; 
 
     protected $casts = [       
-        'acc_no' => 'encrypted'
+        'acc_no' => 'encrypted',
+        'use_base_currency_amount' => 'boolean'
     ];
 
     /**

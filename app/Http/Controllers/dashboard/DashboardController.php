@@ -498,7 +498,7 @@ class DashboardController extends Controller
             {
                 try
                 {
-                    $api_use_base_currency_amount = $request->api_use_base_currency_amount;
+                    //$api_use_base_currency_amount = $request->api_use_base_currency_amount;
 
                     $api_client_id = $request->api_client_id;
                     $api_secret_key = "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1";
@@ -549,7 +549,7 @@ class DashboardController extends Controller
                                     'connection_name' => $request->connection_name,  
                                     'connection_status' => 1, 
                                     'connection_remarks' => "Established Connection", 
-                                    'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,             
+                                    //'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,             
                                 ]
                             );
                             //End  Insert new connection success connection
@@ -614,7 +614,7 @@ class DashboardController extends Controller
                                 'connection_name' => $request->connection_name,  
                                 'connection_status' => 0, 
                                 'connection_remarks' => $errorMessage->errorCode . '-' . $errorMessage->message,
-                                'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,               
+                                //'use_base_currency_amount' => ($api_use_base_currency_amount) ? 1 : 0,               
                             ]
                         );
                         // End Insert New connection with failure reason

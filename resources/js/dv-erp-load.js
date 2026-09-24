@@ -182,6 +182,7 @@
             var acc_div = "";           
             $.each(result, function(key,value) { 
               var acc_reverse  = ((value['is_reverse']) ? '<br><u>Reverse:</u><i class="bx bx-check"></i>' : '');
+              var use_base_currency_amount = value['use_base_currency_amount'] ? '<br><u>Use Base Currency Amount:</u><i class="bx bx-check"></i>' : '';
               
               var acc_auto_vat_check_text = '';
               var acc_auto_vat_check  = '';
@@ -209,13 +210,15 @@
               acc_div += '<li class="d-inline-flex mb-3 w-50">' +                                     
                           '<div class="justify-content-between flex-grow-1">' +
                             '<div class="me-2">' +
-                              '<p class="mb-0">'+ value['acc_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + acc_auto_vat_check +'</p>' +
+                              //'<p class="mb-0">'+ value['acc_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + acc_auto_vat_check +'</p>' +
+                              '<p class="mb-0">'+ value['acc_no'] + ((map_column) ? (' - ' + map_column) : '') + acc_reverse + use_base_currency_amount + acc_auto_vat_check +'</p>' +
                               '<p class="mb-0 text-muted">'+ value['acc_name'] +'</p>' +
                             '</div>' +
                           '</div>' +                    
                         '</li>';
 
-              selected_acc_details +=  value['acc_no'] + '%%%' + value['acc_name'] + '%%%' + value['acc_type'] + '%%%' + value['is_reverse'] + '%%%' + value['is_auto_vat_check'] + '%%%' + value['map_column'] + '***';            
+              //selected_acc_details +=  value['acc_no'] + '%%%' + value['acc_name'] + '%%%' + value['acc_type'] + '%%%' + value['is_reverse'] + '%%%' + value['is_auto_vat_check'] + '%%%' + value['map_column'] + '***';            
+              selected_acc_details +=  value['acc_no'] + '%%%' + value['acc_name'] + '%%%' + value['acc_type'] + '%%%' + value['is_reverse'] + '%%%' + value['is_auto_vat_check'] + '%%%' + value['map_column'] + '%%%' + (value['use_base_currency_amount'] ? 1 : 0) + '***';
             });  
 
             $("input[name=selected_acc_nos]").val('');    

@@ -293,7 +293,13 @@ class InsertInvoices implements ShouldQueue
                     $actualAmount = $invoice->amount;
                     $actualCurrency = $invoice->currency;
 
-                    $useBaseCurrencyAmount = $this->vatreg->vatregmain->clientapi->use_base_currency_amount;
+                    $accountnos = $this->vatreg->vatregmain->accnos;
+                    $selectedAccount = $accountnos->first(function ($accountno) use ($invoice) {
+                      return $invoice->account->accountNumber == $accountno->acc_no;
+                    });
+                    $useBaseCurrencyAmount = $selectedAccount && $selectedAccount->use_base_currency_amount;
+
+                    //$useBaseCurrencyAmount = $this->vatreg->vatregmain->clientapi->use_base_currency_amount;
 
                     // Special case: base currency is NOK or DKK → use amountInBaseCurrency if available
                     //if (in_array($baseCurrency, ['NOK', 'DKK']) && !empty($invoice->amountInBaseCurrency)) {
@@ -336,7 +342,7 @@ class InsertInvoices implements ShouldQueue
                     $net_or_vat = 'net';
                     $invoice_type = 'sale';
                     $allow = false;
-                    $accountnos = $this->vatreg->vatregmain->accnos;
+                    //$accountnos = $this->vatreg->vatregmain->accnos;
                     if(count($accountnos) > 0)
                     {         
                       foreach ($accountnos as $accountno) 
