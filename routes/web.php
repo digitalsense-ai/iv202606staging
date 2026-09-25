@@ -448,7 +448,8 @@ Route::middleware([
             } 
 
             /* -- OCR PDF -- */
-            Route::get('analyzepdf/updatebackfill', [AnalyzePdfController::class, 'processUnreadEmails'])->name('analyze.pdf.backfill');
+            //Route::get('analyzepdf/updatebackfill', [AnalyzePdfController::class, 'processUnreadEmails'])->name('analyze.pdf.backfill');
+            Route::post('analyzepdf/updatebackfill', [AnalyzePdfController::class, 'processUnreadEmails'])->name('analyze.pdf.backfill');
             Route::get('analyzepdf/timeout', [AnalyzePdfController::class, 'findTimeout'])->name('analyze.pdf.timeout');
 
             Route::get('analyzepdf', [AnalyzePdfController::class, 'index'])->name('analyze.pdf.index');

@@ -29,7 +29,6 @@ use App\Services\OcrCorrectionFeedbackService;
 use App\Services\MicrosoftMailService;
 use App\Services\OcrAnalyzeService;
 use App\Services\OcrClientNameResolver;
-use App\Services\OcrInflowMetadataBackfillService;
 
 use App\Repositories\ClientRepository;
 
@@ -96,7 +95,7 @@ class AnalyzePdfController extends Controller
                 'invoice_type',
                 'file_name',
                 'data_from',
-                'subject',
+                'subject',s
                 'start_pageno',
                 'end_pageno',
                 'status',
@@ -3705,22 +3704,409 @@ class AnalyzePdfController extends Controller
     }
     /* --end GET /analyzepdf/{analyze_id}/validate -- */
     
-    public function processUnreadEmails(Request $request, OcrInflowMetadataBackfillService $service)
+    public function backfillOcrPdfSubjects(string $folderId, int $limit = 10): void
     {
-        $validated = $request->validate([
-            'page_size' => ['nullable', 'integer', 'min:1', 'max:999'],
-            'classify_unmatched' => ['nullable', 'boolean'],
-        ]);
+        $mailService = new MicrosoftMailService();
+        $folderId = $mailService->getSubFolderId('OCR-Test', 'Done');
 
-        $result = $service->run(
-            (int) ($validated['page_size'] ?? 50),
-            (bool) ($validated['classify_unmatched'] ?? true)
-        );
-        
-        return response()->json([
-            'message' => 'OCR inflow metadata backfill completed.',
-            'result' => $result,
+        $mailbox = config('services.ms.mailbox');
+        $accessToken = $mailService->getAccessToken();
+
+        $url = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+            . "/mailFolders/{$folderId}/messages"
+            . "?\$select=id,subject,receivedDateTime,hasAttachments"    
+            . "?\$filter=isRead eq false"        
+            . "&\$orderby=receivedDateTime asc"
+            . "&\$top=10";
+
+        $checked = 0;
+        $updated = 0;
+
+        while ($url && $checked < $limit) {
+            $response = Http::withToken($accessToken)->get($url);
+
+            if (! $response->successful()) {
+                // Log::error('Graph API error while backfilling OCR subjects.', [
+                //     'status' => $response->status(),
+                //     'response' => $response->json(),
+                // ]);
+
+                return;
+            }
+
+            $data = $response->json();
+
+            foreach ($data['value'] ?? [] as $email) {
+                if ($checked >= $limit) {
+                    break;
+                }
+
+                $checked++;
+
+                if (empty($email['id']) || empty($email['subject'])) {
+                    continue;
+                }
+
+                $attachmentUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+                    . "/messages/{$email['id']}/attachments"
+                    . "?\$select=id,name";
+
+                $attachmentResponse = Http::withToken($accessToken)
+                    ->get($attachmentUrl);
+
+                if (! $attachmentResponse->successful()) {
+                    // Log::warning('Could not retrieve email attachments.', [
+                    //     'message_id' => $email['id'],
+                    //     'status' => $attachmentResponse->status(),
+                    // ]);
+
+                    continue;
+                }
+
+                foreach ($attachmentResponse->json('value', []) as $attachment) {
+                    $attachmentName = $attachment['name'] ?? null;
+
+                    if (! $attachmentName) {
+                        continue;
+                    }
+
+                    /*
+                     * Example:
+                     *
+                     * invoice_123.pdf
+                     *
+                     * Existing OcrPdf:
+                     *
+                     * invoice_123_20260912_220812_a7f3.pdf
+                     */
+                    $originalFileName = $attachmentName;
+
+                    $ocrPdfs = OcrPdf::query()
+                        ->whereNull('subject')
+                        ->where('file_name', 'like', $this->ocrFileNamePattern($originalFileName))
+                        ->get();
+
+                    $subjectUpdated = false;
+                    foreach ($ocrPdfs as $ocrpdf) {
+                        $ocrpdf->data_from = 'inbox';
+                        $ocrpdf->subject = $email['subject'];
+                        $ocrpdf->save();
+
+                        $subjectUpdated = true;
+                        $updated++;
+
+                        // Log::info('OCR PDF subject backfilled.', [
+                        //     'ocr_pdf_id' => $ocrpdf->id,
+                        //     'subject' => $email['subject'],
+                        //     'attachment' => $attachmentName,
+                        //     'message_id' => $email['id'],
+                        // ]);
+                    }
+
+                    // Mark email as read ONLY if subject was updated
+                    if ($subjectUpdated) {
+                        $response = Http::withToken($accessToken)
+                            ->patch(
+                                "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages/{$email['id']}",
+                                [
+                                    'isRead' => true,
+                                ]
+                            );
+
+                        if (! $response->successful()) {
+                            // Log::warning('Could not mark email as read.', [
+                            //     'message_id' => $email['id'],
+                            //     'status' => $response->status(),
+                            //     'response' => $response->json(),
+                            // ]);
+                        } else {
+                            // Log::info('Email marked as read after subject update.', [
+                            //     'message_id' => $email['id'],
+                            //     'subject' => $email['subject'],
+                            // ]);
+                        }
+                    }
+                }
+            }
+
+            $url = $data['@odata.nextLink'] ?? null;
+        }
+
+        // Log::info('OCR subject test backfill completed.', [
+        //     'emails_checked' => $checked,
+        //     'records_updated' => $updated,
+        // ]);
+
+        dd([
+            'emails_checked' => $checked,
+            'records_updated' => $updated,
         ]);
+    }
+
+    public function processUnreadEmails(int $pageSize = 50): void
+    {
+        $mailService = new MicrosoftMailService();
+
+        // If you always want OCR-Test/Done, you can remove $folderId
+        // from the method arguments and keep this.
+        $folderId = $mailService->getSubFolderId('OCR-Test', 'Done');
+
+        $mailbox = config('services.ms.mailbox');
+        $accessToken = $mailService->getAccessToken();
+
+        $url = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+            . "/mailFolders/{$folderId}/messages"
+            . "?\$select=id,subject,conversationId,receivedDateTime,hasAttachments,isRead"
+            . "&\$filter=isRead eq false"
+            . "&\$orderby=receivedDateTime desc"
+            . "&\$top={$pageSize}";
+
+        $emailsChecked = 0;
+        $emailsMarkedRead = 0;
+        $ocrPdfsUpdated = 0;
+
+        while ($url) {
+            $response = Http::withToken($accessToken)->get($url);
+
+            if (! $response->successful()) {
+                // Log::error('Graph API error while fetching unread emails.', [
+                //     'status' => $response->status(),
+                //     'response' => $response->json(),
+                // ]);
+
+                return;
+            }
+
+            $data = $response->json();
+
+            foreach ($data['value'] ?? [] as $email) {
+                $emailsChecked++;
+
+                $originalMessageId = $email['id'] ?? null;
+                $originalSubject = $email['subject'] ?? null;
+                $conversationId = $email['conversationId'] ?? null;
+
+                if (! $originalMessageId) {
+                    continue;
+                }
+
+                /*
+                 * These are the messages whose attachments we need to inspect.
+                 *
+                 * Normally this is just the current email.
+                 *
+                 * If the current email has no attachment, we also check
+                 * other messages in the same conversation.
+                 */
+                $messagesToCheck = [$email];
+
+                if (empty($email['hasAttachments']) && $conversationId) {
+                    $conversationUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages"
+                        . "?\$filter=conversationId eq '{$conversationId}'"
+                        . "&\$select=id,subject,conversationId,receivedDateTime,hasAttachments";
+
+                    $conversationResponse = Http::withToken($accessToken)
+                        ->get($conversationUrl);
+
+                    if ($conversationResponse->successful()) {
+                        foreach ($conversationResponse->json('value', []) as $message) {
+                            /*
+                             * Don't add the original message twice.
+                             */
+                            if (($message['id'] ?? null) === $originalMessageId) {
+                                continue;
+                            }
+
+                            /*
+                             * Only messages that actually have attachments.
+                             */
+                            if (! empty($message['hasAttachments'])) {
+                                $messagesToCheck[] = $message;
+                            }
+                        }
+                    } else {
+                        // Log::warning('Could not retrieve conversation messages.', [
+                        //     'conversation_id' => $conversationId,
+                        //     'message_id' => $originalMessageId,
+                        //     'status' => $conversationResponse->status(),
+                        // ]);
+                    }
+                }
+
+                /*
+                 * This flag belongs to the ORIGINAL unread email.
+                 *
+                 * If any message in the conversation causes an OcrPdf
+                 * to be updated, we mark the original email as read.
+                 */
+                $subjectUpdated = false;
+
+                foreach ($messagesToCheck as $message) {
+                    $messageId = $message['id'] ?? null;
+                    $messageSubject = $message['subject'] ?? $originalSubject;
+
+                    if (! $messageId) {
+                        continue;
+                    }
+
+                    /*
+                     * Get attachments from THIS message.
+                     *
+                     * This was the main problem in your previous code:
+                     * you were always using $originalMessageId here.
+                     */
+                    $attachmentUrl = "https://graph.microsoft.com/v1.0/users/{$mailbox}"
+                        . "/messages/{$messageId}/attachments"
+                        . "?\$select=id,name";
+
+                    $attachmentResponse = Http::withToken($accessToken)
+                        ->get($attachmentUrl);
+
+                    if (! $attachmentResponse->successful()) {
+                        // Log::warning('Could not retrieve email attachments.', [
+                        //     'message_id' => $messageId,
+                        //     'status' => $attachmentResponse->status(),
+                        // ]);
+
+                        continue;
+                    }
+
+                    $attachments = $attachmentResponse->json('value', []);
+
+                    foreach ($attachments as $attachment) {
+                        $attachmentName = $attachment['name'] ?? null;
+
+                        if (! $attachmentName) {
+                            continue;
+                        }
+
+                        /*
+                         * Example Outlook attachment:
+                         *
+                         * invoice_123.pdf
+                         *
+                         * Existing OcrPdf:
+                         *
+                         * invoice_123_20260912_220812_a7f3.pdf
+                         */
+
+                        $extension = pathinfo($attachmentName, PATHINFO_EXTENSION);
+                        $name = pathinfo($attachmentName, PATHINFO_FILENAME);
+
+                        /*
+                         * Match:
+                         *
+                         * invoice_123_20260912_220812_a7f3.pdf
+                         *
+                         * Pattern:
+                         *
+                         * invoice_123_????????_??????_????.pdf
+                         *
+                         * In MySQL LIKE:
+                         * _ = one character
+                         */
+                        $pattern = $name
+                            . '_????????_??????_????'
+                            . ($extension ? '.' . $extension : '');
+
+                        $ocrPdfs = OcrPdf::query()
+                            ->whereNull('subject')
+                            //->where('status', 'completed')
+                            ->where('file_name', 'like', $pattern)
+                            ->get();
+
+                        if ($ocrPdfs->isEmpty()) {
+                            continue;
+                        }
+
+                        foreach ($ocrPdfs as $ocrpdf) {
+                            /*
+                             * Use the subject of the message that actually
+                             * contains the attachment.
+                             */
+                            $ocrpdf->subject = $messageSubject;
+                            $ocrpdf->save();
+
+                            $subjectUpdated = true;
+                            $ocrPdfsUpdated++;
+
+                            // Log::info('OCR PDF subject updated.', [
+                            //     'ocr_pdf_id' => $ocrpdf->id,
+                            //     'file_name' => $ocrpdf->file_name,
+                            //     'subject' => $messageSubject,
+                            //     'attachment' => $attachmentName,
+                            //     'message_id' => $messageId,
+                            //     'original_message_id' => $originalMessageId,
+                            // ]);
+                        }
+                    }
+                }
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * Mark the ORIGINAL unread email as read only when
+                 * an OcrPdf subject was actually updated.
+                 */
+                if ($subjectUpdated) {
+                    $markReadResponse = Http::withToken($accessToken)
+                        ->patch(
+                            "https://graph.microsoft.com/v1.0/users/{$mailbox}/messages/{$originalMessageId}",
+                            [
+                                'isRead' => true,
+                            ]
+                        );
+
+                    if ($markReadResponse->successful()) {
+                        $emailsMarkedRead++;
+
+                        // Log::info('Original email marked as read after OcrPdf update.', [
+                        //     'message_id' => $originalMessageId,
+                        //     'subject' => $originalSubject,
+                        // ]);
+                    } else {
+                        // Log::warning('Could not mark original email as read.', [
+                        //     'message_id' => $originalMessageId,
+                        //     'status' => $markReadResponse->status(),
+                        //     'response' => $markReadResponse->json(),
+                        // ]);
+                    }
+                }
+            }
+
+            /*
+             * Get the next Graph page.
+             */
+            $url = $data['@odata.nextLink'] ?? null;
+        }
+
+        // Log::info('Unread email processing completed.', [
+        //     'emails_checked' => $emailsChecked,
+        //     'ocr_pdfs_updated' => $ocrPdfsUpdated,
+        //     'emails_marked_read' => $emailsMarkedRead,
+        // ]);
+
+        dd([
+            'emails_checked' => $emailsChecked,
+            'ocr_pdfs_updated' => $ocrPdfsUpdated,
+            'emails_marked_read' => $emailsMarkedRead,
+        ]);
+    }
+
+
+    private function ocrFileNamePattern(string $originalFileName): string
+    {
+        $extension = pathinfo($originalFileName, PATHINFO_EXTENSION);
+        $name = pathinfo($originalFileName, PATHINFO_FILENAME);
+
+        /*
+         * Original:
+         * invoice_123.pdf
+         *
+         * Stored:
+         * invoice_123_20260912_220812_a7f3.pdf
+         */
+        return $name . '__________%.'.$extension;
     }
 
     public function findTimeout()

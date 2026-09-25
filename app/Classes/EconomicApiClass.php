@@ -364,19 +364,41 @@ class EconomicApiClass
      
           $accounts_url = "https://restapi.e-conomic.com/accounts/?pagesize=1000";
 
-          $accounts_response = $guzzleClient->request('GET', $accounts_url, [
-              'headers' => $headers,          
-              'verify'  => false,
-          ]);       
-          $accounts_data = json_decode($accounts_response->getBody());
+          // $accounts_response = $guzzleClient->request('GET', $accounts_url, [
+          //     'headers' => $headers,          
+          //     'verify'  => false,
+          // ]);       
+          // $accounts_data = json_decode($accounts_response->getBody());
 
           $account_nos = [];
-          foreach ($accounts_data->collection as $key=>$account) { 
-            $account_nos[$key] = [
-              'account_no' => $account->accountNumber,
-              'account_name' => $account->name,             
-              'account_type' => $account->debitCredit
-            ];
+          // foreach ($accounts_data->collection as $key=>$account) { 
+          //   $account_nos[$key] = [
+          //     'account_no' => $account->accountNumber,
+          //     'account_name' => $account->name,             
+          //     'account_type' => $account->debitCredit
+          //   ];
+          //}
+
+          $visited_urls = [];
+
+          while ($accounts_url && !isset($visited_urls[$accounts_url])) {
+            $visited_urls[$accounts_url] = true;
+
+            $accounts_response = $guzzleClient->request('GET', $accounts_url, [
+                'headers' => $headers,
+                'verify'  => false,
+            ]);
+            $accounts_data = json_decode($accounts_response->getBody());
+
+            foreach ($accounts_data->collection ?? [] as $account) {
+              $account_nos[] = [
+                'account_no' => $account->accountNumber,
+                'account_name' => $account->name,
+                'account_type' => $account->debitCredit
+              ];
+            }
+
+            $accounts_url = $accounts_data->pagination->nextPage ?? null;
           }
 
           return $account_nos;

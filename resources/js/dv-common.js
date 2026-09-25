@@ -4374,7 +4374,8 @@ $(function () {
               {          
                 if (modal_cominvoices.hasOwnProperty(compare_month_year))
                 {
-                  modal_co_invoices = modal_cominvoices[compare_month_year];
+                  //modal_co_invoices = modal_cominvoices[compare_month_year];
+                  modal_co_invoices = [...modal_cominvoices[compare_month_year]];
                   modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
 
                   let filter_other_period_com_invoices = modal_cominvoices_other_periods.filter(item => 
@@ -4531,7 +4532,8 @@ $(function () {
                   {               
                     if (modal_cominvoices.hasOwnProperty(importvatfile['month_year']))
                     {
-                      modal_co_invoices = modal_cominvoices[importvatfile['month_year']];
+                      //modal_co_invoices = modal_cominvoices[importvatfile['month_year']];
+                      modal_co_invoices = [...modal_cominvoices[importvatfile['month_year']]];
                       modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
 
                       let filter_other_period_com_invoices_first = modal_cominvoices_other_periods.filter(item => 
@@ -4622,7 +4624,8 @@ $(function () {
             {          
               if (modal_cominvoices.hasOwnProperty(compare_month_year))
               {
-                modal_co_invoices = modal_cominvoices[compare_month_year];
+                //modal_co_invoices = modal_cominvoices[compare_month_year];
+                modal_co_invoices = [...modal_cominvoices[compare_month_year]];
                 modal_co_invoices.sort((a, b) => a.co_invoice_no.localeCompare(b.co_invoice_no));
 
                 let filter_other_period_com_invoices = modal_cominvoices_other_periods.filter(item => 

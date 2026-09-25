@@ -346,7 +346,10 @@ class DeclarationNewOcrController extends Controller
                 ->select('id', 'vat_reg_id', 'invoice_no')
                 ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
                     $subquery->where('id', $client_id);
-                })           
+                })
+                //->where('vat_reg_id', '<>', $vat_reg_id)
+                ->whereNotNull('invoice_no')
+                ->where('invoice_no', '<>', '')          
                 //->whereNot('data_from', 'ivf')
                 //->whereNot('data_from', 'ftp')
                 ->where('data_from', 'ocr')
@@ -355,49 +358,62 @@ class DeclarationNewOcrController extends Controller
 
           /* -- GET IVF same COM. INVOICES FOR THE CLIENT -- */
           $other_period_ivf_group = ImportReconciliationComInvoices::with(['vatreg', 'vatreg.client'])
-                          ->select('invoice_no', DB::raw('COUNT(*) as invoice_count'),                            
-                            DB::raw('GROUP_CONCAT(id ORDER BY id ASC) as ids'),
-                            DB::raw('GROUP_CONCAT(vat_reg_id ORDER BY vat_reg_id ASC) as vat_reg_ids')
-                          )                         
+                          // ->select('invoice_no', DB::raw('COUNT(*) as invoice_count'),                            
+                          //   DB::raw('GROUP_CONCAT(id ORDER BY id ASC) as ids'),
+                          //   DB::raw('GROUP_CONCAT(vat_reg_id ORDER BY vat_reg_id ASC) as vat_reg_ids')
+                          // )                         
+                          ->select('invoice_no')
                           ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
                               $subquery->where('id', $client_id);
                           })           
-                          ->whereNotNull('invoice_no')  
+                          ->whereNotNull('invoice_no') 
+                          ->where('invoice_no', '<>', '') 
                           ->where('data_from', 'ivf')   
                           ->groupBy('invoice_no')
-                          ->having('invoice_count', '>', 1)            
+                          //->having('invoice_count', '>', 1)            
+                          ->havingRaw('COUNT(DISTINCT vat_reg_id) > 1')
                           ->get();  
 
-          // Convert to Collection
-          $arr_other_period_ivf_group = $other_period_ivf_group->flatMap(function ($invoice) {
-              $ids = explode(',', $invoice->ids);
-              $vat_reg_ids = explode(',', $invoice->vat_reg_ids);
+          // // Convert to Collection
+          // $arr_other_period_ivf_group = $other_period_ivf_group->flatMap(function ($invoice) {
+          //     $ids = explode(',', $invoice->ids);
+          //     $vat_reg_ids = explode(',', $invoice->vat_reg_ids);
               
-              $result = [];
-              $count = min(count($ids), count($vat_reg_ids)); // Ensure matching pairs
+          //     $result = [];
+          //     $count = min(count($ids), count($vat_reg_ids)); // Ensure matching pairs
 
-              for ($i = 0; $i < $count; $i++) {
-                  $result[] = [
-                      'invoice_no' => $invoice->invoice_no,
-                      'invoice_count' => $invoice->invoice_count,
-                      'ids' => $ids[$i],
-                      'vat_reg_ids' => $vat_reg_ids[$i]
-                  ];
-              }
+          //     for ($i = 0; $i < $count; $i++) {
+          //         $result[] = [
+          //             'invoice_no' => $invoice->invoice_no,
+          //             'invoice_count' => $invoice->invoice_count,
+          //             'ids' => $ids[$i],
+          //             'vat_reg_ids' => $vat_reg_ids[$i]
+          //         ];
+          //     }
               
-              return $result;
-          });
-          $other_period_ids = $arr_other_period_ivf_group->pluck('ids')->toArray();
+          //     return $result;
+          // });
+          // $other_period_ids = $arr_other_period_ivf_group->pluck('ids')->toArray();
+
+          $other_period_ivf_invoice_nos = $other_period_ivf_group->pluck('invoice_no');
           
           $other_period_ivf_importreconciliationcominvoices = ImportReconciliationComInvoices::with(['vatreg', 'vatreg.client'])
                 ->select('id', 'vat_reg_id', 'invoice_no')
                 ->whereHas('vatreg.client', function ($subquery) use($client_id) {                                        
                     $subquery->where('id', $client_id);
                 })           
-                ->whereIn('id', $other_period_ids)                
+                //->whereIn('id', $other_period_ids)   
+                ->where('vat_reg_id', '<>', $vat_reg_id)
+                ->where('data_from', 'ivf')
+                ->whereIn('invoice_no', $other_period_ivf_invoice_nos)             
                 ->get(); 
 
-          $other_period_importreconciliationcominvoices = $other_period_importreconciliationcominvoices->merge($other_period_ivf_importreconciliationcominvoices);                
+          // $other_period_importreconciliationcominvoices = $other_period_importreconciliationcominvoices->merge($other_period_ivf_importreconciliationcominvoices);                
+          $other_period_importreconciliationcominvoices = $other_period_importreconciliationcominvoices
+                ->merge($other_period_ivf_importreconciliationcominvoices)
+                ->unique('id')
+                ->sortBy('invoice_no', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
           /* --end GET IVF same COM. INVOICES FOR THE CLIENT -- */                 
 
           $declarations = $this->commonClass->getSpecificVatRegQuery($vat_reg_id);           

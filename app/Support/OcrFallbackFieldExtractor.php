@@ -442,6 +442,7 @@ class OcrFallbackFieldExtractor
                         || stripos($line, "no commercial sale") !== false 
                         || stripos($line, "commercial bu") !== false  
                         || stripos($line, "bring | proforma invoice") !== false 
+                        || stripos($line, "the exporter of the products covered by this document authorization no.") !== false 
                     )
                     {
 

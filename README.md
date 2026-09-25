@@ -64,3 +64,40 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
 # iv202606staging
 # iv202606staging
+
+
+## Production cache configuration
+
+The application uses the database cache by default. This is intentional: the
+web server, queue workers, and scheduler may run as different operating-system
+users, and a file created in `storage/framework/cache` can therefore be
+unwritable by another process even when the parent directories use the setgid
+bit. A process umask still controls the mode of newly created files.
+
+Deploy the cache migration and update the production environment:
+
+```bash
+php artisan migrate --force
+
+# .env
+CACHE_DRIVER=database
+
+php artisan optimize:clear
+sudo supervisorctl restart all
+```
+
+Run the scheduler and queue workers as the same application user (normally
+`www-data`) where possible. If the file cache must be used instead, apply a
+default ACL, which affects files created in the future, rather than repeatedly
+repairing existing ownership and modes:
+
+```bash
+sudo chown -R myuser:www-data storage bootstrap/cache
+sudo find storage bootstrap/cache -type d -exec chmod 2775 {} \;
+sudo find storage bootstrap/cache -type f -exec chmod 0664 {} \;
+sudo setfacl -R -m u:myuser:rwx,u:www-data:rwx,m:rwx storage bootstrap/cache
+sudo setfacl -R -d -m u:myuser:rwx,u:www-data:rwx,m:rwx storage bootstrap/cache
+```
+
+After changing `.env`, always clear cached configuration and restart long-lived
+queue workers so they load the new cache driver.

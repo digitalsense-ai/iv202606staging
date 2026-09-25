@@ -6,15 +6,23 @@ class OcrInvoiceNumberService
 {
     public function ruleNotes(?string $clientName): array
     {
-        if ($clientName === null) {
+        //if ($clientName === null) {
+        if ($clientName === null || trim($clientName) === '') {
             return [];
         }
 
         $clientName = strtolower($clientName);
         $notes = [];
 
+        if (str_contains($clientName, 'dfi-geisler')) {
+            $notes[] = 'Invoice number: when no invoice number is captured, the invoice date is used in YYYYMMDD format.';
+        }
+
         if (str_contains($clientName, 'rainwear')) {
-            $notes[] = 'Commercial invoices use File Name in place of invoice number.';
+            //$notes[] = 'Commercial invoices use File Name in place of invoice number.';
+
+            $notes[] = 'Invoice number: commercial invoices use the SF-number from the file name.';
+            // $notes[] = 'Invoice number: when OCR returns two lines, the first is treated as NO Invoice Number and the second as Invoice Number.';
         }
 
         if (
@@ -22,14 +30,75 @@ class OcrInvoiceNumberService
             || str_contains($clientName, 'engel')
             || str_contains($clientName, 'berendsohn')
         ) {
-            $notes[] = 'Sales invoices use NO Invoice Number in place of invoice number.';
+            //$notes[] = 'Sales invoices use NO Invoice Number in place of invoice number.';
+            $notes[] = 'Invoice number: sales invoices use NO Invoice Number in place of Invoice Number.';
+        }
+
+        if (str_contains($clientName, 'stof')) {
+            $notes[] = 'Invoice number: all hyphens are removed from sales invoice numbers.';
+            $notes[] = 'Commercial references: related sales invoices are restricted to unique 10-digit numbers beginning with 20, collected from both the captured field and OCR text.';
+        }
+
+        if (str_contains($clientName, 'engel')) {
+            $notes[] = 'Invoice number: the text ".. ff" is removed from commercial invoice numbers.';
+            $notes[] = 'Exchange amounts: a missing exchange VAT amount/currency is recovered from OCR text; "0 NOK" is interpreted as NOK 0.';
+        }
+
+        if (str_contains($clientName, 'adag')) {
+            $notes[] = 'Additional charges: multiple newline-separated numeric charges are added together before normalization and calculation.';
+            $notes[] = 'Net calculation: |Net Amount| + |Additional Charges| + |Variance| - |Discount Amount|.';
+        }
+
+        if (str_contains($clientName, 'sgi wholesale') || str_contains($clientName, 'sand cph')) {
+            $notes[] = 'Amounts: the captured Variance and Discount Amount values are swapped, so the captured variance is used as the discount amount.';
+            $notes[] = 'Net calculation after the swap: |Net Amount| + |Additional Charges| + |Variance| - |Discount Amount|.';
         }
 
         if (str_contains($clientName, 'horn bord')) {
-            $notes[] = 'Non-credit invoices use Order Number in place of invoice number.';
+            //$notes[] = 'Non-credit invoices use Order Number in place of invoice number.';
+            $notes[] = 'Invoice number: non-credit invoices use Order Number in place of Invoice Number.';
+            $notes[] = 'Credit note: an invoice number beginning with KRE- marks the document as a credit note.';
         }
 
-        return $notes;
+        if (str_contains($clientName, 'vernon')) {
+            $notes[] = 'Invoice type: EX-prefixed invoice numbers and VAT-base text are used to distinguish sales invoices from commercial invoices.';
+        }
+
+        if (str_contains($clientName, 'committee xxiv')) {
+            $notes[] = 'Invoice type: VAT amount/rate text is used to distinguish sales invoices from commercial invoices.';
+        }
+
+        if (str_contains($clientName, 'samsoe samsoe') || str_contains($clientName, 'samsø samsø')) {
+            $notes[] = 'Invoice type: the presence of Net Amount or VAT Amount is used to distinguish commercial invoices from sales invoices.';
+        }
+
+        $referenceParserClients = [
+            'aubo',
+            'berendsohn',
+            'berg toys',
+            'bianco',
+            'dan form',
+            'dan-form',
+            'kite',
+            'our units',
+            'rexholm',
+            'rieker',
+            'sebra',
+            'secondfemale',
+            'second female',
+            'sports group',
+            'villy',
+        ];
+
+        foreach ($referenceParserClients as $referenceParserClient) {
+            if (str_contains($clientName, $referenceParserClient)) {
+                $notes[] = 'Commercial references: client-specific rules extract and classify related sales invoices, sales orders, and shipment numbers from captured fields and OCR text.';
+                break;
+            }
+        }
+
+        //return $notes;
+        return array_values(array_unique($notes));
     }
     
     public function apply(array $data, ?string $clientName, ?string $fileName, ?string $invoiceType): array
