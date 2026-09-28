@@ -386,6 +386,15 @@ class CustomComInvoiceMapper
                         unset($mapresult['change_invoice_type']);
                 }
             }
+            else if(stripos($client_name, 'sgi wholesale') !== false
+                || stripos($client_name, 'sand cph') !== false
+            )
+            {
+                if (preg_match('/^\d{6}$/', $invoiceNumber))                 
+                    unset($mapresult['change_invoice_type']);
+                else
+                    $mapresult['change_invoice_type'] = true;
+            }
         }
 
         $chkSpecificText = OcrFallbackFieldExtractor::chkSpecificText($content, 'samsoe samsoe');        

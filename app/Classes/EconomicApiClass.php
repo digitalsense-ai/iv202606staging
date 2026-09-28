@@ -353,7 +353,7 @@ class EconomicApiClass
     { 
         try
         {          
-          $api_secret_key = "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1";
+          $api_secret_key = config('app.economic_api_secret_key');
                   
           $headers = [                                   
               'X-AppSecretToken' => $api_secret_key,

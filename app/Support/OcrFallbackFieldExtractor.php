@@ -422,8 +422,7 @@ class OcrFallbackFieldExtractor
             'collective',
             'reference/invoicing',
             'eksportoren af varer der',
-            'denne samlefaktura omhandler faktura numre',
-            'the exporter of the products covered by this document'
+            'denne samlefaktura omhandler faktura numre'            
         ];
         
         $lines = preg_split('/\R/u', $content) ?: [];
@@ -442,7 +441,6 @@ class OcrFallbackFieldExtractor
                         || stripos($line, "no commercial sale") !== false 
                         || stripos($line, "commercial bu") !== false  
                         || stripos($line, "bring | proforma invoice") !== false 
-                        || stripos($line, "the exporter of the products covered by this document authorization no.") !== false 
                     )
                     {
 

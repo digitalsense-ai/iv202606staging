@@ -135,6 +135,9 @@ return [
 
     'dv_user_password' => env('DV_USER_PASSWORD', '12345678'),
 
+    'economic_api_secret_key' => env('ECONOMIC_API_SECRET_KEY', '12345678'),
+    'uniconta_api_secret_key' => env('UNICONTA_API_SECRET_KEY', '12345678'),
+
     'dv_staging_url' => env('DV_STAGING_URL', '12345678'),
     'dv_live_url' => env('DV_LIVE_URL', '12345678'),   
 

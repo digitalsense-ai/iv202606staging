@@ -791,20 +791,75 @@ $(function () {
         columns = [
           //{ data: 'fake_id', width: '100px' },
           //Prem-staging
+          // {
+          //     data: null,
+          //     width: '100px',
+          //     render: function (data, type, row) {
+          //       if (row.source === 'sftp') {
+          //           return `
+          //               <div>
+          //                   <div>${row.id}</div>
+          //                   <span class="badge bg-label-primary">FTP</span>                            
+          //               </div>
+          //           `;
+          //       }
+          //       return row.id;
+          //     }
+          // },
           {
-              data: null,
-              width: '100px',
-              render: function (data, type, row) {
-                if (row.source === 'sftp') {
+            data: null,
+            width: '100px',
+            render: function (data, type, full, meta) {
+
+                if (type !== 'display') {
+                    return [full.id, full.data_from, full.subject]
+                        .filter(Boolean)
+                        .join(' ');
+                }
+
+                // SFTP source
+                if (full.source === 'sftp') {
                     return `
                         <div>
-                            <div>${row.id}</div>
-                            <span class="badge bg-label-primary">FTP</span>                            
+                            <div>${full.id}</div>
+                            <span class="badge bg-label-primary">FTP</span>
                         </div>
                     `;
                 }
-                return row.id;
-              }
+
+                const source = full.data_from || 'Unknown';
+
+                const $sourceBadge = $('<span>', {
+                    class: 'badge bg-label-info text-capitalize mt-1',
+                    text: source.replace(/ - /g, ', ')
+                });
+
+                // if (source.toLowerCase().includes('inbox') && full.subject) {
+                //     $sourceBadge
+                //         .attr('title', full.subject)
+                //         .attr('aria-label', 'Email subject: ' + full.subject)
+                //         .css('cursor', 'help');
+                // }
+
+                const hasInbox = source
+                    .toLowerCase()
+                    .split(/\s*(?:-|,)\s*/)
+                    .includes('inbox');
+
+                if (hasInbox && full.subject) {
+                    $sourceBadge
+                        .attr('title', full.subject)
+                        .attr('aria-label', 'Email subject: ' + full.subject)
+                        .css('cursor', 'help');
+                }
+
+                return `
+                    <div>
+                        <div>${full.id}</div>
+                        ${$sourceBadge.prop('outerHTML')}
+                    </div>
+                `;
+            }
           },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },

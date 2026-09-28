@@ -501,7 +501,7 @@ class DashboardController extends Controller
                     //$api_use_base_currency_amount = $request->api_use_base_currency_amount;
 
                     $api_client_id = $request->api_client_id;
-                    $api_secret_key = "2NBwnBEXouJc1klye2sX05tHflCaIXZObXJ0yuksRDM1";
+                    $api_secret_key = config('app.economic_api_secret_key');
 
                     $guzzleClient = new GuzzleClient();    
                     $headers = [                                   
@@ -706,7 +706,7 @@ class DashboardController extends Controller
                                     'api_base_url' => "https://odata.uniconta.com/odata",
                                     'api_tenant_id' => null,                                    
                                     'api_client_id' => ($request->api_client_id) ? ($prefix . $request->api_client_id . $suffix) : null,
-                                    'api_secret_key' => 'Urges905',
+                                    'api_secret_key' => config('app.uniconta_api_secret_key'),
                                     'api_company_id' => null,
                                     'currency_code' => $currency_code,
                                     'status' => 1,
@@ -757,7 +757,7 @@ class DashboardController extends Controller
                                 'api_base_url' => "https://odata.uniconta.com/odata",
                                 'api_tenant_id' => null,
                                 'api_client_id' => ($request->api_client_id) ? ($prefix . $request->api_client_id . $suffix) : null,
-                                'api_secret_key' => 'Urges905',
+                                'api_secret_key' => config('app.uniconta_api_secret_key'),
                                 'api_company_id' => null,
                                 'currency_code' => $currency_code,
                                 'status' => 0,

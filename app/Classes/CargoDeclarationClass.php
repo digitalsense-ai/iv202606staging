@@ -13,6 +13,8 @@ use GuzzleHttp\Client as GuzzleClient;
 use App\Classes\CommonClass;
 use App\Models\ImportReconciliationComInvoices;
 
+use setasign\Fpdi\Fpdi;
+
 class CargoDeclarationClass
 { 
   function pdfTextLooksCorrupted($text) {
@@ -32,6 +34,71 @@ class CargoDeclarationClass
       return false;
   }
 
+  /** @return array<int, string> Text keyed by one-based PDF page number. */
+  private function azureOcrGetTextByPageSafe(string $filePath): array
+  {
+      $endpoint = rtrim(config('services.azure_form.endpoint'), '/');
+      $apiKey   = config('services.azure_form.key');
+
+      $url = $endpoint . "/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31";
+
+      $client = new GuzzleClient(['timeout' => 90]);
+
+      $attempts = 0;
+      $maxAttempts = 5;
+
+      retry:
+      try {
+          $response = $client->post($url, [
+              'headers' => [
+                  'Ocp-Apim-Subscription-Key' => $apiKey,
+                  'Content-Type' => 'application/pdf',
+              ],
+              'body' => fopen($filePath, 'r'),
+          ]);
+      } catch (\GuzzleHttp\Exception\ClientException $e) {
+          if ($e->getResponse()?->getStatusCode() === 429 && $attempts < $maxAttempts) {
+              $attempts++;
+              sleep(2 ** $attempts); // exponential backoff
+              goto retry;
+          }
+          throw $e;
+      }
+
+      $operationLocation = $response->getHeaderLine('operation-location');
+      //if (!$operationLocation) return '';
+      if (!$operationLocation) return [];
+
+      $pollStartedAt = microtime(true);
+      do {
+          sleep(2);
+          $poll = $client->get($operationLocation, [
+              'headers' => ['Ocp-Apim-Subscription-Key' => $apiKey],
+          ]);
+          $result = json_decode($poll->getBody(), true);
+
+          if (microtime(true) - $pollStartedAt > 1800) {
+              throw new \RuntimeException('Azure batch OCR did not finish within 30 minutes.');
+          }
+      } while (($result['status'] ?? '') === 'running');
+
+      if (($result['status'] ?? '') !== 'succeeded') {
+          //return '';
+          return [];
+      }
+
+      //$text = '';
+      $textByPage = [];
+      foreach ($result['analyzeResult']['pages'] ?? [] as $page) {
+          //$text .= implode("\n", array_column($page['lines'] ?? [], 'content')) . "\n";
+          $pageNumber = (int) ($page['pageNumber'] ?? count($textByPage) + 1);
+          $textByPage[$pageNumber] = trim(implode("\n", array_column($page['lines'] ?? [], 'content')));
+      }
+
+      //return trim($text);
+      return $textByPage;
+  }    
+  
   public function readCargoDeclarationFile($filename = NULL, $subfolder = NULL, $view = false)
     {               
         try 
@@ -62,6 +129,60 @@ class CargoDeclarationClass
             else
                 $pdftext = PdfExtract::getText($file); 
             
+            if(trim($pdftext) == '')
+            {
+              // Load PDF info to get total pages
+              $pdfInfo = new Fpdi();        
+              try {
+                  $totalPages = $pdfInfo->setSourceFile($file);
+              } catch (\Throwable $e) {
+                  dd('FPDI failed to read PDF. Retried as single invoice.', [
+                      'file' => $file,
+                      'error' => $e->getMessage(),
+                  ]);                  
+              }
+              unset($pdfInfo);
+
+              $pageTextByPage = [];
+              try {
+                  $parser = new \Smalot\PdfParser\Parser();
+                  $pdf = $parser->parseFile($file);
+                  foreach ($pdf->getPages() as $index => $page) {
+                      $pageTextByPage[$index + 1] = trim($page->getText());
+                  }
+                  unset($pdf, $parser);
+              } catch (\Throwable $e) {
+                  dd('Local PDF text extraction failed;.', [
+                      'file' => $file,
+                      'error' => $e->getMessage(),
+                  ]);
+              }
+
+              $pagesWithoutText = 0;
+              for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
+                  if (trim($pageTextByPage[$pageNo] ?? '') === '') {
+                      $pagesWithoutText++;
+                  }
+              }
+
+              if ($pagesWithoutText > 0) {
+                  // dd('Requesting one batch OCR operation for PDF', [
+                  //     'file' => $file,
+                  //     'pages' => $totalPages,
+                  //     'pages_without_embedded_text' => $pagesWithoutText,
+                  // ]);
+
+                  $ocrTextByPage = $this->azureOcrGetTextByPageSafe($file);
+
+                  for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
+                      if (trim($pageTextByPage[$pageNo] ?? '') === '') {
+                          $pageTextByPage[$pageNo] = trim($ocrTextByPage[$pageNo] ?? '');
+                      }
+                  }  
+                  $pdftext = (count($pageTextByPage) >= 1) ? $pageTextByPage[1] : "";
+              }
+            }//text null
+
             // if ($this->pdfTextLooksCorrupted($pdftext))
             // {      
               /*        
@@ -718,6 +839,32 @@ class CargoDeclarationClass
                     {     
                       dd("Tolldato Tolldato Tolldato Tolldato");
                     } // Tolldato FORMAT    
+                    else if (stripos(trim($file_date), "GODKJENT AV") !== false) 
+                    {    
+                      $end_pos = $start_pos; 
+                      foreach (array_slice($arraytext, 0, $end_pos) as $item) {
+                        $item = trim($item);
+
+                        // Expected format:
+                        // 20260318 888522 1234567890
+                        if (preg_match('/^(\d{8})\s+(\d+)\s+(\d+)$/', $item, $matches)) {
+                          $file_date = $matches[1];
+                          $expo_no   = $matches[2];
+                          $lope_no   = $matches[3];
+
+                          // Extract date parts
+                          $file_date_year  = substr($file_date, 0, 4);
+                          $file_date_month = substr($file_date, 4, 2);
+                          $file_date_date  = substr($file_date, 6, 2);
+
+                          $cargo_date = str_pad($file_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_date, 2, "0", STR_PAD_LEFT);
+                          $service_date = str_pad($file_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($file_date_month, 2, "0", STR_PAD_LEFT) . '-01';
+
+                          // Stop looping after finding the required line
+                          break;
+                        }
+                      }
+                    } // GODKJENT AV
                     else
                     {
                       $file_date = trim($arraytext[$start_pos + 2]);                    
@@ -971,43 +1118,92 @@ class CargoDeclarationClass
                   }
                   else
                   {
-                    $arr_com_invoice_nos = explode(' ', trim($arraytext[$start_pos_com_invoice]));                
-                    foreach($arr_com_invoice_nos as $key => $arr_com_invoice_no)
+                    if (stripos(trim($arraytext[$start_pos_com_invoice]), "This document includes items from Invoices listed below.") !== false) 
                     {
-                      if (stripos(trim($arr_com_invoice_no), "Fakturanummer") !== false) 
-                      {
+                      $end_pos = $start_pos_com_invoice;
 
-                      }
-                      else
-                      {
-                        if($com_invoice_no == '')
-                          $com_invoice_no = trim($arr_com_invoice_no);
-                        else
-                          $com_invoice_no .= ',' . trim($arr_com_invoice_no);
-                      }
-                    }//for FAKTURA list
-                  
-                    $arr_com_invoice_dates = explode(' ', trim($arraytext[$start_pos_com_invoice + 2]));                  
-                    foreach($arr_com_invoice_dates as $key => $arr_com_invoice_date_row)
+                      $search_array = array_slice($arraytext, $start_pos, $end_pos, true);
+                      $search_array = array_map(function ($item) {
+                          return trim(preg_replace('/[\x00-\x1F\x7F]/', '', $item));
+                      }, $search_array);
+
+                      $faktura_start_pos = array_search(
+                          'FAKTURALISTE',
+                          $search_array,
+                          true
+                      );
+                      
+                      $invoice_numbers = [];
+                      foreach (array_slice($arraytext, $faktura_start_pos, $end_pos) as $item) {
+                          $item = trim($item);
+
+                          // Stop when date is found: 21.04.2026
+                          if (preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $item)) {
+                            $com_invoice_date_line = trim($item);   
+                            $arr_com_invoice_date = explode('.', trim($com_invoice_date_line));
+
+                            $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                            $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                            $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                            
+                            if($com_invoice_date == '')
+                              $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                            else
+                              $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                          }
+
+                          // Check invoice number: AB-1234568
+                          if (preg_match('/^[A-Z]{2}-\d{7}$/', $item)) {
+                            $invoice_numbers[] = trim(str_replace('--', '', $item));
+                          }
+                      }//loop  
+
+                      // Remove duplicate invoice numbers
+                      $invoice_numbers = array_unique($invoice_numbers);
+
+                      // Convert back to comma-separated string
+                      $com_invoice_no = implode(',', $invoice_numbers);
+                    } //This document includes items from Invoices listed below.
+                    else
                     {
-                      if (stripos(trim($arr_com_invoice_date_row), "Dato") !== false) 
+                      $arr_com_invoice_nos = explode(' ', trim($arraytext[$start_pos_com_invoice]));                
+                      foreach($arr_com_invoice_nos as $key => $arr_com_invoice_no)
                       {
+                        if (stripos(trim($arr_com_invoice_no), "Fakturanummer") !== false) 
+                        {
 
-                      }
-                      else
-                      {
-                        $arr_com_invoice_date = explode('.', trim($arr_com_invoice_date_row));
-
-                        $com_invoice_date_year = trim($arr_com_invoice_date[2]);
-                        $com_invoice_date_month = trim($arr_com_invoice_date[1]);
-                        $com_invoice_date_date = trim($arr_com_invoice_date[0]);
-                        
-                        if($com_invoice_date == '')
-                          $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                        }
                         else
-                          $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
-                      }
-                    }//for FAKTURA list 
+                        {
+                          if($com_invoice_no == '')
+                            $com_invoice_no = trim($arr_com_invoice_no);
+                          else
+                            $com_invoice_no .= ',' . trim($arr_com_invoice_no);
+                        }
+                      }//for FAKTURA list
+                    
+                      $arr_com_invoice_dates = explode(' ', trim($arraytext[$start_pos_com_invoice + 2]));                  
+                      foreach($arr_com_invoice_dates as $key => $arr_com_invoice_date_row)
+                      {
+                        if (stripos(trim($arr_com_invoice_date_row), "Dato") !== false) 
+                        {
+
+                        }
+                        else
+                        {
+                          $arr_com_invoice_date = explode('.', trim($arr_com_invoice_date_row));
+
+                          $com_invoice_date_year = trim($arr_com_invoice_date[2]);
+                          $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+                          $com_invoice_date_date = trim($arr_com_invoice_date[0]);
+                          
+                          if($com_invoice_date == '')
+                            $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                          else
+                            $com_invoice_date .= ',' . str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                        }
+                      }//for FAKTURA list 
+                    }//else - This document includes items from Invoices listed below.
                   }                 
                 } //FAKTURA list
                 else
@@ -1181,13 +1377,28 @@ class CargoDeclarationClass
                           {
     	                      if (stripos(trim($arraytext[$end_pos_com_invoice + 2]), ".") !== false) 
     	                      {
-    	                        $arr_com_invoice_date = explode('.', trim($arraytext[$end_pos_com_invoice + 2]));
+                              if (stripos(trim($arraytext[$end_pos_com_invoice + 2]), "PROF.") !== false) 
+                              {
+                                $com_invoice_no = trim($arraytext[$end_pos_com_invoice + 2]);
 
-    	                        $com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
-    	                        $com_invoice_date_month = trim($arr_com_invoice_date[1]);
-    	                        $com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+                                $line_com_invoice_date = trim($arraytext[$end_pos_com_invoice + 24]);
 
-    	                        $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                                $com_invoice_date_year = substr($line_com_invoice_date, 0, 4);
+                                $com_invoice_date_month = substr($line_com_invoice_date, 4, 2);
+                                $com_invoice_date_date = substr($line_com_invoice_date, 6, 2);
+
+                                $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                              } //PROF.
+                              else
+                              {
+      	                        $arr_com_invoice_date = explode('.', trim($arraytext[$end_pos_com_invoice + 2]));
+
+      	                        $com_invoice_date_year = (strlen(trim($arr_com_invoice_date[0])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+      	                        $com_invoice_date_month = trim($arr_com_invoice_date[1]);
+      	                        $com_invoice_date_date = (strlen(trim($arr_com_invoice_date[2])) == 4) ? trim($arr_com_invoice_date[0]) : trim($arr_com_invoice_date[2]);
+
+      	                        $com_invoice_date = str_pad($com_invoice_date_year, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_month, 2, "0", STR_PAD_LEFT) . '-' . str_pad($com_invoice_date_date, 2, "0", STR_PAD_LEFT);
+                              }
     	                      } //dot
                             else if (stripos($com_invoice_no, " ") !== false) 
                             {
