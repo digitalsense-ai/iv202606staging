@@ -38,7 +38,7 @@ $(function () {
       1: { title: 'Synced', class: 'bg-success' },
       2: { title: 'Sync in Progress', class: 'bg-secondary' },
       3: { title: 'Older VAT Period', class: 'bg-warning' }      
-    };
+    };  
 
   // ajax setup
   $.ajaxSetup({
@@ -912,7 +912,10 @@ console.log("on change");
           pageLength: 500,     
           autoWidth: false, 
           ordering: true,                
-          columns: columns,          
+          columns: columns,    
+          drawCallback: function () {
+            initializeOcrSubjectTooltips(this.api().table().container());
+          },      
           columnDefs: [
             {
               // For Checkboxes
@@ -940,36 +943,36 @@ console.log("on change");
                 return '';
               }
             }, 
-            {
-              // For Invoice Type
-              targets:  2,         
-              searchable: true,
-              orderable: true,              
-              render: function (data, type, full, meta) { 
-                if (type !== 'display') {
-                  //return [full.file_name, full.data_from, full.subject].filter(Boolean).join(' ');
-                  return [full.invoice_type, full.data_from, full.subject].filter(Boolean).join(' ');
-                }
+            // {
+            //   // For Invoice Type
+            //   targets:  2,         
+            //   searchable: true,
+            //   orderable: true,              
+            //   render: function (data, type, full, meta) { 
+            //     if (type !== 'display') {
+            //       //return [full.file_name, full.data_from, full.subject].filter(Boolean).join(' ');
+            //       return [full.invoice_type, full.data_from, full.subject].filter(Boolean).join(' ');
+            //     }
 
-                const source = full.data_from || 'Unknown';
-                const $sourceBadge = $('<span>', {
-                  class: 'badge bg-label-info text-capitalize mt-1',
-                  text: source.replace(/ - /g, ', ')
-                });
+            //     const source = full.data_from || 'Unknown';
+            //     const $sourceBadge = $('<span>', {
+            //       class: 'badge bg-label-info text-capitalize mt-1',
+            //       text: source.replace(/ - /g, ', ')
+            //     });
 
-                if (source.split(' - ').includes('inbox') && full.subject) {
-                  $sourceBadge
-                    .attr('title', full.subject)
-                    .attr('aria-label', 'Email subject: ' + full.subject)
-                    .css('cursor', 'help');
-                }
+            //     if (source.split(' - ').includes('inbox') && full.subject) {
+            //       $sourceBadge
+            //         .attr('title', full.subject)
+            //         .attr('aria-label', 'Email subject: ' + full.subject)
+            //         .css('cursor', 'help');
+            //     }
 
-                //const safeFileName = $('<div>').text(full.file_name || '-').html();
+            //     //const safeFileName = $('<div>').text(full.file_name || '-').html();
 
-                //return `${safeFileName} ${error_msg}<br>${$sourceBadge.prop('outerHTML')}`;
-                return `${full.invoice_type}<br>${$sourceBadge.prop('outerHTML')}`;
-              }
-            },  
+            //     //return `${safeFileName} ${error_msg}<br>${$sourceBadge.prop('outerHTML')}`;
+            //     return `${full.invoice_type}<br>${$sourceBadge.prop('outerHTML')}`;
+            //   }
+            // },  
             {
               // For Client Name and No.
               targets:  3,         
@@ -996,6 +999,10 @@ console.log("on change");
               orderable: true,              
               className: 'text-break',
               render: function (data, type, full, meta) { 
+                if (type !== 'display') {
+                  return [full.file_name, full.data_from, full.subject].filter(Boolean).join(' ');
+                }
+
                 var error_msg = '';                
 
                 // if (full.status === 'completed' || full.status === 'failed') {
@@ -1092,7 +1099,11 @@ console.log("on change");
                           .join('<br>');
               }
                                 
-                return `${full.file_name} ${error_msg}`;
+                //return `${full.file_name} ${error_msg}`;
+                const safeFileName = $('<div>').text(full.file_name || '-').html();
+                const sourceBadge = buildOcrSourceBadge(full.data_from, full.subject);
+
+                return `${safeFileName} ${error_msg}${sourceBadge ? `<br>${sourceBadge}` : ''}`;
               }
             },
             {

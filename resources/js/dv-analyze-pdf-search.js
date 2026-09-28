@@ -763,7 +763,18 @@ $(function () {
       if (i === 0) {        
 
         columns = [
-          { data: 'fake_id', width: '100px' },
+          //{ data: 'fake_id', width: '100px' },
+          //Prem-staging
+          {
+            data: 'fake_id',
+            width: '100px',
+            render: function (data, type, row) {
+              if (type !== 'display') return data;
+
+              const badge = buildOcrSourceBadge(row.data_from, row.subject);
+              return `<div>${data}${badge ? `<br>${badge}` : ''}</div>`;
+            }
+          },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },
           { data: 'invoice_no', width: '200px' },
@@ -791,75 +802,24 @@ $(function () {
         columns = [
           //{ data: 'fake_id', width: '100px' },
           //Prem-staging
-          // {
-          //     data: null,
-          //     width: '100px',
-          //     render: function (data, type, row) {
-          //       if (row.source === 'sftp') {
-          //           return `
-          //               <div>
-          //                   <div>${row.id}</div>
-          //                   <span class="badge bg-label-primary">FTP</span>                            
-          //               </div>
-          //           `;
-          //       }
-          //       return row.id;
-          //     }
-          // },
           {
-            data: null,
-            width: '100px',
-            render: function (data, type, full, meta) {
+              data: null,
+              width: '100px',
+              render: function (data, type, row) {
+                if (type !== 'display') return row.id;
 
-                if (type !== 'display') {
-                    return [full.id, full.data_from, full.subject]
-                        .filter(Boolean)
-                        .join(' ');
-                }
-
-                // SFTP source
-                if (full.source === 'sftp') {
+                const inflowBadge = buildOcrSourceBadge(row.data_from, row.subject);
+                if (row.source === 'sftp') {
                     return `
                         <div>
-                            <div>${full.id}</div>
+                            <div>${row.id}</div>                            
                             <span class="badge bg-label-primary">FTP</span>
+                            ${inflowBadge}
                         </div>
                     `;
-                }
-
-                const source = full.data_from || 'Unknown';
-
-                const $sourceBadge = $('<span>', {
-                    class: 'badge bg-label-info text-capitalize mt-1',
-                    text: source.replace(/ - /g, ', ')
-                });
-
-                // if (source.toLowerCase().includes('inbox') && full.subject) {
-                //     $sourceBadge
-                //         .attr('title', full.subject)
-                //         .attr('aria-label', 'Email subject: ' + full.subject)
-                //         .css('cursor', 'help');
-                // }
-
-                const hasInbox = source
-                    .toLowerCase()
-                    .split(/\s*(?:-|,)\s*/)
-                    .includes('inbox');
-
-                if (hasInbox && full.subject) {
-                    $sourceBadge
-                        .attr('title', full.subject)
-                        .attr('aria-label', 'Email subject: ' + full.subject)
-                        .css('cursor', 'help');
-                }
-
-                return `
-                    <div>
-                        <div>${full.id}</div>
-                        ${$sourceBadge.prop('outerHTML')}
-                    </div>
-                `;
-            }
+                }               
+                return `<div>${row.id}${inflowBadge ? `<br>${inflowBadge}` : ''}</div>`;
+              }
           },
           { data: 'client_no', width: '150px' },
           { data: 'client_name', width: '250px' },
@@ -944,6 +904,9 @@ $(function () {
           // } else {
           //     $('td:eq(0)', row).css('background-color', '#e08089'); // Gray / OCR
           // }
+        },
+        drawCallback: function () {
+          initializeOcrSubjectTooltips(this.api().table().container());
         },
         columnDefs: [
 

@@ -4,7 +4,55 @@
 
 'use strict';
 
-$(function () {      
+window.buildOcrSourceBadge = function buildOcrSourceBadge(dataFrom, subject) {
+  const sources = String(dataFrom || '')
+    .toLowerCase()
+    .split(' - ')
+    .map(source => source.trim());
+  const isInbox = sources.includes('inbox');
+  const isBulk = sources.includes('bulkupload');
+
+  if (!isInbox && !isBulk) return '';
+
+  const $badge = $('<span>', {
+    class: 'badge ' + (isInbox ? 'bg-label-info' : 'bg-label-secondary') + ' mt-1',
+    text: isInbox ? 'Inbox' : 'Bulk'
+  });
+
+  if (isInbox && subject) {
+    $badge.attr({
+      'data-bs-toggle': 'tooltip',
+      'data-bs-placement': 'top',
+      'data-bs-title': subject,
+      'data-ocr-subject': subject,
+      title: subject,
+      'aria-label': 'Email subject: ' + subject
+    }).css('cursor', 'help');
+  }
+
+  return $badge.prop('outerHTML');
+};
+
+window.initializeOcrSubjectTooltips = function initializeOcrSubjectTooltips(container) {
+  if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
+
+  const $container = $(container);
+
+  $container
+    .off('.ocrSubjectTooltip')
+    .on('mouseenter.ocrSubjectTooltip focusin.ocrSubjectTooltip', '[data-ocr-subject]', function () {
+      bootstrap.Tooltip.getOrCreateInstance(this, {
+        container: 'body',
+        trigger: 'manual'
+      }).show();
+    })
+    .on('mouseleave.ocrSubjectTooltip focusout.ocrSubjectTooltip', '[data-ocr-subject]', function () {
+      const tooltip = bootstrap.Tooltip.getInstance(this);
+      if (tooltip) tooltip.hide();
+    });
+};
+
+$(function () {    
   // const periodmap = {
   //             "no_1": "january-february",
   //             "no_2": "march-april",
@@ -5508,7 +5556,9 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'azure_url' : analyzepdf.azure_url,
                       'start_pageno' : analyzepdf.start_pageno,
                       'status' : analyzepdf.status,
-                      'file_name' : analyzepdf.file_name,                      
+                      'file_name' : analyzepdf.file_name,     
+                      'data_from' : analyzepdf.data_from,
+                      'subject' : analyzepdf.subject,
                       'created_at' : analyzepdf.created_at,
                       'updated_at' : analyzepdf.updated_at,
                       'extracted_data' : analyzepdf.extracted_data,
@@ -5524,9 +5574,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'search_save_note' : analyzepdf.search_save_note,
                       'search_save_environment' : analyzepdf.search_save_environment,
                       'force_submitted' : analyzepdf.force_submitted,
-                      'analyzer_id' : analyzer_id,
-                      'data_from' : analyzepdf.data_from,
-                      'subject' : analyzepdf.subject
+                      'analyzer_id' : analyzer_id
                     });
                     analyzepdf_completed_start = analyzepdf_completed_start + 1;
                   }
@@ -5561,6 +5609,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'start_pageno' : analyzepdf.start_pageno,
                       'status' : analyzepdf.status,
                       'file_name' : analyzepdf.file_name,
+                      'data_from' : analyzepdf.data_from,
+                      'subject' : analyzepdf.subject,
                       'created_at' : analyzepdf.created_at,
                       'updated_at' : analyzepdf.updated_at,
                       'extracted_data' : analyzepdf.extracted_data,
@@ -5576,9 +5626,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'search_save_note' : analyzepdf.search_save_note,
                       'search_save_environment' : analyzepdf.search_save_environment,
                       'force_submitted' : analyzepdf.force_submitted,
-                      'analyzer_id' : analyzer_id,
-                      'data_from' : analyzepdf.data_from,
-                      'subject' : analyzepdf.subject
+                      'analyzer_id' : analyzer_id
                     });
                     analyzepdf_completed_start = analyzepdf_completed_start + 1;
                     //});
@@ -5616,13 +5664,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
                     'error' : analyzepdf.error,
-                    'is_deleted' : analyzepdf.is_deleted,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'is_deleted' : analyzepdf.is_deleted
                   });
                   analyzepdf_processing_start = analyzepdf_processing_start + 1; 
                 } //processing
@@ -5660,6 +5708,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
@@ -5674,9 +5724,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'search_save_note' : analyzepdf.search_save_note,
                     'search_save_environment' : analyzepdf.search_save_environment,
                     'force_submitted' : analyzepdf.force_submitted,
-                    'analyzer_id' : analyzer_id,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'analyzer_id' : analyzer_id
                   });
                   analyzepdf_error_start = analyzepdf_error_start + 1;
                 } //error  
@@ -5710,15 +5758,15 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
                     'error' : analyzepdf.error,
                     'is_deleted' : analyzepdf.is_deleted,
                     'deleted_reason' : analyzepdf.deleted_reason,
-                    'duplicate_message' : analyzepdf.duplicate_message,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'duplicate_message' : analyzepdf.duplicate_message
                   });
                   analyzepdf_deleted_start = analyzepdf_deleted_start + 1;   
                 } //deleted
@@ -5762,6 +5810,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'error' : analyzepdf.error,
@@ -5777,9 +5827,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'search_save_note' : analyzepdf.search_save_note,
                     'search_save_environment' : analyzepdf.search_save_environment,
                     'force_submitted' : analyzepdf.force_submitted,
-                    'analyzer_id' : analyzer_id,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'analyzer_id' : analyzer_id
                   });
                   analyzepdf_sales_invoice_start = analyzepdf_sales_invoice_start + 1;
                 } //deleted
@@ -6009,6 +6057,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'start_pageno' : analyzepdf.start_pageno,
                       'status' : analyzepdf.status,
                       'file_name' : analyzepdf.file_name,
+                      'data_from' : analyzepdf.data_from,
+                      'subject' : analyzepdf.subject,
                       'created_at' : analyzepdf.created_at,
                       'updated_at' : analyzepdf.updated_at,
                       'extracted_data' : analyzepdf.extracted_data,
@@ -6024,9 +6074,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'search_save_note' : analyzepdf.search_save_note,
                       'search_save_environment' : analyzepdf.search_save_environment,
                       'force_submitted' : analyzepdf.force_submitted,
-                      'analyzer_id' : analyzer_id,
-                      'data_from' : analyzepdf.data_from,
-                      'subject' : analyzepdf.subject
+                      'analyzer_id' : analyzer_id
                     });
                     analyzepdf_completed_start = analyzepdf_completed_start + 1;                    
                   }
@@ -6052,6 +6100,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'start_pageno' : analyzepdf.start_pageno,
                       'status' : analyzepdf.status,
                       'file_name' : analyzepdf.file_name,
+                      'data_from' : analyzepdf.data_from,
+                      'subject' : analyzepdf.subject,
                       'created_at' : analyzepdf.created_at,
                       'updated_at' : analyzepdf.updated_at,
                       'extracted_data' : analyzepdf.extracted_data,
@@ -6067,9 +6117,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                       'search_save_note' : analyzepdf.search_save_note,
                       'search_save_environment' : analyzepdf.search_save_environment,
                       'force_submitted' : analyzepdf.force_submitted,
-                      'analyzer_id' : analyzer_id,
-                      'data_from' : analyzepdf.data_from,
-                      'subject' : analyzepdf.subject
+                      'analyzer_id' : analyzer_id
                     });
                     analyzepdf_completed_start = analyzepdf_completed_start + 1;
                     //});
@@ -6098,13 +6146,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
                     'error' : analyzepdf.error,
-                    'is_deleted' : analyzepdf.is_deleted,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'is_deleted' : analyzepdf.is_deleted
                   });
                   analyzepdf_processing_start = analyzepdf_processing_start + 1; 
                 } //processing
@@ -6133,6 +6181,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
@@ -6147,9 +6197,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'search_save_note' : analyzepdf.search_save_note,
                     'search_save_environment' : analyzepdf.search_save_environment,
                     'force_submitted' : analyzepdf.force_submitted,
-                    'analyzer_id' : analyzer_id,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'analyzer_id' : analyzer_id
                   });
                   analyzepdf_error_start = analyzepdf_error_start + 1;   
                 } //error
@@ -6174,15 +6222,15 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'start_pageno' : analyzepdf.start_pageno,
                     'status' : analyzepdf.status,
                     'file_name' : analyzepdf.file_name,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'extracted_data' : analyzepdf.extracted_data,
                     'error' : analyzepdf.error,
                     'is_deleted' : analyzepdf.is_deleted,                    
                     'deleted_reason' : analyzepdf.deleted_reason,
-                    'duplicate_message' : analyzepdf.duplicate_message,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'duplicate_message' : analyzepdf.duplicate_message
                   });
                   analyzepdf_deleted_start = analyzepdf_deleted_start + 1;
                 } //deleted
@@ -6221,9 +6269,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'search_save_note' : analyzepdf.search_save_note,
                     'search_save_environment' : analyzepdf.search_save_environment,
                     'force_submitted' : analyzepdf.force_submitted,
-                    'analyzer_id' : analyzer_id,
-                    'data_from' : analyzepdf.data_from,
-                    'subject' : analyzepdf.subject
+                    'analyzer_id' : analyzer_id
                   });
                   analyzepdf_commercial_invoice_start = analyzepdf_commercial_invoice_start + 1;
                 }
@@ -6256,13 +6302,13 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   'start_pageno' : analyzepdf.start_pageno,
                   'status' : analyzepdf.status,
                   'file_name' : analyzepdf.file_name,
+                  'data_from' : analyzepdf.data_from,
+                  'subject' : analyzepdf.subject,
                   'created_at' : analyzepdf.created_at,
                   'updated_at' : analyzepdf.updated_at,
                   'extracted_data' : analyzepdf.extracted_data,
                   'error' : analyzepdf.error,
-                  'is_deleted' : analyzepdf.is_deleted,
-                  'data_from' : analyzepdf.data_from,
-                  'subject' : analyzepdf.subject
+                  'is_deleted' : analyzepdf.is_deleted
                 });
                 analyzepdf_processing_start = analyzepdf_processing_start + 1; 
               } //processing
@@ -6291,6 +6337,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   'start_pageno' : analyzepdf.start_pageno,
                   'status' : analyzepdf.status,
                   'file_name' : analyzepdf.file_name,
+                  'data_from' : analyzepdf.data_from,
+                  'subject' : analyzepdf.subject,
                   'created_at' : analyzepdf.created_at,
                   'updated_at' : analyzepdf.updated_at,
                   'extracted_data' : analyzepdf.extracted_data,
@@ -6305,9 +6353,7 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   'search_save_note' : analyzepdf.search_save_note,
                   'search_save_environment' : analyzepdf.search_save_environment,
                   'force_submitted' : analyzepdf.force_submitted,
-                  'analyzer_id' : analyzer_id,
-                  'data_from' : analyzepdf.data_from,
-                  'subject' : analyzepdf.subject
+                  'analyzer_id' : analyzer_id
                 });
                 analyzepdf_error_start = analyzepdf_error_start + 1;   
               } //error
@@ -6332,15 +6378,15 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                   'start_pageno' : analyzepdf.start_pageno,
                   'status' : analyzepdf.status,
                   'file_name' : analyzepdf.file_name,
+                  'data_from' : analyzepdf.data_from,
+                  'subject' : analyzepdf.subject,
                   'created_at' : analyzepdf.created_at,
                   'updated_at' : analyzepdf.updated_at,
                   'extracted_data' : analyzepdf.extracted_data,
                   'error' : analyzepdf.error,
                   'is_deleted' : analyzepdf.is_deleted,                    
                   'deleted_reason' : analyzepdf.deleted_reason,
-                  'duplicate_message' : analyzepdf.duplicate_message,
-                  'data_from' : analyzepdf.data_from,
-                  'subject' : analyzepdf.subject
+                  'duplicate_message' : analyzepdf.duplicate_message
                 });
                 analyzepdf_deleted_start = analyzepdf_deleted_start + 1;
               } //deleted
