@@ -532,9 +532,11 @@ $(function () {
     }
 
     let credit_note = item.credit_note;
+    const isCreditNote = credit_note === true || credit_note === 1 || credit_note === '1';
 
     const countryCode = (item.country_code || '').toLowerCase();
     const localCurrency = localCurrencyMap[countryCode];
+    const isSearchSave = $('#searchSave').length > 0;
 
     let currency = item.currency;
     let exchange_currency = item.exchange_currency;
@@ -548,12 +550,13 @@ $(function () {
     let og_vat_amount = item.vat_amount;
     let og_total_amount = item.total_amount;
 
-    if (client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
+    if (!isSearchSave && client_name && client_name.toLowerCase().indexOf('dfi-geisler') > -1)
     {
       og_additional_charges = '';
     }
 
-    if (client_name && client_name.toLowerCase().indexOf('rieker') > -1
+    //if (client_name && client_name.toLowerCase().indexOf('rieker') > -1
+    if (!isSearchSave && client_name && (client_name.toLowerCase().indexOf('rieker') > -1
       || client_name.toLowerCase().indexOf('woden') > -1
       || client_name.toLowerCase().indexOf('pier one') > -1
       || client_name.toLowerCase().indexOf('committee xxiv') > -1
@@ -562,7 +565,8 @@ $(function () {
       || client_name.toLowerCase().indexOf('qnuz') > -1
       || client_name.toLowerCase().indexOf('sea ranch') > -1
       || client_name.toLowerCase().indexOf('sindico') > -1
-      || client_name.toLowerCase().indexOf('sports group denmark') > -1
+      //|| client_name.toLowerCase().indexOf('sports group denmark') > -1
+      || client_name.toLowerCase().indexOf('sports group denmark') > -1)
     )
     {
       og_discount_amount = '';
@@ -697,10 +701,18 @@ $(function () {
     //   calNetAmount = (Math.abs(parse_net_amount) + Math.abs(parse_freight_amount)) - (Math.abs(parse_variance_amount) + Math.abs(parse_discount_amount));
     // }
 
-    //console.log("calNetAmount: " + calNetAmount);
-    let formatted_net_amount = parseDenmarkFormat(calNetAmount);  
-    //console.log("formatted_net_amount: " + formatted_net_amount);
-    net_amount = formatted_net_amount;
+    // //console.log("calNetAmount: " + calNetAmount);
+    // let formatted_net_amount = parseDenmarkFormat(calNetAmount);  
+    // //console.log("formatted_net_amount: " + formatted_net_amount);
+    // net_amount = formatted_net_amount;
+
+    // Search-save records have already been validated. Keep their persisted net
+    // value instead of deriving it again from the component amount fields.
+    if (!isSearchSave) {
+      let formatted_net_amount = parseDenmarkFormat(calNetAmount);
+      //console.log("formatted_net_amount: " + formatted_net_amount);
+      net_amount = formatted_net_amount;
+    }
     
     let exchange_net_amount = item.exchange_net_amount;
 
@@ -712,7 +724,7 @@ $(function () {
 
     let vat_rate = item.vat_rate;
 
-    if(!total_amount)
+    if(!isSearchSave && !total_amount)
     {              
       parse_total_amount = calNetAmount + Math.abs(parse_vat_amount);
       
@@ -720,7 +732,8 @@ $(function () {
       total_amount = formatted_total_amount;
     }
 
-    const shouldConvert = ($('#searchSave').length > 0)
+    //const shouldConvert = ($('#searchSave').length > 0)
+    const shouldConvert = isSearchSave
         ? (
             localCurrency &&
             exchange_currency === localCurrency &&
@@ -753,51 +766,73 @@ $(function () {
         }
     }    
 
-    let formatted_original_net_amount = null;
-    let formatted_discount_amount = null;
-    let formatted_additional_amount = null;
-    let formatted_variance_amount = null;
+    // let formatted_original_net_amount = null;
+    // let formatted_discount_amount = null;
+    // let formatted_additional_amount = null;
+    // let formatted_variance_amount = null;
+
+    let formatted_original_net_amount = isSearchSave ? item.original_net_amount : null;
+    let formatted_discount_amount = isSearchSave ? og_discount_amount : null;
+    let formatted_additional_amount = isSearchSave ? og_additional_charges : null;
+    let formatted_variance_amount = isSearchSave ? og_variance : null;
     //if(parse_net_amount > 0)
-    if(Math.abs(parse_net_amount) > 0)
+    if(!isSearchSave && Math.abs(parse_net_amount) > 0)
     {
       formatted_original_net_amount = parseDenmarkFormat(parse_net_amount);      
     }
 
     //if(parse_discount_amount > 0)
-    if(Math.abs(parse_discount_amount) > 0)
+    if(!isSearchSave && Math.abs(parse_discount_amount) > 0)
     {   
       formatted_discount_amount = parseDenmarkFormat(parse_discount_amount);
     }
 
     //if(parse_freight_amount > 0) 
-    if(Math.abs(parse_freight_amount) > 0) 
+    if(!isSearchSave && Math.abs(parse_freight_amount) > 0) 
     {
       formatted_additional_amount = parseDenmarkFormat(parse_freight_amount);
     }
 
     //if(parse_variance_amount > 0)
-    if(Math.abs(parse_variance_amount) > 0)
+    if(!isSearchSave && Math.abs(parse_variance_amount) > 0)
     {
       formatted_variance_amount = parseDenmarkFormat(parse_variance_amount);
     }
 
-    if (credit_note === true && net_amount && !net_amount.startsWith('-'))
-      net_amount = '-' + net_amount.trim();
+    // if (credit_note === true && net_amount && !net_amount.startsWith('-'))
+    //   net_amount = '-' + net_amount.trim();
 
-    if (credit_note === true && vat_amount && !vat_amount.startsWith('-'))
-      vat_amount = '-' + vat_amount.trim();
+    // if (credit_note === true && vat_amount && !vat_amount.startsWith('-'))
+    //   vat_amount = '-' + vat_amount.trim();
 
-    if (credit_note === true && total_amount && !total_amount.startsWith('-'))
-      total_amount = '-' + total_amount.trim();    
+    // if (credit_note === true && total_amount && !total_amount.startsWith('-'))
+    //   total_amount = '-' + total_amount.trim();    
 
-    if (credit_note === true && exchange_net_amount && !exchange_net_amount.startsWith('-'))
-      exchange_net_amount = '-' + exchange_net_amount.trim();
+    // if (credit_note === true && exchange_net_amount && !exchange_net_amount.startsWith('-'))
+    //   exchange_net_amount = '-' + exchange_net_amount.trim();
 
-    if (credit_note === true && exchange_vat_amount && !exchange_vat_amount.startsWith('-'))
-      exchange_vat_amount = '-' + exchange_vat_amount.trim();
+    // if (credit_note === true && exchange_vat_amount && !exchange_vat_amount.startsWith('-'))
+    //   exchange_vat_amount = '-' + exchange_vat_amount.trim();
 
-    if (credit_note === true && exchange_total_amount && !exchange_total_amount.startsWith('-'))
-      exchange_total_amount = '-' + exchange_total_amount.trim();    
+    // if (credit_note === true && exchange_total_amount && !exchange_total_amount.startsWith('-'))
+    //   exchange_total_amount = '-' + exchange_total_amount.trim();    
+
+    const applyCreditSign = value => {
+      if (value === undefined || value === null || value === '') {
+        return value;
+      }
+
+    const unsignedValue = String(value).trim().replace(/^-+/, '');
+      return isCreditNote ? '-' + unsignedValue : unsignedValue;
+    };
+
+    net_amount = applyCreditSign(net_amount);
+    vat_amount = applyCreditSign(vat_amount);
+    total_amount = applyCreditSign(total_amount);
+    exchange_net_amount = applyCreditSign(exchange_net_amount);
+    exchange_vat_amount = applyCreditSign(exchange_vat_amount);
+    exchange_total_amount = applyCreditSign(exchange_total_amount);
+    formatted_original_net_amount = applyCreditSign(formatted_original_net_amount);
 
     // SFTP amounts are stored with a dot decimal separator, but the manual
     // input offcanvas must continue to present monetary values in the
@@ -833,7 +868,8 @@ $(function () {
     $('#client_name').val(client_name);
     $('#invoice_date').val(item.invoice_date || '');
     $('#invoice_no').val(invoice_no);
-    $('#credit_note').prop('checked', !!credit_note);
+    //$('#credit_note').prop('checked', !!credit_note);
+    $('#credit_note').prop('checked', isCreditNote);
     $('#currency').val(currency || '');
     $('#exchange_currency').val(exchange_currency || '');
     //$('#vat_rate').val(item.vat_rate || '');
@@ -1124,6 +1160,7 @@ $(function () {
       return;
     }
 
+    normalizeCreditNoteAmounts();
     setBusy(true);
     const url = endpoints.show + '/' + current.id + (force ? '/force-submit' : '/save');
 
@@ -1246,6 +1283,8 @@ $(function () {
 
     // Get existing DataTables row data
     let rowData = row.data();
+    const creditNoteValue = $('#credit_note').is(':checked');
+    rowData.credit_note = creditNoteValue;
 
     let euroIndexes = [7, 8, 10, 11, 12, 13, 14];
     let relatedInvoiceIndex = 7;
@@ -1378,35 +1417,44 @@ $(function () {
             const field = table.column(index).header().dataset.field;
             let value = formData[field];
 
-            if (index === 7) {
-                const field8  = table.column(8).header().dataset.field;
-                const field11 = table.column(11).header().dataset.field;
-                const field12 = table.column(12).header().dataset.field;
-                const field13 = table.column(13).header().dataset.field;
-console.log("index777 field8 == " + field8);
-                const col8  = parseEuropeanNumber(formData[field8]);
-                const col11 = parseEuropeanNumber(formData[field11]);
-                const col12 = parseEuropeanNumber(formData[field12]);
-                const col13 = parseEuropeanNumber(formData[field13]);
-console.log("index777 col8 == " + col8);
-                value = (col8 + col11 + col12) - col13;
+//             if (index === 7) {
+//                 const field8  = table.column(8).header().dataset.field;
+//                 const field11 = table.column(11).header().dataset.field;
+//                 const field12 = table.column(12).header().dataset.field;
+//                 const field13 = table.column(13).header().dataset.field;
+// console.log("index777 field8 == " + field8);
+//                 const col8  = parseEuropeanNumber(formData[field8]);
+//                 const col11 = parseEuropeanNumber(formData[field11]);
+//                 const col12 = parseEuropeanNumber(formData[field12]);
+//                 const col13 = parseEuropeanNumber(formData[field13]);
+// console.log("index777 col8 == " + col8);
+//                 value = (col8 + col11 + col12) - col13;
 
-                // Update calculated field in DataTables
-                rowData[field] = value;
-                console.log("index777 == " + value);
+//                 // Update calculated field in DataTables
+//                 rowData[field] = value;
+//                 console.log("index777 == " + value);
+//             }
+
+            if (field === 'credit_note') {
+                value = creditNoteValue;
             }
 
             if (value !== undefined) {
 
-                // For normal fields
-                if (index !== 7) {
-                    rowData[field] = value;
-                }
+                // // For normal fields
+                // if (index !== 7) {
+                //     rowData[field] = value;
+                // }
+                rowData[field] = value;
 
                 // Display formatting only
                 let displayValue = value;
 
-                if (euroIndexes.includes(index)) {
+                //if (euroIndexes.includes(index)) {
+                if (field === 'credit_note') {
+                  displayValue = value ? 'true' : 'false';
+                }
+                else if (euroIndexes.includes(index)) {
                   // value = parseEuropeanNumber(value).toLocaleString('de-DE', {
                   //     minimumFractionDigits: 2,
                   //     maximumFractionDigits: 2
@@ -1613,6 +1661,33 @@ console.log("index777 col8 == " + col8);
         .replace(/[^0-9.,-]/g, '')   // Allow numbers, comma, dot, minus
         .replace(/(?!^)-/g, '');     // Allow '-' only at the beginning
   });
+
+  function normalizeCreditNoteAmounts() {
+    const negative = $('#credit_note').is(':checked');
+    const amountFields = [
+      '#net_amount',
+      '#exchange_net_amount',
+      '#vat_amount',
+      '#exchange_vat_amount',
+      '#total_amount',
+      '#exchange_total_amount',
+      '#original_net_amount'
+    ];
+
+    amountFields.forEach(function (selector) {
+      const $field = $(selector);
+      const value = $field.val();
+
+      if (value === undefined || value === null || value === '') {
+        return;
+      }
+
+      const unsignedValue = String(value).trim().replace(/^-+/, '');
+      $field.val(negative ? '-' + unsignedValue : unsignedValue);
+    });
+  }
+
+  $(document).on('change', '#credit_note', normalizeCreditNoteAmounts);
 
   $form.on('submit', function (event) {
     event.preventDefault();

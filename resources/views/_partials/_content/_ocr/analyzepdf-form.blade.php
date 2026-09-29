@@ -90,7 +90,8 @@
             <div class="row">
               <div class="col-6 mb-2">
                 <label class="form-label" for="invoice_date">Invoice Date</label>
-                <input type="text" id="invoice_date" class="form-control only-date" name="invoice_date" placeholder="YYYY-MM-DD" required>
+                <!-- <input type="text" id="invoice_date" class="form-control only-date" name="invoice_date" placeholder="YYYY-MM-DD" required> -->
+                <input type="text" id="invoice_date" class="form-control only-date" name="invoice_date" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" title="Use YYYY-MM-DD format" required>
               </div>
 
               <div class="col-6 mb-2">

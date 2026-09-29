@@ -146,7 +146,11 @@ class OcrInvoiceCorrectionService
             $exchangeVatAmount = Arr::get($payload, 'exchange_vat_amount');
             $totalAmount = Arr::get($payload, 'total_amount');
 
-            if (blank($totalAmount)) {
+            //if (blank($totalAmount)) {
+            // Search-save fields have already been validated by the user. Persist
+            // them as values; amount calculations belong only to the
+            // pre-validation manual-input workflow.
+            if (!$searchSave && blank($totalAmount)) {
                 $net = $this->parseAmount($netAmount);
                 $vat = $this->parseAmount($vatAmount);
 
@@ -157,7 +161,8 @@ class OcrInvoiceCorrectionService
 
             $exchangeTotalAmount = Arr::get($payload, 'exchange_total_amount');            
 
-            if (blank($exchangeTotalAmount)) {
+            //if (blank($exchangeTotalAmount)) {
+            if (!$searchSave && blank($exchangeTotalAmount)) {
                 $exchangeNet = $this->parseAmount($exchangeNetAmount);
                 $exchangeVat = $this->parseAmount($exchangeVatAmount);
 
@@ -167,6 +172,7 @@ class OcrInvoiceCorrectionService
             }
 
             if (
+                !$searchSave &&
                 blank($netAmount) &&
                 blank($vatAmount) &&
                 filled($exchangeNetAmount) &&
@@ -221,7 +227,7 @@ class OcrInvoiceCorrectionService
                 }
             }
 
-            if ($this->shouldSwapLocalCurrency($countryCode, $currency, $exchangeCurrency)) {                         
+            if ($this->shouldSwapLocalCurrency($countryCode, $currency, $exchangeCurrency)) {
                 [$currency, $exchangeCurrency] = [$exchangeCurrency, $currency];
                 [$netAmount, $exchangeNetAmount] = [$exchangeNetAmount, $netAmount];
                 [$vatAmount, $exchangeVatAmount] = [$exchangeVatAmount, $vatAmount];
@@ -232,17 +238,26 @@ class OcrInvoiceCorrectionService
                 }
             }
 
-            if($searchSave)
-                $originalNetAmount = Arr::get($payload, 'original_net_amount');
-            else
-                $originalNetAmount = $netAmount;
+            // if($searchSave)
+            //     $originalNetAmount = Arr::get($payload, 'original_net_amount');
+            // else
+            //     $originalNetAmount = $netAmount;
+
+            $creditNote = (bool) Arr::get($payload, 'credit_note', false);
+            $netAmount = $this->withCreditSign($netAmount, $creditNote);
+            $exchangeNetAmount = $this->withCreditSign($exchangeNetAmount, $creditNote);
+            $vatAmount = $this->withCreditSign($vatAmount, $creditNote);
+            $exchangeVatAmount = $this->withCreditSign($exchangeVatAmount, $creditNote);
+            $totalAmount = $this->withCreditSign($totalAmount, $creditNote);
+            $exchangeTotalAmount = $this->withCreditSign($exchangeTotalAmount, $creditNote);
 
             $this->set($data, 'currency', $currency);
             $this->set($data, 'exchange_currency', $exchangeCurrency);
-            //$this->set($data, 'net_amount', $this->formatEuropeanAmount($netAmount));
-            $this->set($data, 'net_amount', $this->formatEuropeanAmount($originalNetAmount));
+            $this->set($data, 'net_amount', $this->formatEuropeanAmount($netAmount));
+            //$this->set($data, 'net_amount', $this->formatEuropeanAmount($originalNetAmount));
             $this->set($data, 'exchange_net_amount', $this->formatEuropeanAmount($exchangeNetAmount));
-            $this->set($data, 'credit_note', (bool) Arr::get($payload, 'credit_note', false));
+            //$this->set($data, 'credit_note', (bool) Arr::get($payload, 'credit_note', false));
+            $this->set($data, 'credit_note', $creditNote);
             $this->set($data, 'vat_rate', Arr::get($payload, 'vat_rate'));
             $this->set($data, 'vat_amount', $this->formatEuropeanAmount($vatAmount));
             $this->set($data, 'total_amount', $this->formatEuropeanAmount($totalAmount));
@@ -253,6 +268,11 @@ class OcrInvoiceCorrectionService
 
             if($searchSave)
             {
+                $originalNetAmount = $this->withCreditSign(
+                    Arr::get($payload, 'original_net_amount'),
+                    $creditNote
+                );
+
                 $discountAmount = Arr::get($payload, 'discount_amount');
                 $additionalAmount = Arr::get($payload, 'additional_amount');
                 $varianceAmount = Arr::get($payload, 'variance_amount');
@@ -269,6 +289,7 @@ class OcrInvoiceCorrectionService
                 //     ]; 
                 // }
                 
+                $this->set($data, 'original_net_amount', $this->formatEuropeanAmount($originalNetAmount));
                 $this->set($data, 'discount_amount', $this->formatEuropeanAmount($discountAmount));
                 $this->set($data, 'additional_charges', $this->formatEuropeanAmount($additionalAmount));
                 $this->set($data, 'variance', $this->formatEuropeanAmount($varianceAmount));                
@@ -615,5 +636,16 @@ class OcrInvoiceCorrectionService
             ',',
             '.'
         );
+    }
+    
+    private function withCreditSign($amount, bool $creditNote)
+    {
+        if ($amount === null || $amount === '') {
+            return $amount;
+        }
+
+        $unsignedAmount = ltrim(trim((string) $amount), '-');
+
+        return $creditNote ? '-' . $unsignedAmount : $unsignedAmount;
     }
 }

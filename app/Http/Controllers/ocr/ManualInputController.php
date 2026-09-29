@@ -14,6 +14,7 @@ use App\Services\OcrAnalyzeService;
 use App\Services\OcrInvoiceNumberService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,23 @@ class ManualInputController extends Controller
    
     public function save(Request $request, int $id): JsonResponse
     {
+        $amountRule = ['nullable', 'regex:/^-?\d+(?:[.,]\d+)*$/'];
+        $request->validate([
+            'invoice_date' => ['required', 'date_format:Y-m-d'],
+            'vat_rate' => $amountRule,
+            'exchange_rate' => $amountRule,
+            'net_amount' => $amountRule,
+            'exchange_net_amount' => $amountRule,
+            'vat_amount' => $amountRule,
+            'exchange_vat_amount' => $amountRule,
+            'total_amount' => $amountRule,
+            'exchange_total_amount' => $amountRule,
+            'original_net_amount' => $amountRule,
+            'discount_amount' => $amountRule,
+            'additional_amount' => $amountRule,
+            'variance_amount' => $amountRule,
+        ]);
+
         // if ($request->source) {
         //     return response()->json([
         //         'success' => true,
@@ -708,6 +726,9 @@ class ManualInputController extends Controller
             'vat_rate' => data_get($data, 'vat_rate'),
             'exchange_rate' => data_get($data, 'exchange_rate'),
             'net_amount' => data_get($data, 'net_amount'),
+            'original_net_amount' => Arr::has($data, 'original_net_amount')
+                ? data_get($data, 'original_net_amount')
+                : data_get($data, 'net_amount'),
             'additional_charges' => data_get($data, 'additional_charges'),
             'variance' => data_get($data, 'variance'),
             'discount_amount' => data_get($data, 'discount_amount'),
