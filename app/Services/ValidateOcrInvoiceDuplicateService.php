@@ -53,6 +53,8 @@ class ValidateOcrInvoiceDuplicateService
 
     private function normalizeByType(array $data, ?string $invoiceType = null): array
     {
+        $data = $this->withLegacyEffectiveInvoiceNumber($data, $invoiceType);
+
         return match ($this->resolveType($data, $invoiceType)) {
 
             'com' => $this->normalizeCom($data),
@@ -63,6 +65,31 @@ class ValidateOcrInvoiceDuplicateService
         };
     }
 
+    /**
+     * Historical OCR payloads predate effective_invoice_number. Reapply the
+     * same client-specific invoice-number rules used during current inflow so
+     * old and new representations produce the same duplicate fingerprint.
+     */
+    private function withLegacyEffectiveInvoiceNumber(
+        array $data,
+        ?string $invoiceType
+    ): array {
+        if (!empty($data['effective_invoice_number'])) {
+            return $data;
+        }
+
+        $clientName = $data['recipient']['name']
+            ?? $data['supplier']['name']
+            ?? null;
+
+        return (new OcrInvoiceNumberService())->apply(
+            $data,
+            $clientName,
+            null,
+            $invoiceType
+        );
+    }
+    
     private function normalizeCom(array $data): array
     {
         // Log::info([           

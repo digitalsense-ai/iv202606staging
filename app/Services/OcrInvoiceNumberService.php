@@ -41,7 +41,7 @@ class OcrInvoiceNumberService
 
         if (str_contains($clientName, 'engel')) {
             $notes[] = 'Invoice number: the text ".. ff" is removed from commercial invoice numbers.';
-            $notes[] = 'Exchange amounts: a missing exchange VAT amount/currency is recovered from OCR text; "0 NOK" is interpreted as NOK 0.';
+            // $notes[] = 'Exchange amounts: a missing exchange VAT amount/currency is recovered from OCR text; "0 NOK" is interpreted as NOK 0.';
         }
 
         if (str_contains($clientName, 'adag')) {

@@ -809,6 +809,11 @@ $(function () {
                 if (type !== 'display') return row.id;
 
                 const inflowBadge = buildOcrSourceBadge(row.data_from, row.subject);
+                if(row.invoice_no == "106550")
+                {
+                  console.log(row);
+                  console.log(inflowBadge);
+                }
                 if (row.source === 'sftp') {
                     return `
                         <div>

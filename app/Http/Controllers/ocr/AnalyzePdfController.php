@@ -3637,7 +3637,7 @@ class AnalyzePdfController extends Controller
                 //     ->pluck('ocr_pdf_id')
                 //     //->take(2)
                 //     ->toArray();
-                //$excludeIds = [55395, 55396, 55397];
+                $excludeIds = [55395, 55396, 55397];
                 //$excludeIds = [];
                 $selected_analyze_ids = collect($rows)
                     ->pluck('invoice_ids')
@@ -3646,7 +3646,7 @@ class AnalyzePdfController extends Controller
                         return explode(',', $ids);
                     })
                     ->map(fn ($id) => (int) trim($id))
-                    //->reject(fn ($id) => in_array($id, $excludeIds, true))
+                    ->reject(fn ($id) => in_array($id, $excludeIds, true))
                     ->unique()
                     ->values()
                     ->toArray();

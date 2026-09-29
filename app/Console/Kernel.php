@@ -46,7 +46,7 @@ class Kernel extends ConsoleKernel
         {
             $schedule->command('ocrinbox:process')->everyThirtyMinutes();
 
-            //$schedule->command('ocrsftp:process')->dailyAt('00:00');
+            $schedule->command('ocrsftp:process')->dailyAt('00:00');
 
             $schedule->command('ocrsyncdb:process')->everyFifteenMinutes();
 

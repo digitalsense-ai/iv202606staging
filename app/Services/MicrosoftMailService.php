@@ -369,52 +369,52 @@ class MicrosoftMailService
                 'salesconditions_', 'millarco_påmindelse', 'merged_reports_report_queue', 'ordreoversigt'])
         ) return $grouped;
 
-        if (stripos($subject, "second female") !== false) 
-        {
-            //store the same file in both folders
-            //com
-            $folder = 'com';
-            $path = "ocr/$folder/$fileName"; // relative to storage/app                    
-            Storage::disk('local')->put($path, base64_decode($attachment['contentBytes']));
+        // if (stripos($subject, "second female") !== false) 
+        // {
+        //     //store the same file in both folders
+        //     //com
+        //     $folder = 'com';
+        //     $path = "ocr/$folder/$fileName"; // relative to storage/app                    
+        //     Storage::disk('local')->put($path, base64_decode($attachment['contentBytes']));
 
-            $fullPath = storage_path('app/' . $path); // this will exist                
+        //     $fullPath = storage_path('app/' . $path); // this will exist                
 
-            $pdfInfo = new Fpdi();
-            $totalPages = $pdfInfo->setSourceFile($fullPath);
+        //     $pdfInfo = new Fpdi();
+        //     $totalPages = $pdfInfo->setSourceFile($fullPath);
 
-            //Log::info("Second Female Total pages: ". $totalPages);
-            if($totalPages <= 3)
-            {
-                // Delete local file
-                if (file_exists($fullPath)) {
-                    unlink($fullPath);
-                }
-            }
-            else
-            {
-                //$grouped[$folder][] = $fullPath;
+        //     //Log::info("Second Female Total pages: ". $totalPages);
+        //     if($totalPages <= 3)
+        //     {
+        //         // Delete local file
+        //         if (file_exists($fullPath)) {
+        //             unlink($fullPath);
+        //         }
+        //     }
+        //     else
+        //     {
+        //         //$grouped[$folder][] = $fullPath;
 
-                $grouped[$folder][] = [
-                    'path' => $fullPath,
-                    'prevCapture' => $attachment['prevCapture'] ?? null
-                ];
-            }
+        //         $grouped[$folder][] = [
+        //             'path' => $fullPath,
+        //             'prevCapture' => $attachment['prevCapture'] ?? null
+        //         ];
+        //     }
 
-            //sales
-            $folder = 'sales';
-            $path = "ocr/$folder/$fileName"; // relative to storage/app
-            Storage::disk('local')->put($path, base64_decode($attachment['contentBytes']));
+        //     //sales
+        //     $folder = 'sales';
+        //     $path = "ocr/$folder/$fileName"; // relative to storage/app
+        //     Storage::disk('local')->put($path, base64_decode($attachment['contentBytes']));
 
-            $fullPath = storage_path('app/' . $path); // this will exist
-            //$grouped[$folder][] = $fullPath;
+        //     $fullPath = storage_path('app/' . $path); // this will exist
+        //     //$grouped[$folder][] = $fullPath;
 
-            $grouped[$folder][] = [
-                'path' => $fullPath,
-                'prevCapture' => $attachment['prevCapture'] ?? null
-            ];
-        }
-        else
-        {
+        //     $grouped[$folder][] = [
+        //         'path' => $fullPath,
+        //         'prevCapture' => $attachment['prevCapture'] ?? null
+        //     ];
+        // }
+        // else
+        // {
             if(isset($attachment['prevFolder']))
             {
                 if (Str::startsWith(Str::lower($fileName), ['jessi regina', 'samlefaktura'])                    
@@ -510,7 +510,7 @@ class MicrosoftMailService
                 'path' => $fullPath,
                 'prevCapture' => $attachment['prevCapture'] ?? null
             ];
-        }
+        //}
             
         return $grouped;    
     }

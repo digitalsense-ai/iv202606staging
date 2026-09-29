@@ -6254,6 +6254,8 @@ style: 'decimal', currency: currency_style, minimumFractionDigits: 2, maximumFra
                     'exchange_net_amount' : exchange_net_amount,                 
                     'related_sales_invoices' : related_sales_invoices,
                     'azure_url' : analyzepdf.azure_url,
+                    'data_from' : analyzepdf.data_from,
+                    'subject' : analyzepdf.subject,
                     'created_at' : analyzepdf.created_at,
                     'updated_at' : analyzepdf.updated_at,
                     'error' : analyzepdf.error,
