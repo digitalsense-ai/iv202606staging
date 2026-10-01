@@ -17,6 +17,33 @@ use App\Services\MicrosoftMailService;
 
 class OcrAnalyzeService
 {
+    public static function analyzerIdFor(string $invoiceType): string
+    {
+        return match ($invoiceType) {
+            'com' => 'com_invoice_analyzer_v8',
+            default => 'sales_invoice_analyzer_v7',
+        };
+    }
+
+    public static function modelIdFor(string $invoiceType): string
+    {
+        return match ($invoiceType) {
+            'com' => 'custom_com_invoice_v30',
+            default => 'custom_sales_invoice_v28',
+        };
+    }
+
+    public static function analysisIdFor(string $invoiceType, ?string $currentId = null): string
+    {
+        $usesContentUnderstanding = $currentId !== null
+            && (str_starts_with($currentId, 'sales_invoice_analyzer_')
+                || str_starts_with($currentId, 'com_invoice_analyzer_'));
+
+        return $usesContentUnderstanding
+            ? self::analyzerIdFor($invoiceType)
+            : self::modelIdFor($invoiceType);
+    }
+
     // public function analyze(string $ocrProgressKey, array $clients, array $paths, string $folder, string $batchId, string $emailMessageId = null, array $prevCaptures = [], bool $bulk =  false)
     public function analyze(
         string $ocrProgressKey,
@@ -33,17 +60,20 @@ class OcrAnalyzeService
         $invoiceType = $folder; // 'sales' or 'com'
         $whichStudio = 'model';
 
-        $analyzerId = match ($invoiceType) {
-            'sales', 'multi-invoices' => 'sales_invoice_analyzer_v7',
-            'com'   => 'com_invoice_analyzer_v8',
-            default => 'sales_invoice_analyzer_v7',
-        };
+        // $analyzerId = match ($invoiceType) {
+        //     'sales', 'multi-invoices' => 'sales_invoice_analyzer_v7',
+        //     'com'   => 'com_invoice_analyzer_v8',
+        //     default => 'sales_invoice_analyzer_v7',
+        // };
 
-        $modelId = match ($invoiceType) {
-            'sales', 'multi-invoices' => 'custom_sales_invoice_v28',
-            'com'   => 'custom_com_invoice_v30',
-            default => 'custom_sales_invoice_v28',
-        };
+        // $modelId = match ($invoiceType) {
+        //     'sales', 'multi-invoices' => 'custom_sales_invoice_v28',
+        //     'com'   => 'custom_com_invoice_v30',
+        //     default => 'custom_sales_invoice_v28',
+        // };
+
+        $analyzerId = self::analyzerIdFor($invoiceType);
+        $modelId = self::modelIdFor($invoiceType);
 
         foreach ($paths as $key => $fullPath) {
             //$fullPath = storage_path('app/' . $path);

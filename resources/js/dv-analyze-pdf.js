@@ -2244,6 +2244,13 @@ console.log("on change");
 
   // inovice type change
   $(document).on('change', '#invoice_type', function () {
+    // The shared Manual Input/Search form owns its type-switch behavior in
+    // dv-analyze-pdf-manual-input.js. In particular, it must retain commercial
+    // references while the user temporarily switches to Sales Invoice.
+    if ($(this).closest('#manualInputForm').length) {
+      return;
+    }
+    
     $repeater.find('[data-repeater-item]').slice(1).remove();
     $repeater.find('[data-repeater-item]')
       .first()

@@ -446,6 +446,9 @@ $(function () {
         const pdfData = data + ' data-invoice_xml_id="' + escapeHtml(item.pdf) + '"';
         actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-download-pdf" title="View PDF"' + pdfData + '><i class="bx bxs-file-pdf text-danger me-2"></i>View PDF</a></li>';
         actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-invoice-edit" title="Edit"' + pdfData + ' data-credit_note="' + (item.credit_note ? 1 : 0) + '" data-edit_from="' + escapeHtml(item.edit_from || '') + '"><i class="bx bx-edit-alt me-2"></i>Edit</a></li>';
+      } else if (item.ocr_pdf_id) {
+        actions += '<li><a href="javascript:;" class="dropdown-item btn-declaration-ocr-invoice-download-pdf" title="View OCR PDF"' + data +
+          ' data-ocr_pdf_id="' + escapeHtml(item.ocr_pdf_id) + '"><i class="bx bxs-file-pdf text-danger me-2"></i>View OCR PDF</a></li>';
       }
     }
     return '<div class="d-inline-block declaration-action">' +
@@ -483,7 +486,8 @@ $(function () {
       if (!invoiceNo) return;
 
       invoiceCounts.set(invoiceNo, (invoiceCounts.get(invoiceNo) || 0) + 1);
-      if (!invoice.disregard_invoice && invoice.pdf && !preferredDuplicateInvoices.has(invoiceNo)) {
+      //if (!invoice.disregard_invoice && invoice.pdf && !preferredDuplicateInvoices.has(invoiceNo)) {
+      if (!invoice.disregard_invoice && (invoice.pdf || invoice.ocr_pdf_id) && !preferredDuplicateInvoices.has(invoiceNo)) {
         preferredDuplicateInvoices.set(invoiceNo, invoice);
       }
     });
@@ -491,7 +495,8 @@ $(function () {
     return commercialInvoices.filter(invoice => {
       const invoiceNo = String(invoice.invoice_no || '').trim();
       if (invoiceNo && invoiceCounts.get(invoiceNo) > 1 && preferredDuplicateInvoices.get(invoiceNo) !== invoice) return false;
-      if (invoice.disregard_invoice && !invoice.pdf && !showDisregarded) return false;
+      //if (invoice.disregard_invoice && !invoice.pdf && !showDisregarded) return false;
+      if (invoice.disregard_invoice && !invoice.pdf && !invoice.ocr_pdf_id && !showDisregarded) return false;
       if (!errorsOnly) return true;
       return invoice.is_net_amount_null || invoice.disregard_invoice || (country === 'NO' && invoice.currency !== 'NOK') || (country === 'CH' && invoice.currency !== 'CHF');
     //});   
@@ -506,12 +511,21 @@ $(function () {
     const vatPercent = country === 'CH' ? '8.1' : '25';
     const invoices = visibleSalesInvoices(commercial);
     const rows = invoices.map(invoice => {
-      const isDisabled = invoice.disregard_invoice && !invoice.pdf;
+      //const isDisabled = invoice.disregard_invoice && !invoice.pdf;
+      const isDisabled = invoice.disregard_invoice && !invoice.pdf && !invoice.ocr_pdf_id;
+      // Missing Files is about the supporting document, not whether OCR was
+      // able to extract an amount from a document that is present.
+      const isMissingInvoiceFile = Boolean(invoice.invoice_no) && !invoice.pdf && !invoice.ocr_pdf_id;
+      const missingInvoiceClass = isMissingInvoiceFile ? ' text-danger' : '';
+      const missingInvoiceTitle = isMissingInvoiceFile
+        ? ' data-bs-toggle="tooltip" data-bs-placement="top" title="Missing sales invoice file"'
+        : '';
 
       return '<tr class="' + (isDisabled ? 'disabled' : '') + '"' + commentTooltip(invoice) + '>' +
       //'<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (isDisabled ? '' : '<input type="checkbox" class="dt-chk form-check-input" value="' + escapeHtml(invoice.id) + '">') + '</td>' +
       '<td class="cw-1 declaration-th-w20 dt-chk-cell alert-warning">' + (isDisabled ? '' : '<input type="checkbox" class="dt-chk form-check-input' + (commercial.category_desc === 'Credit Notes/Missing Ref.' ? ' move-invoice-file' : '') + '" value="' + escapeHtml(invoice.id) + '" data-invoice_no="' + escapeHtml(invoice.invoice_no) + '" data-invoice_date="' + escapeHtml(invoice.o_invoice_date || invoice.invoice_date) + '">') + '</td>' +
-      '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_no) + '</td>' +
+      //'<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_no) + '</td>' +
+      '<td class="text-start declaration-th-w150' + missingInvoiceClass + '"' + missingInvoiceTitle + '>' + escapeHtml(invoice.invoice_no) + '</td>' +
       '<td class="text-start declaration-th-w150">' + escapeHtml(invoice.invoice_date || invoice.o_invoice_date) + '</td>' +
       '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.net_amount) + '</td>' +
       (country === 'CH' ? '<td class="text-end declaration-th-w150">' + escapeHtml(invoice.convert_net_amount) + '</td>' : '') +

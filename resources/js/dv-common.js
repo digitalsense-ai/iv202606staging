@@ -2194,6 +2194,7 @@ $(function () {
                         {
                           "id": invoice['id'],
                           "pdf": sales_xml_id,
+                          "ocr_pdf_id": invoice['ocr_pdf_id'] || null,
                           "edit_from": edit_from,                          
                           "invoice_no": invoice['invoice_no'],
                           "invoice_date": moment(invoice['invoice_date']).format('DD-MM-YYYY'),
@@ -3986,6 +3987,7 @@ $(function () {
                         {
                           "id": invoice['id'],
                           "pdf": sales_xml_id,
+                          "ocr_pdf_id": invoice['ocr_pdf_id'] || null,
                           "edit_from": edit_from,                          
                           "invoice_no": invoice['invoice_no'],
                           "invoice_date": moment(invoice['invoice_date']).format('DD-MM-YYYY'),

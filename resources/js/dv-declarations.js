@@ -1525,7 +1525,11 @@ console.log(declaration_datas);
 
             var currency_code = rowData['currency'];
 
-            if(sales_invoice_no == '' || rowData['is_net_amount_null'] || currency_code != 'NOK')
+            //if(sales_invoice_no == '' || rowData['is_net_amount_null'] || currency_code != 'NOK')
+            // This workbook is the "Missing Files" export. A missing OCR
+            // amount or a non-NOK currency does not mean that the supporting
+            // invoice file is absent; the PDF/file identifier is authoritative.
+            if(sales_invoice_no == '' || (!rowData['pdf'] && !rowData['ocr_pdf_id']))
             {
               let vat_amount = rowData['vat_amount'];
               let parsed_vat_amount =  parseAmountValue(vat_amount, currency_style);
@@ -5185,6 +5189,40 @@ console.log(com_invoices);
       });
   });
 
+  // View the OCR-hosted sales invoice for clients that do not use SFTP.
+  $(document).on('click', '.btn-declaration-ocr-invoice-download-pdf', function () {
+    var button = $(this);
+    var ocrPdfId = button.data('ocr_pdf_id');
+
+    if (!ocrPdfId) return;
+
+    var originalHtml = button.html();
+    var pdfWindow = window.open('about:blank', '_blank');
+    if (pdfWindow) pdfWindow.opener = null;
+    button.addClass('disabled').html('<span><i class="bx bxs-file-pdf text-danger"></i> Loading...</span>');
+
+    $.get(baseUrl + 'analyzepdf/' + ocrPdfId + '/sas-url')
+      .done(function (response) {
+        if (response && response.azure_signed_url) {
+          if (pdfWindow) {
+            pdfWindow.location.replace(response.azure_signed_url);
+          } else {
+            window.location.href = response.azure_signed_url;
+          }
+        } else {
+          if (pdfWindow) pdfWindow.close();
+          console.log('OCR PDF not available.');
+        }
+      })
+      .fail(function (error) {
+        if (pdfWindow) pdfWindow.close();
+        console.log(error);
+      })
+      .always(function () {
+        button.removeClass('disabled').html(originalHtml);
+      });
+  });
+  
   // Add FTP Sales invoice XML - open modal
   $(document).on('click', '.btn-declaration-invoice-create', function () {    
     var btn_create_salesinvoice = $(this);

@@ -215,6 +215,10 @@ $(function () {
       list._salesInvoiceObserver = observer;
     }
 
+    $repeater
+      .off('input.salesInvoiceCount', '.sales-invoice-ref-no')
+      .on('input.salesInvoiceCount', '.sales-invoice-ref-no', updateSalesInvoiceCount);
+
     updateSalesInvoiceCount();
   }
 
@@ -222,9 +226,13 @@ $(function () {
   function updateSalesInvoiceCount() {
     const $repeater = $('.form-salesinvoice-repeater');
 
-    const count = $repeater.find(
-      '[data-repeater-list="sales-invoice"] > [data-repeater-item]'
-    ).length;
+    // const count = $repeater.find(
+    //   '[data-repeater-list="sales-invoice"] > [data-repeater-item]'
+    // ).length;
+
+    const count = $repeater.find('.sales-invoice-ref-no').filter(function () {
+      return ($(this).val() || '').trim() !== '';
+    }).length;
 
     //console.log('Sales invoice count:', count);
 
@@ -1070,7 +1078,7 @@ $(function () {
         .addClass('d-none');
 
       $('.sales-invoice-ref-no')
-        .val('')
+        //.val('')
         .prop('disabled', true);
     }
   }
@@ -1546,7 +1554,10 @@ $(function () {
   }
   
   $(document).on('change', '#invoice_type', function () {  
-    applyInvoiceTypeVisibility($(this).val());
+    //applyInvoiceTypeVisibility($(this).val());
+    const invoiceType = $(this).val();
+    $('#invoice_type_hidden').val(invoiceType);
+    applyInvoiceTypeVisibility(invoiceType);
   });
 
   $('#btnRefreshQueue').on('click', () => loadQueue(true));

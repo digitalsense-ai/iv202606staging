@@ -106,6 +106,13 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
             $commercial_currency = $comInvoice->currency ?? null;
             $commercial_net_amount = $comInvoice->net_amount ?? null;
 
+            $relatedSalesInvoiceNumbers = collect($comInvoice->related_sales_invoices ?? [])
+                ->map(fn ($invoiceNumber) => trim((string) $invoiceNumber))
+                ->filter()
+                ->unique()
+                ->values();
+            $resolvedSalesInvoiceNumbers = collect();
+
             /*
              * Your existing matching logic should go here.
              *
@@ -382,6 +389,7 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                                 'saved_at' => $saved_at,
                             ]
                         );
+                        $resolvedSalesInvoiceNumbers->push($sales_invoice->invoice_no);
                     }
                 }//this is only for selected client
 
@@ -495,6 +503,17 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                             'saved_at' => $saved_at,
                         ]
                     );
+                    $resolvedSalesInvoiceNumbers->push($sales_invoice_no);
+
+                    // A file that arrived after an earlier reconciliation
+                    // replaces the synthetic row used to report it as missing.
+                    ImportReconciliationSalesInvoices::query()
+                        ->where('vat_reg_id', $matched_vatregid)
+                        ->where('com_invoice_id', $insert_cominvoice->id)
+                        ->where('invoice_no', $sales_invoice_no)
+                        ->whereNull('ocr_pdf_id')
+                        ->where('doc_status', 'Missing')
+                        ->delete();
 
                     /*
                      * ---------------------------------------------------------
@@ -558,6 +577,59 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
             }
 
             /*
+             * Keep every reference represented in reconciliation, including
+             * references for which no supporting invoice file has arrived.
+             * Downstream OCR rendering and the missing-invoices export both
+             * derive their result from these rows, so silently dropping a
+             * reference hides it in both places.
+             */
+            $missingSalesInvoiceNumbers = self::missingReferenceNumbers(
+                $relatedSalesInvoiceNumbers->all(),
+                $resolvedSalesInvoiceNumbers->all()
+            );
+
+            foreach ($missingSalesInvoiceNumbers as $missingInvoiceNumber) {
+                $this->saveSalesInvoice(
+                    $matched_vatregid,
+                    $insert_cominvoice->id,
+                    $missingInvoiceNumber,
+                    null,
+                    [
+                        'invoice_date' => $commercial_invoice_date,
+                        'country' => $matched_country ?: '',
+                        'currency_code' => $commercial_currency ?: ($matched_currency ?: ''),
+                        'doc_status' => 'Missing',
+                        'net_amount' => null,
+                        'vat_amount' => null,
+                        'total_amount' => null,
+                        'shipping' => null,
+                        'variance' => null,
+                        'adjustment_amount' => null,
+                        'credit_note' => false,
+                        'updated_by' => $this->authUser->id,
+                        'saved_at' => $saved_at,
+                    ]
+                );
+            }
+
+            // Remove obsolete synthetic rows when a reference is corrected or
+            // removed from the PROFORMA.
+            ImportReconciliationSalesInvoices::query()
+                ->where('vat_reg_id', $matched_vatregid)
+                ->where('com_invoice_id', $insert_cominvoice->id)
+                ->whereNull('ocr_pdf_id')
+                ->where('doc_status', 'Missing')
+                ->when(
+                    $relatedSalesInvoiceNumbers->isNotEmpty(),
+                    fn ($query) => $query->whereNotIn('invoice_no', $relatedSalesInvoiceNumbers->all())
+                )
+                ->when(
+                    $relatedSalesInvoiceNumbers->isEmpty(),
+                    fn ($query) => $query
+                )
+                ->delete();
+
+            /*
              * ---------------------------------------------------------
              * Mark OCR COM invoice as synced
              * ---------------------------------------------------------
@@ -610,6 +682,14 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
                 fn ($query) => $query->whereNull('ocr_pdf_id'),
                 fn ($query) => $query->whereNotNull('ocr_pdf_id')
             )
+            ->when(
+                $ocrPdfId === null && ($values['doc_status'] ?? null) === 'Missing',
+                fn ($query) => $query->where('doc_status', 'Missing')
+            )
+            ->when(
+                $ocrPdfId === null && ($values['doc_status'] ?? null) !== 'Missing',
+                fn ($query) => $query->where('doc_status', '!=', 'Missing')
+            )
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -639,6 +719,27 @@ class InsertComSalesInvoicesFromNewOcr implements ShouldQueue
         }
 
         return $invoice;
+    }
+    
+    /**
+     * Return referenced invoice numbers that have no supporting invoice row.
+     */
+    public static function missingReferenceNumbers(array $references, iterable $availableNumbers): array
+    {
+        $normalize = static fn ($value): string => trim((string) $value);
+
+        $available = collect($availableNumbers)
+            ->map($normalize)
+            ->filter()
+            ->unique();
+
+        return collect($references)
+            ->map($normalize)
+            ->filter()
+            ->unique()
+            ->reject(fn (string $invoiceNumber) => $available->contains($invoiceNumber))
+            ->values()
+            ->all();
     }
     
     public function failed(Throwable $exception): void

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use App\Repositories\ClientRepository;
 use App\Services\ClientResolver;
 use App\Services\OcrInvoiceNumberService;
+use App\Services\OcrAnalyzeService;
 
 use App\Helpers\EnvironmentHelper;
 
@@ -41,7 +42,20 @@ class OcrInvoiceCorrectionService
     {        
         $data = $invoice->extracted_data ?? [];
         //$invoiceType = Arr::get($payload, 'invoice_type', $invoice->invoice_type);
-        $invoiceType = Arr::get($payload, 'invoice_type_hidden', $invoice->invoice_type);
+        //$invoiceType = Arr::get($payload, 'invoice_type_hidden', $invoice->invoice_type);
+
+        // The visible selector is the source of truth when a user changes the
+        // type in Manual Input. The hidden field is retained as a fallback for
+        // read-only instances of the shared offcanvas form.
+        $invoiceType = Arr::get(
+            $payload,
+            'invoice_type',
+            Arr::get($payload, 'invoice_type_hidden', $invoice->invoice_type)
+        );
+        $invoiceTypeChanged = $invoiceType !== $invoice->invoice_type;
+        $analyzerId = $invoiceTypeChanged
+            ? OcrAnalyzeService::analysisIdFor($invoiceType, $invoice->analyzer_id)
+            : $invoice->analyzer_id;
         
         $countryCode = $this->countryCode($payload, $data);
 
@@ -109,7 +123,10 @@ class OcrInvoiceCorrectionService
             $this->set($data, 'invoice_number', $invoiceNo);
         }
 
-        //$this->set($data, 'invoice_type', $invoiceType);
+        $this->set($data, 'invoice_type', $invoiceType);        
+        if (data_get($data, '_ocr') !== null) {
+            $this->set($data, '_ocr.invoice_type', $invoiceType);
+        }
         $this->set($data, 'country_code', $countryCode);
         $this->set($data, 'invoice_date', Arr::get($payload, 'invoice_date'));
 
@@ -117,6 +134,11 @@ class OcrInvoiceCorrectionService
         $this->set($data, 'net_amount', $this->formatEuropeanAmount(Arr::get($payload, 'net_amount')));
 
         if ($invoiceType === 'com') {
+            // Commercial invoices identify our customer as the recipient. Drop
+            // any supplier data left behind by a previous sales classification
+            // so downstream adapters cannot read a contradictory party.
+            data_forget($data, 'supplier');
+
             $this->set($data, 'recipient.org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'recipient.extracted_org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'recipient.name', $clientName);
@@ -133,6 +155,13 @@ class OcrInvoiceCorrectionService
             data_forget($data, 'exchange_vat_amount');
             data_forget($data, 'exchange_total_amount');
         } else {
+            // Sales invoices identify our customer as the supplier. Remove the
+            // commercial-only party and references when changing type.
+            data_forget($data, 'recipient');
+            data_forget($data, 'related_sales_invoices');
+            data_forget($data, 'related_sales_orders');
+            data_forget($data, 'related_shipment_nos');
+
             $this->set($data, 'supplier.org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'supplier.extracted_org_number', Arr::get($payload, 'client_no'));
             $this->set($data, 'supplier.name', $clientName);
@@ -314,6 +343,9 @@ class OcrInvoiceCorrectionService
 
             $invoice->update([
                 'invoice_type' => ($invoiceType) ? $invoiceType : 'multi-invoices',
+                'analyzer_id' => $analyzerId,
+                'duplicate_hash' => $invoiceTypeChanged ? null : $invoice->duplicate_hash,
+                'duplicate_message' => $invoiceTypeChanged ? null : $invoice->duplicate_message,
                 'extracted_data' => $data,
                 'status' => 'completed',
                 'error' => null,
@@ -336,6 +368,9 @@ class OcrInvoiceCorrectionService
 
             $invoice->update([
                 'invoice_type' => ($invoiceType) ? $invoiceType : 'multi-invoices',
+                'analyzer_id' => $analyzerId,
+                'duplicate_hash' => $invoiceTypeChanged ? null : $invoice->duplicate_hash,
+                'duplicate_message' => $invoiceTypeChanged ? null : $invoice->duplicate_message,
                 'extracted_data' => $data,
                 'status' => $completed ? 'completed' : 'failed',
                 'error' => $completed ? null : implode("\n", $missing),
